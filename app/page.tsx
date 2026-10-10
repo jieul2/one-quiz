@@ -30,7 +30,7 @@ export default function LandingPage() {
       {/* 로고 영역 */}
       <div className="text-center mb-10 cursor-pointer" onClick={() => router.push('/')}>
         <h1 className="text-5xl sm:text-6xl font-extrabold text-gray-900 dark:text-white mb-3 tracking-tight">oneQuiz</h1>
-        <p className="text-gray-600 dark:text-gray-400 text-base sm:text-lg font-medium">최고의 CBT 자격증 기출문제 학습 플랫폼</p>
+        <p className="text-gray-600 dark:text-gray-400 text-base sm:text-lg font-medium">박다훈의 맞춤형 통합 학습 플랫폼 <br/><small className="text-gray-500 dark:text-gray-500">중간고사 : 10/12 ~ 16, 드론조종사 : 10/21</small></p>
       </div>
 
       {/* 메인 메뉴 카드 3개 */}
