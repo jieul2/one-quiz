@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { CheckCircle, Home, Trash2, Filter, PlusCircle, Edit, X, Moon, Sun, RotateCcw, Search, ArrowUpDown, AlertTriangle, Lock } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { CheckCircle, Home, Trash2, Filter, PlusCircle, X, Moon, Sun, RotateCcw, Search, ArrowUpDown, AlertTriangle, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 
@@ -43,6 +43,10 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('default');
 
+  // 모바일 스크롤 감지 상태 (스크롤 내리면 true -> 과목/회차 필터 숨김)
+  const [isScrolledDown, setIsScrolledDown] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -54,8 +58,28 @@ export default function AdminPage() {
 
   useEffect(() => {
     setMounted(true);
-    // 세션 스토리지 등을 활용해 새로고침 시 유지하고 싶다면 추가할 수 있으나 보안상 매번 입력하게 설계
   }, []);
+
+  // 모달 ESC 닫기
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isModalOpen) {
+        setIsModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isModalOpen]);
+
+  // 모바일 카드 목록 스크롤 이벤트 감지
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop;
+    if (scrollTop > 20) {
+      setIsScrolledDown(true);
+    } else {
+      setIsScrolledDown(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,7 +247,6 @@ export default function AdminPage() {
 
   if (!mounted) return null;
 
-  // 인증되지 않은 경우 비밀번호 입력 화면 표시
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-[#121212]">
@@ -253,7 +276,7 @@ export default function AdminPage() {
             />
             <button
               type="submit"
-              className="w-full bg-yellow-500 hover:bg-yellow-600 text-white dark:text-black font-bold py-3 rounded-xl transition-colors shadow-md text-sm"
+              className="w-full bg-yellow-500 hover:bg-yellow-600 text-white dark:text-black font-bold py-3 rounded-xl transition-colors shadow-md text-sm cursor-pointer"
             >
               로그인
             </button>
@@ -269,7 +292,6 @@ export default function AdminPage() {
     );
   }
 
-  // 인증 완료 후 관리자 대시보드 렌더링
   return (
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -277,10 +299,10 @@ export default function AdminPage() {
         <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center bg-white dark:bg-[#1e1e1e] p-4 rounded-xl shadow-md border border-gray-200 dark:border-gray-800 gap-4">
           <h1 className="text-xl font-bold flex items-center gap-2 text-gray-800 dark:text-white">⚙️ 문제 관리 대시보드</h1>
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            <button onClick={handleResetAllHistory} className="flex-1 sm:flex-none flex justify-center items-center gap-2 text-sm bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/60 px-4 py-2 rounded-lg transition-colors">
+            <button onClick={handleResetAllHistory} className="flex-1 sm:flex-none flex justify-center items-center gap-2 text-sm bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/60 px-4 py-2 rounded-lg transition-colors cursor-pointer">
               <AlertTriangle size={16} /> 전체 기록 초기화
             </button>
-            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 bg-gray-100 dark:bg-[#252526] rounded-lg text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 bg-gray-100 dark:bg-[#252526] rounded-lg text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-pointer">
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
             <Link href="/" className="flex justify-center items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-[#252526] px-4 py-2 rounded-lg transition-colors">
@@ -294,33 +316,51 @@ export default function AdminPage() {
             <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
               등록된 문제 목록 <span className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-500 text-xs px-2 py-1 rounded-full">{filteredQuestions.length}개</span>
             </h2>
-            <button onClick={openAddModal} className="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white dark:text-black font-bold px-4 py-2 rounded-lg transition-colors shadow-sm">
+            <button onClick={openAddModal} className="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white dark:text-black font-bold px-4 py-2 rounded-lg transition-colors shadow-sm cursor-pointer">
               <PlusCircle size={18} /> 새 문제 추가
             </button>
           </div>
 
+          {/* 검색, 정렬 및 과목/회차 필터 영역 */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            {/* 검색창 (항상 유지) */}
             <div className="relative">
               <Search size={16} className="absolute left-3 top-3 text-gray-400" />
               <input type="text" placeholder="문제 내용 검색..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" />
             </div>
+            {/* 정렬 셀렉트 (항상 유지) */}
             <div className="relative">
               <ArrowUpDown size={16} className="absolute left-3 top-3 text-gray-400" />
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none">
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none cursor-pointer">
                 <option value="default">기본 정렬</option>
                 <option value="attempts-desc">풀이 많은 순</option>
                 <option value="attempts-asc">풀이 적은 순</option>
               </select>
             </div>
-            <select value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)} className="bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500">
+            
+            {/* 과목 및 회차 필터 (모바일 스크롤 시 숨김 처리, PC에서는 항상 표시) */}
+            <select 
+              value={filterSubject} 
+              onChange={(e) => setFilterSubject(e.target.value)} 
+              className={`bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 cursor-pointer transition-all duration-300 ${
+                isScrolledDown ? 'hidden lg:block' : 'block'
+              }`}
+            >
               {subjects.map(s => <option key={s} value={s}>{s === 'All' ? '전체 과목 필터' : s}</option>)}
             </select>
-            <select value={filterExamType} onChange={(e) => setFilterExamType(e.target.value)} className="bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500">
+            <select 
+              value={filterExamType} 
+              onChange={(e) => setFilterExamType(e.target.value)} 
+              className={`bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 cursor-pointer transition-all duration-300 ${
+                isScrolledDown ? 'hidden lg:block' : 'block'
+              }`}
+            >
               {examTypes.map(e => <option key={e} value={e}>{e === 'All' ? '전체 회차 필터' : e}</option>)}
             </select>
           </div>
           
-          <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+          {/* 카드 목록 스크롤 영역 */}
+          <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto space-y-3 pr-2">
             {filteredQuestions.length === 0 ? (
               <p className="text-gray-500 text-center py-12">조건에 맞는 문제가 없습니다.</p>
             ) : (
@@ -329,7 +369,11 @@ export default function AdminPage() {
                 const correctCount = q.history?.filter(h => h.isCorrect).length || 0;
 
                 return (
-                  <div key={q._id} className="flex items-center justify-between bg-gray-50 dark:bg-[#252526] p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-yellow-500 dark:hover:border-yellow-500 transition-colors group">
+                  <div 
+                    key={q._id} 
+                    onClick={() => openEditModal(q)}
+                    className="flex items-center justify-between bg-gray-50 dark:bg-[#252526] p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-yellow-500 dark:hover:border-yellow-500 transition-colors group cursor-pointer"
+                  >
                     <div className="overflow-hidden pr-4 flex-1">
                       <div className="flex flex-wrap items-center gap-2 mb-2">
                         <span className={`text-[10px] px-2 py-1 rounded font-bold ${q.questionType === 'multiple-choice' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400'}`}>
@@ -346,14 +390,19 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    <div className="flex gap-2 shrink-0 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => handleResetHistory(q._id)} className="p-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-blue-500 hover:text-white rounded-lg transition-colors" title="풀이 기록 초기화">
+                    <div className="flex gap-2 shrink-0 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                      <button 
+                        onClick={() => handleResetHistory(q._id)} 
+                        className="p-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-blue-600 hover:text-white rounded-lg transition-all duration-200 hover:scale-110 hover:shadow-md cursor-pointer" 
+                        title="풀이 기록 초기화"
+                      >
                         <RotateCcw size={16} />
                       </button>
-                      <button onClick={() => openEditModal(q)} className="p-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-yellow-500 hover:text-white rounded-lg transition-colors" title="수정">
-                        <Edit size={16} />
-                      </button>
-                      <button onClick={() => handleDelete(q._id)} className="p-2 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-colors" title="삭제">
+                      <button 
+                        onClick={() => handleDelete(q._id)} 
+                        className="p-2 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-600 hover:text-white rounded-lg transition-all duration-200 hover:scale-110 hover:shadow-md cursor-pointer" 
+                        title="삭제"
+                      >
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -369,7 +418,7 @@ export default function AdminPage() {
             <div className="bg-white dark:bg-[#1e1e1e] w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl flex flex-col">
               <div className="sticky top-0 z-10 flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-[#1e1e1e]/95 backdrop-blur">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">{editMode ? '문제 수정하기' : '새 문제 추가하기'}</h2>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 bg-gray-100 dark:bg-[#2d2d2d] hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors">
+                <button onClick={() => setIsModalOpen(false)} className="p-2 bg-gray-100 dark:bg-[#2d2d2d] hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors cursor-pointer">
                   <X size={20} className="text-gray-600 dark:text-gray-400" />
                 </button>
               </div>
@@ -383,8 +432,8 @@ export default function AdminPage() {
                 
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="flex gap-2 p-1.5 bg-gray-100 dark:bg-[#252526] rounded-lg">
-                    <button type="button" onClick={() => handleTypeChange('multiple-choice')} className={`flex-1 py-2 rounded-md text-sm font-bold transition-colors ${formData.questionType === 'multiple-choice' ? 'bg-white dark:bg-yellow-600 text-gray-900 dark:text-black shadow' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-[#333]'}`}>객관식 (4지선다)</button>
-                    <button type="button" onClick={() => handleTypeChange('short-answer')} className={`flex-1 py-2 rounded-md text-sm font-bold transition-colors ${formData.questionType === 'short-answer' ? 'bg-white dark:bg-yellow-600 text-gray-900 dark:text-black shadow' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-[#333]'}`}>주관식 (단답형)</button>
+                    <button type="button" onClick={() => handleTypeChange('multiple-choice')} className={`flex-1 py-2 rounded-md text-sm font-bold transition-colors cursor-pointer ${formData.questionType === 'multiple-choice' ? 'bg-white dark:bg-yellow-600 text-gray-900 dark:text-black shadow' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-[#333]'}`}>객관식 (4지선다)</button>
+                    <button type="button" onClick={() => handleTypeChange('short-answer')} className={`flex-1 py-2 rounded-md text-sm font-bold transition-colors cursor-pointer ${formData.questionType === 'short-answer' ? 'bg-white dark:bg-yellow-600 text-gray-900 dark:text-black shadow' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-[#333]'}`}>주관식 (단답형)</button>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -429,7 +478,7 @@ export default function AdminPage() {
                     <div>
                       <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-400">정답 입력</label>
                       {formData.questionType === 'multiple-choice' ? (
-                        <select name="correctAnswer" value={formData.correctAnswer} onChange={handleChange} className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 text-sm focus:border-yellow-500 focus:outline-none">
+                        <select name="correctAnswer" value={formData.correctAnswer} onChange={handleChange} className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 text-sm focus:border-yellow-500 focus:outline-none cursor-pointer">
                           <option value="1">1번</option><option value="2">2번</option><option value="3">3번</option><option value="4">4번</option>
                         </select>
                       ) : (
@@ -438,11 +487,11 @@ export default function AdminPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-400">해설 (선택)</label>
-                      <input type="text" name="explanation" value={formData.explanation} onChange={handleChange} className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 text-sm focus:border-yellow-500 focus:outline-none" />
+                      <textarea name="explanation" value={formData.explanation} onChange={handleChange} rows={4} placeholder="해설을 여러 줄로 입력하세요 (엔터 지원)" className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 text-sm focus:border-yellow-500 focus:outline-none" />
                     </div>
                   </div>
 
-                  <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-white dark:text-black font-bold py-3.5 rounded-xl transition-colors shadow-md text-lg mt-4">
+                  <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-white dark:text-black font-bold py-3.5 rounded-xl transition-colors shadow-md text-lg mt-4 cursor-pointer">
                     {editMode ? '수정 완료' : '새 문제 저장'}
                   </button>
                 </form>

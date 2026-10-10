@@ -54,6 +54,9 @@ function ExamContent() {
   const [results, setResults] = useState<Record<string, boolean>>({});
   const [showExplanation, setShowExplanation] = useState<Record<string, boolean>>({});
   
+  // 모바일 및 터치 기기에서 클릭으로 기록 팝업을 토글하기 위한 상태 (문제별 ID 저장)
+  const [openHistoryId, setOpenHistoryId] = useState<string | null>(null);
+  
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [isSettingOpen, setIsSettingOpen] = useState(false);
@@ -65,19 +68,13 @@ function ExamContent() {
         const res = await fetch('/api/questions');
         const data = await res.json();
         setQuestions(data);
+        generateExamSet(data, '20', false);
       } catch (e) {
         console.error(e);
       }
     }
     fetchQuestions();
   }, []);
-
-  // questions 데이터가 로드되거나 랜딩 페이지의 과목/회차 파라미터가 바뀔 때 '새로 뽑기'와 동일한 섞기 로직을 즉시 실행합니다.
-  useEffect(() => {
-    if (questions.length > 0) {
-      generateExamSet(questions, questionCountMode, prioritizeUnsolved);
-    }
-  }, [questions, paramSubject, paramExamType]);
 
   const handleApplyNewSet = () => {
     setQuestionCountMode(pendingCountMode);
@@ -113,6 +110,7 @@ function ExamContent() {
     setUserAnswers({});
     setResults({});
     setShowExplanation({});
+    setOpenHistoryId(null);
   };
 
   const scrollToQuestion = (id: string) => {
@@ -144,8 +142,10 @@ function ExamContent() {
       
       if (res.ok) {
         const updatedRes = await res.json();
-        setDisplayQuestions(prev => prev.map(q => q._id === qId ? updatedRes.data : q));
-        setQuestions(prev => prev.map(q => q._id === qId ? updatedRes.data : q));
+        const updatedData = updatedRes.data;
+
+        setDisplayQuestions(prev => prev.map(q => q._id === qId ? { ...q, history: updatedData.history } : q));
+        setQuestions(prev => prev.map(q => q._id === qId ? { ...q, history: updatedData.history } : q));
       }
     } catch (error) {
       console.error('기록 저장 실패');
@@ -164,10 +164,10 @@ function ExamContent() {
       <aside className="w-full lg:w-64 bg-white dark:bg-[#1e1e1e] border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-gray-800 flex flex-col shrink-0 z-30 shadow-md">
         <div className="flex flex-row lg:flex-col justify-between items-center lg:items-stretch p-3 lg:p-0">
           <div className="lg:p-4 lg:border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-[#1a1a1a] rounded-lg lg:rounded-none flex justify-between items-center">
-            <Link href="/" className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-bold px-2 lg:px-0">
+            <Link href="/" className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-bold px-2 lg:px-0 cursor-pointer">
               <Home size={16} /> <span className="hidden sm:inline lg:inline">oneQuiz 홈</span>
             </Link>
-            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="lg:hidden p-1.5 bg-gray-200 dark:bg-[#252526] rounded-md text-gray-600 dark:text-gray-400">
+            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="lg:hidden p-1.5 bg-gray-200 dark:bg-[#252526] rounded-md text-gray-600 dark:text-gray-400 cursor-pointer">
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             </button>
           </div>
@@ -201,7 +201,7 @@ function ExamContent() {
               if (isSubmitted) { btnClass = isCorrect ? "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700" : "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400 border-red-300 dark:border-red-700"; }
               return (
                 <li key={q._id} className="shrink-0">
-                  <button onClick={() => scrollToQuestion(q._id)} className={`w-9 h-9 lg:w-full lg:aspect-square flex items-center justify-center rounded-lg text-xs font-bold transition-all shadow-sm ${btnClass}`}>{idx + 1}</button>
+                  <button onClick={() => scrollToQuestion(q._id)} className={`w-9 h-9 lg:w-full lg:aspect-square flex items-center justify-center rounded-lg text-xs font-bold transition-all shadow-sm ${btnClass} cursor-pointer`}>{idx + 1}</button>
                 </li>
               );
             })}
@@ -217,16 +217,16 @@ function ExamContent() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 truncate">
                 <Filter size={16} className="text-yellow-600 dark:text-yellow-500 shrink-0"/> 
-                <span>과목: <strong className="text-yellow-600 dark:text-yellow-400">{paramSubject}</strong> / 회차: <strong className="text-yellow-600 dark:text-yellow-400">{paramExamType}</strong></span>
+                <span className="truncate">과목: <strong className="text-yellow-600 dark:text-yellow-400">{paramSubject}</strong> / 회차: <strong className="text-yellow-600 dark:text-yellow-400">{paramExamType}</strong></span>
               </div>
-              <button onClick={() => setIsSettingOpen(!isSettingOpen)} className="lg:hidden flex items-center gap-1 text-xs bg-gray-100 dark:bg-[#252526] px-3 py-1.5 rounded border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 shrink-0">
+              <button onClick={() => setIsSettingOpen(!isSettingOpen)} className="lg:hidden flex items-center gap-1 text-xs bg-gray-100 dark:bg-[#252526] px-3 py-1.5 rounded border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 shrink-0 cursor-pointer">
                 <Settings2 size={14} /> 설정변경
               </button>
             </div>
             
             <div className={`flex flex-wrap lg:flex-row gap-2 lg:gap-4 items-center w-full ${isSettingOpen ? 'flex' : 'hidden lg:flex'}`}>
               
-              <select value={pendingCountMode} onChange={(e) => setPendingCountMode(e.target.value as any)} className="flex-1 lg:flex-none bg-gray-50 dark:bg-[#1e1e1e] border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-xs sm:text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500">
+              <select value={pendingCountMode} onChange={(e) => setPendingCountMode(e.target.value as any)} className="flex-1 lg:flex-none bg-gray-50 dark:bg-[#1e1e1e] border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-xs sm:text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 cursor-pointer">
                 <option value="10">10문제</option>
                 <option value="20">20문제</option>
                 <option value="30">30문제</option>
@@ -234,7 +234,7 @@ function ExamContent() {
               </select>
               
               <label className="flex items-center gap-2 cursor-pointer bg-gray-50 dark:bg-[#1e1e1e] border border-gray-300 dark:border-gray-700 px-3 py-2 rounded-lg text-xs sm:text-sm text-gray-800 dark:text-gray-200 select-none flex-1 lg:flex-none justify-center">
-                <input type="checkbox" checked={pendingUnsolved} onChange={(e) => setPendingUnsolved(e.target.checked)} className="accent-yellow-500 w-4 h-4" />
+                <input type="checkbox" checked={pendingUnsolved} onChange={(e) => setPendingUnsolved(e.target.checked)} className="accent-yellow-500 w-4 h-4 cursor-pointer" />
                 안 푼 문제 우선
               </label>
 
@@ -270,27 +270,55 @@ function ExamContent() {
                 
                 const attemptCount = q.history?.length || 0;
                 const correctCount = q.history?.filter(h => h.isCorrect).length || 0;
+                const isHistoryOpen = openHistoryId === q._id;
 
                 return (
                   <div key={q._id} id={`question-${q._id}`} className="bg-white dark:bg-[#252526] rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-xl dark:shadow-2xl">
                     
-                    <div className="bg-gray-100 dark:bg-[#8b2323] px-4 sm:px-5 py-2.5 sm:py-3 text-gray-800 dark:text-white text-xs sm:text-sm font-semibold flex items-center justify-between border-b border-gray-200 dark:border-transparent">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="bg-white dark:bg-red-700 border border-gray-300 dark:border-transparent px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs shadow-sm shrink-0">기출</span>
-                        <span className="truncate max-w-[100px] sm:max-w-[150px]">{q.examType}</span>
-                        <span className="opacity-30 dark:opacity-50 mx-1">|</span>
-                        <span className="text-gray-600 dark:text-gray-200 font-normal truncate max-w-[120px] sm:max-w-none">{q.subject}</span>
+                    {/* 카드 헤더 (N회 풀음 뱃지 제거 및 터치/클릭 토글 방식 적용) */}
+                    <div className="bg-gray-100 dark:bg-[#8b2323] px-4 sm:px-5 py-3 text-gray-800 dark:text-white text-xs sm:text-sm font-semibold flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-200 dark:border-transparent">
+                      <div className="flex flex-wrap items-center gap-2 break-words">
+                        <span className="bg-white dark:bg-red-700 border border-gray-300 dark:border-transparent px-2 py-0.5 rounded text-[10px] sm:text-xs shadow-sm shrink-0">기출</span>
+                        <span className="break-words font-medium">{q.examType}</span>
+                        <span className="opacity-30 dark:opacity-50 hidden sm:inline">|</span>
+                        <span className="text-gray-600 dark:text-gray-200 font-normal break-words">{q.subject}</span>
                       </div>
                       
-                      <div className="group relative flex items-center">
-                        <span className="flex items-center gap-1 text-gray-500 dark:text-gray-300 text-[10px] sm:text-xs shrink-0 bg-white dark:bg-black/20 px-2.5 py-1 rounded-full shadow-inner border border-gray-200 dark:border-transparent cursor-help transition-colors hover:bg-gray-200 dark:hover:bg-black/40">
-                          Q. {idx + 1} / {displayQuestions.length} <Info size={12} className="opacity-70" />
-                        </span>
-                        <div className="absolute right-0 top-full mt-2 w-40 bg-gray-800 dark:bg-gray-700 text-white text-xs rounded-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 shadow-xl border border-gray-600">
-                           <div className="font-bold mb-1.5 border-b border-gray-600 pb-1.5">📝 내 풀이 기록</div>
-                           <div className="flex justify-between mb-1"><span>누적 풀이:</span> <span>{attemptCount}번</span></div>
-                           <div className="flex justify-between mb-1 text-green-400"><span>정답:</span> <span>{correctCount}번</span></div>
-                           <div className="flex justify-between text-red-400"><span>오답:</span> <span>{attemptCount - correctCount}번</span></div>
+                      {/* 클릭(터치) 또는 호버 시 토글되는 풀이 기록 버튼 */}
+                      <div className="relative self-end sm:self-auto">
+                        <button 
+                          onClick={() => setOpenHistoryId(isHistoryOpen ? null : q._id)}
+                          className="flex items-center gap-1.5 text-gray-600 dark:text-gray-200 text-[11px] sm:text-xs bg-white/90 dark:bg-black/40 px-3 py-1 rounded-full shadow-inner border border-gray-200 dark:border-white/10 cursor-pointer font-bold transition-colors hover:bg-gray-200 dark:hover:bg-black/60"
+                        >
+                          <span>Q. {idx + 1} / {displayQuestions.length}</span>
+                          <Info size={13} className="opacity-80 text-yellow-500" />
+                        </button>
+                        
+                        {/* 상세 히스토리 팝업 (클릭 토글 또는 호버 시 오픈) */}
+                        <div className={`absolute right-0 top-full mt-2 w-52 bg-gray-900 dark:bg-[#1a1a1a] text-white text-xs rounded-xl p-3.5 transition-all z-50 shadow-2xl border border-gray-700 ${
+                          isHistoryOpen ? 'opacity-100 visible' : 'opacity-0 invisible sm:group-hover:opacity-100 sm:group-hover:visible'
+                        }`}>
+                           <div className="font-bold mb-2 border-b border-gray-700 pb-1.5 flex justify-between items-center text-yellow-400">
+                             <span>📝 내 풀이 상세 기록</span>
+                             <span>({attemptCount}회)</span>
+                           </div>
+                           <div className="flex justify-between mb-1"><span>누적 정답:</span> <span className="text-green-400 font-bold">{correctCount}회</span></div>
+                           <div className="flex justify-between mb-2"><span>누적 오답:</span> <span className="text-red-400 font-bold">{attemptCount - correctCount}회</span></div>
+                           
+                           {q.history && q.history.length > 0 ? (
+                             <div className="space-y-1 mt-2 border-t border-gray-800 pt-2 max-h-32 overflow-y-auto scrollbar-hide">
+                               {q.history.map((h, i) => (
+                                 <div key={i} className="flex justify-between text-[11px] text-gray-300">
+                                   <span>{i + 1}회차:</span>
+                                   <span className={h.isCorrect ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
+                                     {h.isCorrect ? '정답' : '오답'}
+                                   </span>
+                                 </div>
+                               ))}
+                             </div>
+                           ) : (
+                             <div className="text-[11px] text-gray-500 italic text-center mt-1">아직 풀이 기록이 없습니다.</div>
+                           )}
                         </div>
                       </div>
                     </div>
@@ -330,7 +358,7 @@ function ExamContent() {
                                   key={oIdx}
                                   onClick={() => !isSubmitted && handleOptionSelect(q._id, optionNum)}
                                   disabled={isSubmitted}
-                                  className={`w-full text-left p-3 sm:p-4 rounded-xl border transition-all flex items-center gap-3 sm:gap-4 ${buttonClass}`}
+                                  className={`w-full text-left p-3 sm:p-4 rounded-xl border transition-all flex items-center gap-3 sm:gap-4 ${buttonClass} cursor-pointer`}
                                 >
                                   <span className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold shrink-0 shadow-sm ${
                                     isSubmitted && optionNum === q.correctAnswer ? 'bg-green-500 text-white dark:text-black' :
