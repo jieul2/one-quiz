@@ -42,15 +42,12 @@ function ExamContent() {
   const [questions, setQuestions] = useState<QuestionType[]>([]);
   const [displayQuestions, setDisplayQuestions] = useState<QuestionType[]>([]);
   
-  // 현재 화면에 적용 중인 설정 상태 (새로 뽑기 누를 때 반영됨)
   const [questionCountMode, setQuestionCountMode] = useState<'10' | '20' | '30' | 'all'>('20');
   const [prioritizeUnsolved, setPrioritizeUnsolved] = useState(false);
 
-  // 사용자가 콤보박스나 체크박스를 건드려 임시로 바꾼 설정 상태
   const [pendingCountMode, setPendingCountMode] = useState<'10' | '20' | '30' | 'all'>('20');
   const [pendingUnsolved, setPendingUnsolved] = useState(false);
   
-  // 변경 사항이 발생했는지 감지하는 플래그
   const hasSettingsChanged = pendingCountMode !== questionCountMode || pendingUnsolved !== prioritizeUnsolved;
   
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
@@ -60,7 +57,6 @@ function ExamContent() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [isSettingOpen, setIsSettingOpen] = useState(false);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   useEffect(() => {
     setMounted(true);
@@ -76,15 +72,13 @@ function ExamContent() {
     fetchQuestions();
   }, []);
 
-  // 최초 로드 시 한 번만 자동 생성
+  // questions 데이터가 로드되거나 랜딩 페이지의 과목/회차 파라미터가 바뀔 때 '새로 뽑기'와 동일한 섞기 로직을 즉시 실행합니다.
   useEffect(() => {
-    if (questions.length > 0 && isInitialLoad) {
-      generateExamSet(questions, '20', false);
-      setIsInitialLoad(false);
+    if (questions.length > 0) {
+      generateExamSet(questions, questionCountMode, prioritizeUnsolved);
     }
-  }, [questions, isInitialLoad]);
+  }, [questions, paramSubject, paramExamType]);
 
-  // '새로 뽑기' 버튼을 눌렀을 때만 실행되는 핵심 함수
   const handleApplyNewSet = () => {
     setQuestionCountMode(pendingCountMode);
     setPrioritizeUnsolved(pendingUnsolved);
@@ -123,7 +117,7 @@ function ExamContent() {
 
   const scrollToQuestion = (id: string) => {
     const element = document.getElementById(`question-${id}`);
-    const offset = 180; // 경고 메시지 영역으로 인해 여유 공간 확보
+    const offset = 180;
     if (element) {
       const bodyRect = document.body.getBoundingClientRect().top;
       const elementRect = element.getBoundingClientRect().top;
@@ -217,7 +211,6 @@ function ExamContent() {
 
       <main className="flex-1 flex flex-col h-full relative overflow-y-auto scroll-smooth">
         
-        {/* 상단 고정 설정 바 및 경고 메시지 영역 */}
         <div className="sticky top-0 z-20 bg-white/95 dark:bg-[#121212]/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 p-3 sm:p-4 shadow-sm w-full">
           <div className="max-w-4xl mx-auto flex flex-col gap-2">
             
@@ -233,7 +226,6 @@ function ExamContent() {
             
             <div className={`flex flex-wrap lg:flex-row gap-2 lg:gap-4 items-center w-full ${isSettingOpen ? 'flex' : 'hidden lg:flex'}`}>
               
-              {/* 문항 수 선택 (즉시 반영되지 않고 pending에 담김) */}
               <select value={pendingCountMode} onChange={(e) => setPendingCountMode(e.target.value as any)} className="flex-1 lg:flex-none bg-gray-50 dark:bg-[#1e1e1e] border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-xs sm:text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500">
                 <option value="10">10문제</option>
                 <option value="20">20문제</option>
@@ -256,7 +248,6 @@ function ExamContent() {
               </div>
             </div>
 
-            {/* 설정 변경 시 나타나는 경고 메시지 바 */}
             {hasSettingsChanged && (
               <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 px-3 py-1.5 rounded-lg text-xs animate-pulse">
                 <AlertCircle size={14} className="shrink-0" />
