@@ -2,11 +2,10 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import mongoose from 'mongoose';
 
-// 아이디어를 위한 임시/전용 스키마 정의 (없으면 자동 생성됨)
 const IdeaSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String },
-  status: { type: String, default: 'planned' }, // planned(예정), progress(진행중), completed(완료)
+  status: { type: String, default: 'idea' }, // idea(아이디어), progress(개발중), completed(개발완료)
   createdAt: { type: Date, default: Date.now },
 });
 
@@ -30,6 +29,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, data: newIdea }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ success: false, error: 'Failed to create idea' }, { status: 500 });
+  }
+}
+
+export async function PUT(req: Request) {
+  try {
+    await dbConnect();
+    const body = await req.json();
+    const { _id, ...updateData } = body;
+    if (!_id) return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400 });
+
+    const updated = await Idea.findByIdAndUpdate(_id, updateData, { returnDocument: 'after' });
+    return NextResponse.json({ success: true, data: updated }, { status: 200 });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: 'Failed to update idea' }, { status: 500 });
   }
 }
 
