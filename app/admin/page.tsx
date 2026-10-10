@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CheckCircle, Home, Trash2, Filter, PlusCircle, Loader2, Edit, X, Moon, Sun, RotateCcw, Search, ArrowUpDown, AlertTriangle } from 'lucide-react';
+import { CheckCircle, Home, Trash2, Filter, PlusCircle, Edit, X, Moon, Sun, RotateCcw, Search, ArrowUpDown, AlertTriangle, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 
@@ -32,6 +32,11 @@ const defaultFormData = {
 };
 
 export default function AdminPage() {
+  // 인증 관련 상태
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [inputPassword, setInputPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+
   const [savedQuestions, setSavedQuestions] = useState<QuestionType[]>([]);
   const [filterSubject, setFilterSubject] = useState('All');
   const [filterExamType, setFilterExamType] = useState('All');
@@ -49,8 +54,31 @@ export default function AdminPage() {
 
   useEffect(() => {
     setMounted(true);
-    fetchQuestions();
+    // 세션 스토리지 등을 활용해 새로고침 시 유지하고 싶다면 추가할 수 있으나 보안상 매번 입력하게 설계
   }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+
+    try {
+      const res = await fetch('/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: inputPassword }),
+      });
+
+      if (res.ok) {
+        setIsAuthenticated(true);
+        fetchQuestions();
+      } else {
+        const data = await res.json();
+        setAuthError(data.error || '비밀번호가 틀렸습니다.');
+      }
+    } catch (error) {
+      setAuthError('인증 중 오류가 발생했습니다.');
+    }
+  };
 
   const fetchQuestions = async () => {
     try {
@@ -195,6 +223,53 @@ export default function AdminPage() {
 
   if (!mounted) return null;
 
+  // 인증되지 않은 경우 비밀번호 입력 화면 표시
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-[#121212]">
+        <div className="bg-white dark:bg-[#1e1e1e] p-8 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 w-full max-w-md">
+          <div className="flex flex-col items-center mb-6 text-center">
+            <div className="w-12 h-12 rounded-full bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 flex items-center justify-center mb-3">
+              <Lock size={24} />
+            </div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">관리자 인증</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">관리자 페이지에 접근하려면 비밀번호를 입력하세요.</p>
+          </div>
+
+          {authError && (
+            <div className="p-3 mb-4 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-medium text-center">
+              {authError}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <input
+              type="password"
+              placeholder="관리자 비밀번호 입력"
+              value={inputPassword}
+              onChange={(e) => setInputPassword(e.target.value)}
+              className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white"
+              autoFocus
+            />
+            <button
+              type="submit"
+              className="w-full bg-yellow-500 hover:bg-yellow-600 text-white dark:text-black font-bold py-3 rounded-xl transition-colors shadow-md text-sm"
+            >
+              로그인
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <Link href="/" className="text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
+              ← 메인으로 돌아가기
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 인증 완료 후 관리자 대시보드 렌더링
   return (
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">

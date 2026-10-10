@@ -59,7 +59,7 @@ export default function LandingPage() {
       {/* 로고 영역 */}
       <div className="text-center mb-10">
         <h1 className="text-5xl sm:text-6xl font-extrabold text-gray-900 dark:text-white mb-3 tracking-tight">oneQuiz</h1>
-        <p className="text-gray-600 dark:text-gray-400 text-base sm:text-lg font-medium">최고의 CBT 자격증 기출문제 학습 플랫폼</p>
+        <p className="text-gray-600 dark:text-gray-400 text-base sm:text-lg font-medium">내가 공부하려고 만든 APP</p>
       </div>
 
       {/* 1단계: 메인 메뉴 */}
