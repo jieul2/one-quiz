@@ -77,6 +77,9 @@ const authOptions = {
       return session;
     }
   },
+  pages: {
+    signIn: '/auth/signin', // 커스텀 로그인 페이지 경로
+  }
 };
 
 const handler = NextAuth(authOptions);
