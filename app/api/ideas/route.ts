@@ -1,6 +1,30 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
-import mongoose from 'mongoose';
+import mongoose, { Document } from 'mongoose';
+import { withAudit } from '@/lib/withAudit';
+
+interface IHistoryChange {
+  field: string;
+  oldValue: string;
+  newValue: string;
+}
+
+interface IHistoryLog {
+  message: string;
+  changes: IHistoryChange[];
+  updatedAt: Date;
+}
+
+interface IIdea extends Document {
+  title: string;
+  description?: string;
+  status: string;
+  priority: string;
+  createdAt: Date;
+  updatedAt: Date;
+  completedAt?: Date | null;
+  historyLogs: IHistoryLog[];
+}
 
 const HistoryLogSchema = new mongoose.Schema({
   message: { type: String, required: true }, // 커밋 메시지
@@ -23,103 +47,100 @@ const IdeaSchema = new mongoose.Schema({
   historyLogs: [HistoryLogSchema],
 });
 
-const Idea = mongoose.models.Idea || mongoose.model('Idea', IdeaSchema);
+const Idea = mongoose.models.Idea || mongoose.model<IIdea>('Idea', IdeaSchema);
 
-export async function GET() {
-  try {
-    await dbConnect();
-    const ideas = await Idea.find({}).sort({ createdAt: -1 });
-    return NextResponse.json(ideas, { status: 200 });
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch ideas' }, { status: 500 });
-  }
+async function handleGet() {
+  await dbConnect();
+  const ideas = await Idea.find({}).sort({ createdAt: -1 });
+  return NextResponse.json(ideas, { status: 200 });
 }
 
-export async function POST(req: Request) {
-  try {
-    await dbConnect();
-    const body = await req.json();
-    
-    const newDocData = {
-      ...body,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      completedAt: body.status === 'completed' ? new Date() : null,
-      historyLogs: [{ message: '✨ 최초 아이디어 생성', changes: [], updatedAt: new Date() }],
-    };
+async function handlePost(req: Request) {
+  await dbConnect();
+  const body = await req.json();
+  
+  const newDocData = {
+    ...body,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    completedAt: body.status === 'completed' ? new Date() : null,
+    historyLogs: [{ message: '✨ 최초 아이디어 생성', changes: [], updatedAt: new Date() }],
+  };
 
-    const newIdea = await Idea.create(newDocData);
-    return NextResponse.json({ success: true, data: newIdea }, { status: 201 });
-  } catch (error) {
-    return NextResponse.json({ success: false, error: 'Failed to create idea' }, { status: 500 });
-  }
+  const newIdea = await Idea.create(newDocData);
+  return NextResponse.json({ success: true, data: newIdea }, { status: 201 });
 }
 
-export async function PUT(req: Request) {
-  try {
-    await dbConnect();
-    const body = await req.json();
-    const { _id, status, priority, title, description, commitMessage } = body;
-    if (!_id) return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400 });
+async function handlePut(req: Request) {
+  await dbConnect();
+  const body = await req.json();
+  const { _id, status, priority, title, description, commitMessage } = body;
+  if (!_id) return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400 });
 
-    const existing = await Idea.findById(_id);
-    if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+  const existing = await Idea.findById(_id);
+  if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
 
-    // 변경된 필드 감지 (Diff 비교)
-    const changes: any[] = [];
-    if (existing.title !== title) {
-      changes.push({ field: '제목 (Title)', oldValue: existing.title, newValue: title });
-    }
-    if (existing.description !== description) {
-      changes.push({ field: '설명 (Description)', oldValue: existing.description || '(없음)', newValue: description || '(없음)' });
-    }
-    if (existing.status !== status) {
-      changes.push({ field: '상태 (Status)', oldValue: existing.status, newValue: status });
-    }
-    if (existing.priority !== priority) {
-      changes.push({ field: '우선순위 (Priority)', oldValue: existing.priority, newValue: priority });
-    }
-
-    const updateData: any = { title, description, status, priority, updatedAt: new Date() };
-
-    // 완료일 처리
-    if (status === 'completed' && existing.status !== 'completed') {
-      updateData.completedAt = new Date();
-    } else if (status !== 'completed') {
-      updateData.completedAt = null;
-    } else {
-      updateData.completedAt = existing.completedAt || new Date();
-    }
-
-    const logMsg = commitMessage && commitMessage.trim() !== '' 
-      ? commitMessage 
-      : (changes.length > 0 ? changes.map(c => c.field).join(', ') + ' 수정' : '📝 문서 업데이트');
-
-    const updated = await Idea.findByIdAndUpdate(
-      _id,
-      { 
-        ...updateData,
-        $push: { historyLogs: { message: logMsg, changes, updatedAt: new Date() } }
-      },
-      { returnDocument: 'after' }
-    );
-
-    return NextResponse.json({ success: true, data: updated }, { status: 200 });
-  } catch (error) {
-    return NextResponse.json({ success: false, error: 'Failed to update idea' }, { status: 500 });
+  // 변경된 필드 감지 (Diff 비교) - any 타입 제거 및 명확한 인터페이스 적용
+  const changes: IHistoryChange[] = [];
+  if (existing.title !== title) {
+    changes.push({ field: '제목 (Title)', oldValue: existing.title, newValue: title });
   }
+  if (existing.description !== description) {
+    changes.push({ field: '설명 (Description)', oldValue: existing.description || '(없음)', newValue: description || '(없음)' });
+  }
+  if (existing.status !== status) {
+    changes.push({ field: '상태 (Status)', oldValue: existing.status, newValue: status });
+  }
+  if (existing.priority !== priority) {
+    changes.push({ field: '우선순위 (Priority)', oldValue: existing.priority, newValue: priority });
+  }
+
+  const updateData: {
+    title: string;
+    description?: string;
+    status: string;
+    priority: string;
+    updatedAt: Date;
+    completedAt?: Date | null;
+  } = { title, description, status, priority, updatedAt: new Date() };
+
+  // 완료일 처리
+  if (status === 'completed' && existing.status !== 'completed') {
+    updateData.completedAt = new Date();
+  } else if (status !== 'completed') {
+    updateData.completedAt = null;
+  } else {
+    updateData.completedAt = existing.completedAt || new Date();
+  }
+
+  const logMsg = commitMessage && commitMessage.trim() !== '' 
+    ? commitMessage 
+    : (changes.length > 0 ? changes.map(c => c.field).join(', ') + ' 수정' : '📝 문서 업데이트');
+
+  const updated = await Idea.findByIdAndUpdate(
+    _id,
+    { 
+      ...updateData,
+      $push: { historyLogs: { message: logMsg, changes, updatedAt: new Date() } }
+    },
+    { returnDocument: 'after' }
+  );
+
+  return NextResponse.json({ success: true, data: updated }, { status: 200 });
 }
 
-export async function DELETE(req: Request) {
-  try {
-    await dbConnect();
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-    if (!id) return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400 });
+async function handleDelete(req: Request) {
+  await dbConnect();
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+  if (!id) return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400 });
 
-    await Idea.findByIdAndDelete(id);
-    return NextResponse.json({ success: true }, { status: 200 });
-  } catch (error) {
-    return NextResponse.json({ success: false, error: 'Failed to delete idea' }, { status: 500 });
-  }
+  await Idea.findByIdAndDelete(id);
+  return NextResponse.json({ success: true }, { status: 200 });
 }
+
+// withAudit 래퍼를 적용하여 아이디어 조회, 생성, 수정, 삭제 시 관리자 로그에 자동 수집
+export const GET = withAudit(handleGet, '프로젝트 로드맵 아이디어 조회');
+export const POST = withAudit(handlePost, '새로운 기능 아이디어 등록');
+export const PUT = withAudit(handlePut, '기능 아이디어 수정 및 커밋');
+export const DELETE = withAudit(handleDelete, '기능 아이디어 삭제');

@@ -4,6 +4,7 @@ import GoogleProvider from "next-auth/providers/google";
 import KakaoProvider from "next-auth/providers/kakao";
 import dbConnect from "@/lib/mongodb";
 import mongoose from "mongoose";
+import { withAudit } from "@/lib/withAudit"; // 👈 withAudit 임포트
 
 // 세션 사용자 타입 확장 (role, id 추가)
 declare module "next-auth" {
@@ -83,4 +84,7 @@ const authOptions = {
 };
 
 const handler = NextAuth(authOptions);
-export { handler as GET, handler as POST };
+
+// withAudit 래퍼로 감싸서 export (인증 및 로그인 관련 모든 요청이 로그에 자동 수집됨)
+export const GET = withAudit(handler, 'NextAuth 인증 GET 요청');
+export const POST = withAudit(handler, 'NextAuth 소셜 로그인/로그아웃 POST 요청');

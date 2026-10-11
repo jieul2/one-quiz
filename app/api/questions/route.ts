@@ -1,78 +1,71 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Question from '@/models/Question';
+import { withAudit } from '@/lib/withAudit';
 
-export async function GET() {
-  try {
-    await dbConnect();
-    const questions = await Question.find({}).sort({ subject: 1, examType: 1, questionNumber: 1 });
-    return NextResponse.json(questions);
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch questions' }, { status: 500 });
-  }
+// 1. 문제 목록 조회
+async function handleGet() {
+  await dbConnect();
+  const questions = await Question.find({}).sort({ subject: 1, examType: 1, questionNumber: 1 });
+  return NextResponse.json(questions);
 }
 
-export async function POST(req: Request) {
-  try {
-    await dbConnect();
-    const body = await req.json();
-    const newQuestion = await Question.create(body);
-    return NextResponse.json({ success: true, data: newQuestion }, { status: 201 });
-  } catch (error) {
-    return NextResponse.json({ success: false, error: 'Failed to create question' }, { status: 500 });
-  }
+// 2. 새 문제 등록
+async function handlePost(req: Request) {
+  await dbConnect();
+  const body = await req.json();
+  const newQuestion = await Question.create(body);
+  return NextResponse.json({ success: true, data: newQuestion }, { status: 201 });
 }
 
-export async function DELETE(req: Request) {
-  try {
-    await dbConnect();
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-    const resetAll = searchParams.get('resetAll');
+// 3. 문제 삭제 또는 전체 풀이 기록 초기화
+async function handleDelete(req: Request) {
+  await dbConnect();
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+  const resetAll = searchParams.get('resetAll');
 
-    // 전체 풀이 기록 초기화 요청 처리
-    if (resetAll === 'true') {
-      await Question.updateMany({}, { $set: { history: [] } });
-      return NextResponse.json({ success: true, message: 'All histories reset' }, { status: 200 });
-    }
-
-    if (!id) return NextResponse.json({ success: false, error: 'Question ID is required' }, { status: 400 });
-    await Question.findByIdAndDelete(id);
-    return NextResponse.json({ success: true }, { status: 200 });
-  } catch (error) {
-    return NextResponse.json({ success: false, error: 'Failed to delete or reset' }, { status: 500 });
+  // 전체 풀이 기록 초기화 요청 처리
+  if (resetAll === 'true') {
+    await Question.updateMany({}, { $set: { history: [] } });
+    return NextResponse.json({ success: true, message: 'All histories reset' }, { status: 200 });
   }
+
+  if (!id) return NextResponse.json({ success: false, error: 'Question ID is required' }, { status: 400 });
+  await Question.findByIdAndDelete(id);
+  return NextResponse.json({ success: true }, { status: 200 });
 }
 
-export async function PUT(req: Request) {
-  try {
-    await dbConnect();
-    const body = await req.json();
-    const { _id, ...updateData } = body;
-    if (!_id) return NextResponse.json({ success: false, error: 'Question ID is required' }, { status: 400 });
-    
-    const updatedQuestion = await Question.findByIdAndUpdate(_id, updateData, { returnDocument: 'after' });
-    return NextResponse.json({ success: true, data: updatedQuestion }, { status: 200 });
-  } catch (error) {
-    return NextResponse.json({ success: false, error: 'Failed to update question' }, { status: 500 });
-  }
+// 4. 문제 정보 수정
+async function handlePut(req: Request) {
+  await dbConnect();
+  const body = await req.json();
+  const { _id, ...updateData } = body;
+  if (!_id) return NextResponse.json({ success: false, error: 'Question ID is required' }, { status: 400 });
+  
+  const updatedQuestion = await Question.findByIdAndUpdate(_id, updateData, { returnDocument: 'after' });
+  return NextResponse.json({ success: true, data: updatedQuestion }, { status: 200 });
 }
 
-export async function PATCH(req: Request) {
-  try {
-    await dbConnect();
-    const body = await req.json();
-    const { _id, isCorrect } = body;
-    
-    if (!_id) return NextResponse.json({ success: false, error: 'Question ID is required' }, { status: 400 });
+// 5. 사용자 문제 풀이 기록(정답/오답) 추가
+async function handlePatch(req: Request) {
+  await dbConnect();
+  const body = await req.json();
+  const { _id, isCorrect } = body;
+  
+  if (!_id) return NextResponse.json({ success: false, error: 'Question ID is required' }, { status: 400 });
 
-    const updatedQuestion = await Question.findByIdAndUpdate(
-      _id,
-      { $push: { history: { isCorrect, timestamp: new Date() } } },
-      { returnDocument: 'after' }
-    );
-    return NextResponse.json({ success: true, data: updatedQuestion }, { status: 200 });
-  } catch (error) {
-    return NextResponse.json({ success: false, error: 'Failed to record history' }, { status: 500 });
-  }
+  const updatedQuestion = await Question.findByIdAndUpdate(
+    _id,
+    { $push: { history: { isCorrect, timestamp: new Date() } } },
+    { returnDocument: 'after' }
+  );
+  return NextResponse.json({ success: true, data: updatedQuestion }, { status: 200 });
 }
+
+// withAudit 래퍼를 적용하여 기출문제 관리 및 풀이 기록 관련 모든 활동이 감사 로그에 자동 수집됨
+export const GET = withAudit(handleGet, '기출문제 DB 목록 조회');
+export const POST = withAudit(handlePost, '새로운 기출문제 등록');
+export const DELETE = withAudit(handleDelete, '기출문제 삭제 또는 전체 풀이 기록 초기화');
+export const PUT = withAudit(handlePut, '기출문제 정보 수정');
+export const PATCH = withAudit(handlePatch, '사용자 문제 풀이 결과 기록');
