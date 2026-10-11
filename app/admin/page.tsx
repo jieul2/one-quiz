@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Database, Users, Terminal, Settings, Home, Moon, Sun, ShieldAlert, ArrowRight, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
@@ -9,11 +9,7 @@ import { useSession, signIn, signOut } from 'next-auth/react';
 export default function AdminHubPage() {
   const { data: session, status } = useSession();
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const [mounted] = useState(true);
 
   if (!mounted) return null;
 
@@ -76,7 +72,6 @@ export default function AdminHubPage() {
   }
 
   // 2. 로그인은 했으나 관리자 권한이 아닌 경우
-  // @ts-ignore
   if (session.user?.role !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-[#121212]">

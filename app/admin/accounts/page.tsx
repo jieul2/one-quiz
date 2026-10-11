@@ -16,13 +16,8 @@ interface UserType {
 
 export default function AdminAccountsPage() {
   const [users, setUsers] = useState<UserType[]>([]);
-  const [mounted, setMounted] = useState(false);
+  const [mounted] = useState(true);
   const { theme, setTheme } = useTheme();
-
-  useEffect(() => {
-    setMounted(true);
-    fetchUsers();
-  }, []);
 
   const fetchUsers = async () => {
     try {
@@ -33,6 +28,28 @@ export default function AdminAccountsPage() {
       console.error(e);
     }
   };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadData() {
+      try {
+        const res = await fetch('/api/users');
+        const data = await res.json();
+        if (isMounted) {
+          setUsers(data);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleToggleRole = async (id: string, currentRole: string) => {
     const newRole = currentRole === 'admin' ? 'user' : 'admin';

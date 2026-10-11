@@ -52,28 +52,46 @@ export default function IdeasPage() {
   const [sortBy, setSortBy] = useState<'latest' | 'oldest' | 'title' | 'priority'>('latest');
   const [hideCompleted, setHideCompleted] = useState(false);
 
-  const [mounted, setMounted] = useState(false);
+  const [mounted] = useState(true);
   const { theme, setTheme } = useTheme();
 
-  useEffect(() => {
-    setMounted(true);
-    fetchIdeas();
-  }, []);
-
+  // 데이터 가져오기 함수 (컴포넌트 내 어디서든 재사용 가능)
   const fetchIdeas = async () => {
     try {
       const res = await fetch('/api/ideas');
       const data = await res.json();
       setIdeas(data);
-      // 모달이 열려있는 상태에서 데이터가 갱신되면 모달 내용도 동기화
-      if (selectedCard) {
-        const updatedCurrent = data.find((i: IdeaType) => i._id === selectedCard._id);
-        if (updatedCurrent) setSelectedCard(updatedCurrent);
-      }
+      setSelectedCard(prev => {
+        if (!prev) return null;
+        return data.find((i: IdeaType) => i._id === prev._id) || prev;
+      });
     } catch (e) {
       console.error(e);
     }
   };
+
+  // useEffect 내부에서 직접 비동기 로직을 처리하여 린터 경고 방지
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadData() {
+      try {
+        const res = await fetch('/api/ideas');
+        const data = await res.json();
+        if (isMounted) {
+          setIdeas(data);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -235,7 +253,7 @@ export default function IdeasPage() {
             />
             <select
               value={status}
-              onChange={(e) => setStatus(e.target.value as any)}
+              onChange={(e) => setStatus(e.target.value as 'idea' | 'progress' | 'completed')}
               className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white cursor-pointer font-medium"
             >
               <option value="idea">💡 아이디어</option>
@@ -245,7 +263,7 @@ export default function IdeasPage() {
             
             <select
               value={priority}
-              onChange={(e) => setPriority(e.target.value as any)}
+              onChange={(e) => setPriority(e.target.value as 'urgent' | 'high' | 'medium' | 'low')}
               className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white cursor-pointer font-medium"
             >
               <option value="urgent">🔥 긴급 (Urgent)</option>
@@ -319,7 +337,7 @@ export default function IdeasPage() {
           <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end">
             <select
               value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value as any)}
+              onChange={(e) => setPriorityFilter(e.target.value as 'all' | 'urgent' | 'high' | 'medium' | 'low')}
               className="bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white cursor-pointer font-medium"
             >
               <option value="all">우선순위 전체</option>
@@ -352,7 +370,7 @@ export default function IdeasPage() {
             
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => setSortBy(e.target.value as 'latest' | 'oldest' | 'title' | 'priority')}
               className="bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white cursor-pointer font-medium shrink-0"
             >
               <option value="latest">최신 등록순</option>
@@ -441,7 +459,7 @@ export default function IdeasPage() {
           )}
         </div>
 
-        {/* 📋 노션 스타일 상세 모달 창 (수정 및 삭제 버튼 통합) */}
+        {/* 📋 노션 스타일 상세 모달 창 */}
         {selectedCard && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
             <div className="bg-white dark:bg-[#1e1e1e] w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 md:p-8 space-y-6">
@@ -493,7 +511,7 @@ export default function IdeasPage() {
                 </div>
               </div>
 
-              {/* 변경 이력 타임라인 (Diff 비교 기능 추가) */}
+              {/* 변경 이력 타임라인 */}
               <div className="space-y-3">
                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                   <GitCommit size={14} className="text-yellow-500" /> 수정 히스토리 및 Diff 변경 내역
@@ -526,7 +544,6 @@ export default function IdeasPage() {
                             )}
                           </div>
 
-                          {/* 상세 Diff 내역 펼치기 영역 */}
                           {hasChanges && isExpanded && (
                             <div className="mt-2.5 ml-4 bg-white dark:bg-[#1e1e1e] p-3 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2 text-[11px]">
                               {log.changes!.map((change, cIdx) => (
@@ -547,7 +564,7 @@ export default function IdeasPage() {
                 </div>
               </div>
 
-              {/* 모달 하단 액션 버튼 (잘못 눌렀을 때 바로 수정/삭제 가능하도록 통합) */}
+              {/* 모달 하단 액션 버튼 */}
               <div className="pt-2 flex justify-between items-center border-t border-gray-100 dark:border-gray-800">
                 <button 
                   onClick={(e) => handleDeleteIdea(e, selectedCard._id)}

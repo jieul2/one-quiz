@@ -10,7 +10,6 @@ export interface IQuestion extends Document {
   options?: string[];
   correctAnswer: string;
   explanation?: string;
-  // 풀이 기록 배열 추가
   history: {
     isCorrect: boolean;
     timestamp: Date;
@@ -27,7 +26,7 @@ const QuestionSchema: Schema = new Schema({
   options: {
     type: [String],
     validate: {
-      validator: function(this: any, v: string[]) {
+      validator: function(this: IQuestion, v: string[]) {
         if (this.questionType === 'multiple-choice') {
           return v && v.length === 4;
         }
@@ -38,7 +37,6 @@ const QuestionSchema: Schema = new Schema({
   },
   correctAnswer: { type: String, required: true },
   explanation: { type: String },
-  // 풀이 기록 필드 정의
   history: {
     type: [{
       isCorrect: { type: Boolean, required: true },

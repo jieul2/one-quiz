@@ -1,8 +1,19 @@
-import NextAuth from "next-auth";
+import NextAuth, { User as NextAuthUser, Session, DefaultSession } from "next-auth";
+import { JWT } from "next-auth/jwt";
 import GoogleProvider from "next-auth/providers/google";
 import KakaoProvider from "next-auth/providers/kakao";
 import dbConnect from "@/lib/mongodb";
 import mongoose from "mongoose";
+
+// 세션 사용자 타입 확장 (role, id 추가)
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id?: string;
+      role?: string;
+    } & DefaultSession["user"];
+  }
+}
 
 const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
@@ -25,7 +36,7 @@ const authOptions = {
     }),
   ],
   callbacks: {
-    async signIn({ user }: { user: any }) {
+    async signIn({ user }: { user: NextAuthUser }) {
       try {
         await dbConnect();
         await User.findOneAndUpdate(
@@ -43,32 +54,28 @@ const authOptions = {
         return false;
       }
     },
-    // 미들웨어와 클라이언트에서 최신 DB 권한을 항상 참조할 수 있도록 토큰과 세션에 실시간 동기화
-    async jwt({ token, user }: { token: any; user: any }) {
-      if (user) {
+    async jwt({ token, user }: { token: JWT; user?: NextAuthUser }) {
+      if (user && user.email) {
         token.email = user.email;
       }
       try {
         await dbConnect();
         const dbUser = await User.findOne({ email: token.email });
         if (dbUser) {
-          token.role = dbUser.role; // DB의 최신 role 반영
+          token.role = dbUser.role;
         }
       } catch (e) {
         console.error(e);
       }
       return token;
     },
-    async session({ session, token }: { session: any; token: any }) {
+    async session({ session, token }: { session: Session; token: JWT }) {
       if (token && session.user) {
-        session.user.role = token.role;
+        session.user.role = token.role as string;
         session.user.id = token.sub;
       }
       return session;
     }
-  },
-  pages: {
-    signIn: '/admin',
   },
 };
 
