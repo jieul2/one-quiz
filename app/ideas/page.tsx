@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Lightbulb, Sparkles, ArrowLeft, Edit3, X, Moon, Sun, Search, Filter, Archive, GitCommit, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, Lightbulb, Sparkles, ArrowLeft, Edit3, X, Moon, Sun, Search, Filter, Archive, GitCommit, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 
@@ -32,6 +32,7 @@ interface IdeaType {
 
 export default function IdeasPage() {
   const [ideas, setIdeas] = useState<IdeaType[]>([]);
+  const [isLoading, setIsLoading] = useState(true); // 👈 데이터 로딩 상태 추가
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<'idea' | 'progress' | 'completed'>('idea');
@@ -75,6 +76,7 @@ export default function IdeasPage() {
     let isMounted = true;
 
     async function loadData() {
+      setIsLoading(true);
       try {
         const res = await fetch('/api/ideas');
         const data = await res.json();
@@ -83,6 +85,8 @@ export default function IdeasPage() {
         }
       } catch (e) {
         console.error(e);
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
     }
 
@@ -166,6 +170,16 @@ export default function IdeasPage() {
   };
 
   if (!mounted) return null;
+
+  // 데이터 로딩 중 화면 출력
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-[#121212] flex flex-col items-center justify-center p-4 text-center text-gray-800 dark:text-gray-200 gap-3">
+        <Loader2 size={36} className="animate-spin text-yellow-500" />
+        <p className="text-xs font-bold tracking-wider text-gray-500 dark:text-gray-400">데이터를 불러오는 중...</p>
+      </div>
+    );
+  }
 
   const priorityWeight = { urgent: 4, high: 3, medium: 2, low: 1 };
 

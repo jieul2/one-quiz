@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BookOpen, Settings, Lightbulb, Moon, Sun, Lock, ShieldAlert, Clock, FileText } from 'lucide-react';
+import { BookOpen, Settings, Lightbulb, Moon, Sun, Lock, ShieldAlert, Clock, FileText, Loader2 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
 
@@ -22,11 +22,13 @@ interface SettingsType {
 export default function LandingPage() {
   const { theme, setTheme } = useTheme();
   const [settings, setSettings] = useState<SettingsType | null>(null);
+  const [isLoading, setIsLoading] = useState(true); // 👈 핵심: 설정 데이터 로딩 상태 추가
   const router = useRouter();
 
   // useEffect 내부에는 오직 비동기 데이터 페칭만 수행하여 린터 경고 원천 차단
   useEffect(() => {
     async function loadSettings() {
+      setIsLoading(true); // 로딩 시작
       try {
         const res = await fetch('/api/settings', { cache: 'no-store' });
         if (res.ok) {
@@ -35,10 +37,22 @@ export default function LandingPage() {
         }
       } catch (e) {
         console.error('Failed to load site settings:', e);
+      } finally {
+        setIsLoading(false); // 👈 로딩 완료
       }
     }
     loadSettings();
   }, []);
+
+  // 0. 설정 데이터를 불러오는 동안 보여줄 로딩 화면 (점검 모드 오판 방지 및 깜빡임 차단)
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-[#121212] flex flex-col items-center justify-center p-4 text-center text-gray-800 dark:text-gray-200 gap-3">
+        <Loader2 size={36} className="animate-spin text-yellow-500" />
+        <p className="text-xs font-bold tracking-wider text-gray-500 dark:text-gray-400">시스템 로딩 중...</p>
+      </div>
+    );
+  }
 
   // 1. 긴급 점검 모드일 경우 화면 차단 + 활성화 시각 및 점검 내용 출력 + 관리자 비상구 제공
   if (settings?.isMaintenanceMode) {
@@ -98,7 +112,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#121212] flex flex-col items-center justify-center text-gray-800 dark:text-gray-200 transition-colors duration-300 relative overflow-hidden p-4">
       
-      {/* 테마 토글 버튼 (suppressHydrationWarning을 사용하여 서버/클라이언트 테마 속성 불일치 경고 우회) */}
+      {/* 테마 토글 버튼 */}
       <button 
         suppressHydrationWarning
         onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
-import { BookOpen, Plus, Lock, Calendar, Edit3, Moon, Sun, Home } from 'lucide-react';
+import { BookOpen, Plus, Lock, Calendar, Edit3, Moon, Sun, Home, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 
@@ -17,13 +17,18 @@ export default function DiaryPage() {
   const { data: session, status } = useSession();
   const { theme, setTheme } = useTheme();
   
-  const [mounted] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const [diaries, setDiaries] = useState<DiaryType[]>([]);
+  const [isLoading, setIsLoading] = useState(true); // 👈 일기 데이터 로딩 상태 추가
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // 데이터를 가져오는 공통 비동기 함수
   const fetchDiaries = async () => {
@@ -43,7 +48,8 @@ export default function DiaryPage() {
     let isMounted = true;
 
     async function loadData() {
-      if (session) {
+      if (status === 'authenticated') {
+        setIsLoading(true);
         try {
           const res = await fetch('/api/diary');
           if (res.ok && isMounted) {
@@ -52,7 +58,11 @@ export default function DiaryPage() {
           }
         } catch (e) {
           console.error(e);
+        } finally {
+          if (isMounted) setIsLoading(false);
         }
+      } else if (status === 'unauthenticated') {
+        setIsLoading(false);
       }
     }
 
@@ -61,12 +71,18 @@ export default function DiaryPage() {
     return () => {
       isMounted = false;
     };
-  }, [session]);
+  }, [status]);
 
   if (!mounted) return null;
 
-  if (status === 'loading') {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#121212] text-gray-400">권한 확인 중...</div>;
+  // 1. 세션 확인 중 또는 일기 데이터 동기화 중일 때 로딩 화면 출력
+  if (status === 'loading' || (status === 'authenticated' && isLoading)) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-[#121212] flex flex-col items-center justify-center p-4 text-center text-gray-800 dark:text-gray-200 gap-3">
+        <Loader2 size={36} className="animate-spin text-blue-500" />
+        <p className="text-xs font-bold tracking-wider text-gray-500 dark:text-gray-400">일기장 데이터를 안전하게 불러오는 중...</p>
+      </div>
+    );
   }
 
   // 비로그인 상태 가드
@@ -277,7 +293,7 @@ export default function DiaryPage() {
                       </div>
                       <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">{diary.content}</p>
                       {!isEditable && (
-                        <p className="text-[10px] text-red-400/80 pt-1">* 작성 후 24시간이 경과하여 수정할 수 없습니다.</p>
+                        <p className="text-[10px] text-red-400/80 pt-1">작성 후 24시간이 경과하여 수정할 수 없습니다.</p>
                       )}
                     </>
                   )}
