@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Database, Users, Terminal, Settings, Home, Moon, Sun, ShieldAlert, ArrowRight, LogIn } from 'lucide-react';
+import { Database, Users, Terminal, Settings, Home, Moon, Sun, ShieldAlert, ArrowRight, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
-import { signIn, useSession, signOut } from 'next-auth/react';
+import { useSession, signIn, signOut } from 'next-auth/react';
 
 export default function AdminHubPage() {
   const { data: session, status } = useSession();
@@ -17,34 +17,32 @@ export default function AdminHubPage() {
 
   if (!mounted) return null;
 
-  // 로딩 중 화면
   if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#121212] text-gray-400">
-        인증 정보를 확인하는 중...
+        권한을 확인하는 중...
       </div>
     );
   }
 
-  // 로그인되지 않은 경우 (구글 / 카카오 소셜 로그인 화면)
+  // 1. 로그인되지 않은 경우 (소셜 로그인 모달 팝업 유도)
   if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-[#121212]">
         <div className="bg-white dark:bg-[#1e1e1e] p-8 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-800 w-full max-w-md text-center space-y-6">
           
           <div className="w-14 h-14 mx-auto rounded-2xl bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 flex items-center justify-center">
-            <ShieldAlert size={28} />
+            <Lock size={28} />
           </div>
 
           <div className="space-y-1">
             <h1 className="text-xl font-extrabold text-gray-900 dark:text-white">관리자 인증 허브</h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400">관리자 모듈에 접근하려면 소셜 계정으로 로그인하세요.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">관리자 모듈에 접근하려면 로그인하세요.</p>
           </div>
 
           <div className="space-y-3 pt-2">
-            {/* 구글 로그인 버튼 */}
             <button
-              onClick={() => signIn('google', { callbackUrl: '/admin' })}
+              onClick={() => signIn('google')}
               className="w-full flex items-center justify-center gap-3 bg-white dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-[#353535] text-gray-800 dark:text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-sm cursor-pointer text-sm"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -56,9 +54,8 @@ export default function AdminHubPage() {
               Google 계정으로 로그인
             </button>
 
-            {/* 카카오 로그인 버튼 */}
             <button
-              onClick={() => signIn('kakao', { callbackUrl: '/admin' })}
+              onClick={() => signIn('kakao')}
               className="w-full flex items-center justify-center gap-3 bg-[#FEE500] hover:bg-[#FDD835] text-[#191919] font-bold py-3.5 px-4 rounded-xl transition-all shadow-sm cursor-pointer text-sm"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -78,12 +75,39 @@ export default function AdminHubPage() {
     );
   }
 
-  // 로그인 완료된 경우 관리자 허브 대시보드 표시
+  // 2. 로그인은 했으나 관리자 권한이 아닌 경우
+  // @ts-ignore
+  if (session.user?.role !== 'admin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-[#121212]">
+        <div className="bg-white dark:bg-[#1e1e1e] p-8 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-800 w-full max-w-md text-center space-y-5">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center">
+            <ShieldAlert size={28} />
+          </div>
+          <div className="space-y-1">
+            <h1 className="text-xl font-extrabold text-gray-900 dark:text-white">접근 권한이 없습니다</h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              현재 계정(<span className="font-bold text-gray-800 dark:text-gray-200">{session.user?.email}</span>)은 일반 사용자 권한입니다. 관리자 권한이 필요합니다.
+            </p>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button onClick={() => signOut()} className="flex-1 py-3 bg-gray-100 dark:bg-[#2d2d2d] text-gray-700 dark:text-gray-300 font-bold rounded-xl text-xs cursor-pointer">
+              로그아웃
+            </button>
+            <Link href="/" className="flex-1 py-3 bg-yellow-500 hover:bg-yellow-600 text-white dark:text-black font-bold rounded-xl text-xs flex items-center justify-center shadow">
+              메인으로 가기
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. 관리자(Admin) 권한인 경우 정상적인 제어 센터 표시
   return (
     <div className="min-h-screen p-4 md:p-8 bg-gray-50 dark:bg-[#121212] transition-colors">
       <div className="max-w-5xl mx-auto space-y-8">
         
-        {/* 상단 헤더 바 */}
         <div className="flex justify-between items-center bg-white dark:bg-[#1e1e1e] p-6 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 rounded-xl">
@@ -92,27 +116,25 @@ export default function AdminHubPage() {
             <div>
               <h1 className="text-xl md:text-2xl font-extrabold text-gray-900 dark:text-white">⚙️ 관리자 제어 센터</h1>
               <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">
-                접속 계정: <span className="font-bold text-yellow-600 dark:text-yellow-500">{session.user?.email}</span>
+                관리자 계정: <span className="font-bold text-yellow-600 dark:text-yellow-500">{session.user?.email}</span>
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2.5 bg-gray-100 dark:bg-[#2d2d2d] rounded-xl text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer">
+            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2.5 bg-gray-100 dark:bg-[#2d2d2d] rounded-xl text-gray-600 dark:text-gray-400 hover:text-gray-900 transition-colors cursor-pointer">
               {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <button onClick={() => signOut()} className="px-3.5 py-2.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 rounded-xl text-xs font-bold transition-colors cursor-pointer">
               로그아웃
             </button>
-            <Link href="/" className="flex items-center gap-1.5 text-xs sm:text-sm bg-gray-100 dark:bg-[#2d2d2d] hover:bg-gray-200 dark:hover:bg-[#383838] px-4 py-2.5 rounded-xl transition-colors font-medium">
+            <Link href="/" className="flex items-center gap-1.5 text-xs sm:text-sm bg-gray-100 dark:bg-[#2d2d2d] hover:bg-gray-200 px-4 py-2.5 rounded-xl transition-colors font-medium">
               <Home size={16} /> 메인으로
             </Link>
           </div>
         </div>
 
-        {/* 모듈 카드 그리드 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
           <Link href="/admin/questions" className="bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-gray-800 p-6 rounded-2xl shadow-sm hover:border-yellow-500 transition-all group flex flex-col justify-between">
             <div>
               <div className="w-12 h-12 rounded-xl bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
@@ -132,7 +154,7 @@ export default function AdminHubPage() {
                 <Users size={24} />
               </div>
               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">사용자 및 계정 관리</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">회원 권한 설정 및 관리자 패스워드 제어 로그를 관리합니다.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">회원 권한 설정 및 관리자 권한을 부여/박탈합니다.</p>
             </div>
             <div className="mt-6 flex items-center gap-1 text-xs font-bold text-blue-500 group-hover:translate-x-1 transition-transform">
               <span>모듈 접속하기</span> <ArrowRight size={14} />
@@ -164,7 +186,6 @@ export default function AdminHubPage() {
               <span>모듈 접속하기</span> <ArrowRight size={14} />
             </div>
           </Link>
-
         </div>
 
       </div>

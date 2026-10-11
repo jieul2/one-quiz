@@ -28,7 +28,6 @@ const authOptions = {
     async signIn({ user }: { user: any }) {
       try {
         await dbConnect();
-        // 이미 가입된 유저라면 정보 및 최근 로그인 일자 갱신, 아니면 신규 생성
         await User.findOneAndUpdate(
           { email: user.email },
           { 
@@ -44,16 +43,26 @@ const authOptions = {
         return false;
       }
     },
-    async session({ session }: { session: any }) {
+    // 미들웨어와 클라이언트에서 최신 DB 권한을 항상 참조할 수 있도록 토큰과 세션에 실시간 동기화
+    async jwt({ token, user }: { token: any; user: any }) {
+      if (user) {
+        token.email = user.email;
+      }
       try {
         await dbConnect();
-        const dbUser = await User.findOne({ email: session.user.email });
+        const dbUser = await User.findOne({ email: token.email });
         if (dbUser) {
-          session.user.role = dbUser.role; // 세션에 권한(role) 탑재
-          session.user.id = dbUser._id;
+          token.role = dbUser.role; // DB의 최신 role 반영
         }
       } catch (e) {
         console.error(e);
+      }
+      return token;
+    },
+    async session({ session, token }: { session: any; token: any }) {
+      if (token && session.user) {
+        session.user.role = token.role;
+        session.user.id = token.sub;
       }
       return session;
     }

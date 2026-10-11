@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Users, Shield, ShieldAlert, CheckCircle, Moon, Sun } from 'lucide-react';
+import { ArrowLeft, Users, Shield, Moon, Sun } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 
@@ -72,7 +72,7 @@ export default function AdminAccountsPage() {
                 <Users size={22} />
               </div>
               <div>
-                <h1 className="text-lg md:text-xl font-extrabold text-gray-900 dark:text-white">사용자 및 계정 권한 관리</h1>
+                <h1 className="text-base md:text-xl font-extrabold text-gray-900 dark:text-white">사용자 및 계정 권한 관리</h1>
                 <p className="text-xs text-gray-500 dark:text-gray-400">플랫폼에 가입/로그인한 계정 목록을 확인하고 관리자 권한을 부여하세요.</p>
               </div>
             </div>
@@ -84,8 +84,8 @@ export default function AdminAccountsPage() {
         </div>
 
         {/* 유저 목록 테이블 컨테이너 */}
-        <div className="bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-md p-6 overflow-hidden">
-          <div className="flex justify-between items-center mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
+        <div className="bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-md p-4 md:p-6">
+          <div className="flex justify-between items-center mb-4 border-b border-gray-100 dark:border-gray-800 pb-3">
             <h2 className="text-sm font-bold text-gray-700 dark:text-gray-300">
               전체 회원 목록 <span className="text-blue-500 font-extrabold">{users.length}명</span>
             </h2>
@@ -94,49 +94,49 @@ export default function AdminAccountsPage() {
           {users.length === 0 ? (
             <div className="text-center py-16 text-gray-400 text-sm">등록된 사용자 기록이 없습니다.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs md:text-sm">
+            <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+              <table className="w-full text-left border-collapse text-xs md:text-sm min-w-[650px]">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-800 text-gray-400 font-semibold">
-                    <th className="py-3 px-4">사용자 정보</th>
-                    <th className="py-3 px-4">이메일</th>
-                    <th className="py-3 px-4">권한 (Role)</th>
-                    <th className="py-3 px-4">최근 로그인</th>
-                    <th className="py-3 px-4 text-center">권한 제어</th>
+                    <th className="py-3 px-3">사용자 정보</th>
+                    <th className="py-3 px-3">이메일</th>
+                    <th className="py-3 px-3">권한 (Role)</th>
+                    <th className="py-3 px-3">최근 로그인</th>
+                    <th className="py-3 px-3 text-center">권한 제어</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {users.map(u => (
                     <tr key={u._id} className="hover:bg-gray-50 dark:hover:bg-[#252526] transition-colors">
-                      <td className="py-3 px-4 flex items-center gap-3">
+                      <td className="py-3 px-3 flex items-center gap-2.5">
                         {u.image ? (
-                          <img src={u.image} alt="" className="w-8 h-8 rounded-full object-cover" />
+                          <img src={u.image} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
                         ) : (
-                          <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-xs">
+                          <div className="w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-xs shrink-0">
                             {u.name?.[0] || 'U'}
                           </div>
                         )}
-                        <span className="font-bold text-gray-900 dark:text-white">{u.name || '이름 없음'}</span>
+                        <span className="font-bold text-gray-900 dark:text-white truncate max-w-[120px]">{u.name || '이름 없음'}</span>
                       </td>
-                      <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{u.email}</td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 ${
+                      <td className="py-3 px-3 text-gray-600 dark:text-gray-400 break-all max-w-[200px]">{u.email}</td>
+                      <td className="py-3 px-3">
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold inline-flex items-center gap-1 shrink-0 ${
                           u.role === 'admin' ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 border border-yellow-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
                         }`}>
-                          {u.role === 'admin' ? <Shield size={12} /> : null} {u.role === 'admin' ? '관리자 (Admin)' : '일반 사용자'}
+                          {u.role === 'admin' ? <Shield size={10} /> : null} {u.role === 'admin' ? '관리자' : '유저'}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-gray-500 text-xs">{new Date(u.lastLoginAt).toLocaleString()}</td>
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-3 px-3 text-gray-500 text-[11px] whitespace-nowrap">{new Date(u.lastLoginAt).toLocaleString()}</td>
+                      <td className="py-3 px-3 text-center">
                         <button
                           onClick={() => handleToggleRole(u._id, u.role)}
-                          className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer shadow-sm ${
+                          className={`px-2.5 py-1.5 rounded-xl font-bold text-[11px] transition-colors cursor-pointer shadow-sm whitespace-nowrap ${
                             u.role === 'admin' 
                               ? 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white' 
                               : 'bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white'
                           }`}
                         >
-                          {u.role === 'admin' ? '관리자 해제' : '관리자 권한 부여'}
+                          {u.role === 'admin' ? '관리자 해제' : '권한 부여'}
                         </button>
                       </td>
                     </tr>
