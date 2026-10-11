@@ -1,21 +1,152 @@
 'use client';
-import { ArrowLeft, Users, Shield } from 'lucide-react';
+
+import { useState, useEffect } from 'react';
+import { ArrowLeft, Users, Shield, ShieldAlert, CheckCircle, Moon, Sun } from 'lucide-react';
 import Link from 'next/link';
+import { useTheme } from 'next-themes';
+
+interface UserType {
+  _id: string;
+  email: string;
+  name?: string;
+  image?: string;
+  role: 'admin' | 'user';
+  lastLoginAt: string;
+}
 
 export default function AdminAccountsPage() {
+  const [users, setUsers] = useState<UserType[]>([]);
+  const [mounted, setMounted] = useState(false);
+  const { theme, setTheme } = useTheme();
+
+  useEffect(() => {
+    setMounted(true);
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch('/api/users');
+      const data = await res.json();
+      setUsers(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleToggleRole = async (id: string, currentRole: string) => {
+    const newRole = currentRole === 'admin' ? 'user' : 'admin';
+    if (!confirm(`이 유저의 권한을 [${newRole === 'admin' ? '관리자' : '일반 유저'}]로 변경하시겠습니까?`)) return;
+
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _id: id, role: newRole }),
+      });
+
+      if (res.ok) {
+        fetchUsers();
+      } else {
+        alert('권한 변경에 실패했습니다.');
+      }
+    } catch (e) {
+      alert('서버 오류가 발생했습니다.');
+    }
+  };
+
+  if (!mounted) return null;
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-[#121212] p-6 text-gray-800 dark:text-gray-200">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center gap-3 bg-white dark:bg-[#1e1e1e] p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800">
-          <Link href="/admin" className="p-2 bg-gray-100 dark:bg-[#2d2d2d] rounded-xl"><ArrowLeft size={18} /></Link>
-          <Users className="text-blue-500" size={24} />
-          <h1 className="text-xl font-bold">사용자 및 계정 관리</h1>
+    <div className="min-h-screen bg-gray-50 dark:bg-[#121212] p-4 md:p-8 text-gray-800 dark:text-gray-200 transition-colors">
+      <div className="max-w-5xl mx-auto space-y-6">
+        
+        {/* 상단 네비게이션 */}
+        <div className="flex justify-between items-center bg-white dark:bg-[#1e1e1e] p-4 md:p-6 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800">
+          <div className="flex items-center gap-3">
+            <Link href="/admin" className="p-2.5 bg-gray-100 dark:bg-[#2d2d2d] rounded-xl hover:bg-gray-200 transition-colors">
+              <ArrowLeft size={18} />
+            </Link>
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-blue-500/10 text-blue-500 rounded-xl">
+                <Users size={22} />
+              </div>
+              <div>
+                <h1 className="text-lg md:text-xl font-extrabold text-gray-900 dark:text-white">사용자 및 계정 권한 관리</h1>
+                <p className="text-xs text-gray-500 dark:text-gray-400">플랫폼에 가입/로그인한 계정 목록을 확인하고 관리자 권한을 부여하세요.</p>
+              </div>
+            </div>
+          </div>
+
+          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2.5 bg-gray-100 dark:bg-[#2d2d2d] rounded-xl text-gray-600 dark:text-gray-400 cursor-pointer">
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
         </div>
-        <div className="bg-white dark:bg-[#1e1e1e] p-12 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 text-center space-y-3">
-          <Shield size={48} className="mx-auto text-blue-500 opacity-50" />
-          <h2 className="text-lg font-bold">계정 관리 모듈 준비 중</h2>
-          <p className="text-xs text-gray-500">회원 권한 부여 및 관리자 계정 보안 설정 기능이 추후 업데이트될 예정입니다.</p>
+
+        {/* 유저 목록 테이블 컨테이너 */}
+        <div className="bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-md p-6 overflow-hidden">
+          <div className="flex justify-between items-center mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
+            <h2 className="text-sm font-bold text-gray-700 dark:text-gray-300">
+              전체 회원 목록 <span className="text-blue-500 font-extrabold">{users.length}명</span>
+            </h2>
+          </div>
+
+          {users.length === 0 ? (
+            <div className="text-center py-16 text-gray-400 text-sm">등록된 사용자 기록이 없습니다.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs md:text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-800 text-gray-400 font-semibold">
+                    <th className="py-3 px-4">사용자 정보</th>
+                    <th className="py-3 px-4">이메일</th>
+                    <th className="py-3 px-4">권한 (Role)</th>
+                    <th className="py-3 px-4">최근 로그인</th>
+                    <th className="py-3 px-4 text-center">권한 제어</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {users.map(u => (
+                    <tr key={u._id} className="hover:bg-gray-50 dark:hover:bg-[#252526] transition-colors">
+                      <td className="py-3 px-4 flex items-center gap-3">
+                        {u.image ? (
+                          <img src={u.image} alt="" className="w-8 h-8 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-xs">
+                            {u.name?.[0] || 'U'}
+                          </div>
+                        )}
+                        <span className="font-bold text-gray-900 dark:text-white">{u.name || '이름 없음'}</span>
+                      </td>
+                      <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{u.email}</td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 ${
+                          u.role === 'admin' ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 border border-yellow-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
+                        }`}>
+                          {u.role === 'admin' ? <Shield size={12} /> : null} {u.role === 'admin' ? '관리자 (Admin)' : '일반 사용자'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-gray-500 text-xs">{new Date(u.lastLoginAt).toLocaleString()}</td>
+                      <td className="py-3 px-4 text-center">
+                        <button
+                          onClick={() => handleToggleRole(u._id, u.role)}
+                          className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer shadow-sm ${
+                            u.role === 'admin' 
+                              ? 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white' 
+                              : 'bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white'
+                          }`}
+                        >
+                          {u.role === 'admin' ? '관리자 해제' : '관리자 권한 부여'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
+
       </div>
     </div>
   );
