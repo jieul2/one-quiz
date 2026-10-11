@@ -5,6 +5,7 @@ import { Trophy, CheckCircle, XCircle, Home, Filter, Moon, Sun, RefreshCw, Setti
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react'; // NextAuth 세션 훅 추가
 
 interface HistoryAttempt {
   isCorrect: boolean;
@@ -38,6 +39,9 @@ function ExamContent() {
   const searchParams = useSearchParams();
   const paramSubject = searchParams.get('subject') || 'All';
   const paramExamType = searchParams.get('examType') || 'All';
+  
+  // NextAuth 세션 가져오기 추가
+  const { data: session } = useSession();
 
   const [questions, setQuestions] = useState<QuestionType[]>([]);
   const [displayQuestions, setDisplayQuestions] = useState<QuestionType[]>([]);
@@ -54,7 +58,6 @@ function ExamContent() {
   const [results, setResults] = useState<Record<string, boolean>>({});
   const [showExplanation, setShowExplanation] = useState<Record<string, boolean>>({});
   
-  // 모바일 및 터치 기기에서 클릭으로 기록 팝업을 토글하기 위한 상태 (문제별 ID 저장)
   const [openHistoryId, setOpenHistoryId] = useState<string | null>(null);
   
   const { theme, setTheme } = useTheme();
@@ -275,7 +278,6 @@ function ExamContent() {
                 return (
                   <div key={q._id} id={`question-${q._id}`} className="bg-white dark:bg-[#252526] rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-xl dark:shadow-2xl">
                     
-                    {/* 카드 헤더 (N회 풀음 뱃지 제거 및 터치/클릭 토글 방식 적용) */}
                     <div className="bg-gray-100 dark:bg-[#8b2323] px-4 sm:px-5 py-3 text-gray-800 dark:text-white text-xs sm:text-sm font-semibold flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-200 dark:border-transparent">
                       <div className="flex flex-wrap items-center gap-2 break-words">
                         <span className="bg-white dark:bg-red-700 border border-gray-300 dark:border-transparent px-2 py-0.5 rounded text-[10px] sm:text-xs shadow-sm shrink-0">기출</span>
@@ -284,7 +286,6 @@ function ExamContent() {
                         <span className="text-gray-600 dark:text-gray-200 font-normal break-words">{q.subject}</span>
                       </div>
                       
-                      {/* 클릭(터치) 또는 호버 시 토글되는 풀이 기록 버튼 */}
                       <div className="relative self-end sm:self-auto">
                         <button 
                           onClick={() => setOpenHistoryId(isHistoryOpen ? null : q._id)}
@@ -294,7 +295,6 @@ function ExamContent() {
                           <Info size={13} className="opacity-80 text-yellow-500" />
                         </button>
                         
-                        {/* 상세 히스토리 팝업 (클릭 토글 또는 호버 시 오픈) */}
                         <div className={`absolute right-0 top-full mt-2 w-52 bg-gray-900 dark:bg-[#1a1a1a] text-white text-xs rounded-xl p-3.5 transition-all z-50 shadow-2xl border border-gray-700 ${
                           isHistoryOpen ? 'opacity-100 visible' : 'opacity-0 invisible sm:group-hover:opacity-100 sm:group-hover:visible'
                         }`}>
@@ -399,8 +399,8 @@ function ExamContent() {
                           </button>
                         </div>
                       ) : (
-                        <div className="animate-fade-in">
-                          <div className={`mb-3 sm:mb-4 p-3 sm:p-4 rounded-xl flex items-center gap-2 sm:gap-3 font-bold text-sm sm:text-lg shadow-sm ${
+                        <div className="animate-fade-in space-y-4">
+                          <div className={`p-3 sm:p-4 rounded-xl flex items-center gap-2 sm:gap-3 font-bold text-sm sm:text-lg shadow-sm ${
                             results[q._id] ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-900/50' : 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-900/50'
                           }`}>
                             {results[q._id] ? <CheckCircle size={22} className="sm:w-6 sm:h-6" /> : <XCircle size={22} className="sm:w-6 sm:h-6" />}
@@ -408,7 +408,7 @@ function ExamContent() {
                           </div>
                           
                           {showExplanation[q._id] && (
-                            <div className="p-4 sm:p-5 bg-white dark:bg-[#252526] rounded-xl border border-gray-200 dark:border-gray-700 mt-3 sm:mt-4 shadow-sm">
+                            <div className="p-4 sm:p-5 bg-white dark:bg-[#252526] rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-3">
                               <div className="text-sm sm:text-base font-bold text-yellow-600 dark:text-yellow-500 mb-2 sm:mb-3">정답: {q.correctAnswer}</div>
                               {q.explanation ? (
                                 <div className="text-gray-700 dark:text-gray-300 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap bg-gray-50 dark:bg-[#1e1e1e] p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-800">
@@ -418,6 +418,42 @@ function ExamContent() {
                               ) : (
                                 <div className="text-gray-400 dark:text-gray-500 text-xs sm:text-sm italic">등록된 해설이 없습니다.</div>
                               )}
+
+                              {/* 문제 오류 신고 버튼 */}
+                              <div className="flex justify-end pt-2 border-t border-gray-100 dark:border-gray-800">
+                                <button
+                                  onClick={async () => {
+                                    const reason = prompt('어떤 부분이 잘못되었나요? (예: 정답이 틀렸어요, 오탈자가 있어요)');
+                                    if (!reason) return;
+                                    try {
+                                      const res = await fetch('/api/admin/reports', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          questionId: q._id,
+                                          subject: q.subject,           // 과목명 추가
+                                          examType: q.examType,         // 회차 추가
+                                          questionNumber: q.questionNumber, // 문항 번호 추가
+                                          questionText: q.title,
+                                          userEmail: session?.user?.email || 'anonymous',
+                                          reportReason: reason,
+                                        }),
+                                      });
+                                      if (res.ok) {
+                                        alert('관리자에게 문제 오류 신고가 접수되었습니다. 감사합니다!');
+                                      } else {
+                                        alert('신고 접수 중 오류가 발생했습니다.');
+                                      }
+                                    } catch (e) {
+                                      console.error(e);
+                                      alert('서버 오류가 발생했습니다.');
+                                    }
+                                  }}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                                >
+                                  <AlertCircle size={14} /> 문제 오류 신고하기
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>

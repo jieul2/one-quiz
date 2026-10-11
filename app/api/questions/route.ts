@@ -4,8 +4,20 @@ import Question from '@/models/Question';
 import { withAudit } from '@/lib/withAudit';
 
 // 1. 문제 목록 조회
-async function handleGet() {
+async function handleGet(req: Request) {
   await dbConnect();
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+
+  // 특정 ID로 조회를 요청한 경우 단건 반환
+  if (id) {
+    const question = await Question.findById(id);
+    if (!question) {
+      return NextResponse.json({ error: '문제를 찾을 수 없습니다.' }, { status: 404 });
+    }
+    return NextResponse.json([question], { status: 200 }); // 일관성을 위해 배열 형태로 반환
+  }
+
   const questions = await Question.find({}).sort({ subject: 1, examType: 1, questionNumber: 1 });
   return NextResponse.json(questions);
 }

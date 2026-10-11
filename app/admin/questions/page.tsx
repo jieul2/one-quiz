@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { CheckCircle, Home, Trash2, PlusCircle, Edit3, X, Moon, Sun, RotateCcw, Search, ArrowUpDown, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { CheckCircle, Home, Trash2, PlusCircle, Edit3, X, Moon, Sun, RotateCcw, Search, ArrowUpDown, AlertTriangle, ArrowLeft, Settings, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 
@@ -38,6 +38,10 @@ export default function AdminQuestionsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('default');
 
+  // 설정 관련 상태 (ID 보이기 여부, 설정 모달 열림 여부)
+  const [showQuestionId, setShowQuestionId] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   const [isScrolledDown, setIsScrolledDown] = useState(false);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -55,13 +59,14 @@ export default function AdminQuestionsPage() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isModalOpen) {
-        setIsModalOpen(false);
+      if (e.key === 'Escape') {
+        if (isModalOpen) setIsModalOpen(false);
+        if (isSettingsOpen) setIsSettingsOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isModalOpen]);
+  }, [isModalOpen, isSettingsOpen]);
 
   const fetchQuestions = async () => {
     try {
@@ -192,9 +197,13 @@ export default function AdminQuestionsPage() {
   const filteredQuestions = savedQuestions.filter(q => {
     const matchSubject = filterSubject === 'All' || q.subject === filterSubject;
     const matchExamType = filterExamType === 'All' || q.examType === filterExamType;
-    const matchSearch = searchQuery === '' || 
-      q.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      q.subject.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const query = searchQuery.trim().toLowerCase();
+    const matchSearch = query === '' || 
+      q.title.toLowerCase().includes(query) || 
+      q.subject.toLowerCase().includes(query) ||
+      q._id.toLowerCase().includes(query);
+
     return matchSubject && matchExamType && matchSearch;
   }).sort((a, b) => {
     const aAttempts = a.history?.length || 0;
@@ -219,8 +228,9 @@ export default function AdminQuestionsPage() {
             <h1 className="text-xl font-bold flex items-center gap-2 text-gray-800 dark:text-white">📚 문항 및 시험 DB 관리</h1>
           </div>
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            <button onClick={handleResetAllHistory} className="flex-1 sm:flex-none flex justify-center items-center gap-2 text-sm bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/60 px-4 py-2 rounded-lg transition-colors cursor-pointer">
-              <AlertTriangle size={16} /> 전체 기록 초기화
+            {/* 설정 버튼 */}
+            <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-1.5 text-sm bg-gray-100 dark:bg-[#2d2d2d] text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#383838] px-4 py-2 rounded-lg transition-colors cursor-pointer font-bold">
+              <Settings size={16} /> 페이지 설정
             </button>
             <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 bg-gray-100 dark:bg-[#252526] rounded-lg text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-pointer">
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
@@ -232,7 +242,7 @@ export default function AdminQuestionsPage() {
         </div>
 
         {/* 문제 목록 대시보드 */}
-        <div className="bg-white dark:bg-[#1e1e1e] p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-800 flex flex-col h-[80vh]">
+        <div className="bg-white dark:bg-[#1e1e1e] p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-800 flex flex-col h-[82vh]">
           <div className="flex justify-between items-center mb-6 border-b border-gray-200 dark:border-gray-800 pb-4">
             <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
               등록된 문제 목록 <span className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-500 text-xs px-2 py-1 rounded-full">{filteredQuestions.length}개</span>
@@ -242,11 +252,19 @@ export default function AdminQuestionsPage() {
             </button>
           </div>
 
+          {/* 검색 및 필터 컨트롤 바 */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-            <div className="relative">
+            <div className="relative sm:col-span-2 lg:col-span-1">
               <Search size={16} className="absolute left-3 top-3 text-gray-400" />
-              <input type="text" placeholder="문제 내용 검색..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+              <input 
+                type="text" 
+                placeholder="문제 내용 또는 ID 검색..." 
+                value={searchQuery} 
+                onChange={(e) => setSearchQuery(e.target.value)} 
+                className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" 
+              />
             </div>
+
             <div className="relative">
               <ArrowUpDown size={16} className="absolute left-3 top-3 text-gray-400" />
               <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none cursor-pointer">
@@ -255,9 +273,11 @@ export default function AdminQuestionsPage() {
                 <option value="attempts-asc">풀이 적은 순</option>
               </select>
             </div>
+            
             <select value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)} className={`bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 cursor-pointer transition-all ${isScrolledDown ? 'hidden lg:block' : 'block'}`}>
               {subjects.map(s => <option key={s} value={s}>{s === 'All' ? '전체 과목 필터' : s}</option>)}
             </select>
+            
             <select value={filterExamType} onChange={(e) => setFilterExamType(e.target.value)} className={`bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 cursor-pointer transition-all ${isScrolledDown ? 'hidden lg:block' : 'block'}`}>
               {examTypes.map(e => <option key={e} value={e}>{e === 'All' ? '전체 회차 필터' : e}</option>)}
             </select>
@@ -284,6 +304,13 @@ export default function AdminQuestionsPage() {
                         </span>
                         <span className="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded text-gray-700 dark:text-gray-300">{q.examType}</span>
                         <span className="text-xs text-yellow-600 dark:text-yellow-500 font-bold">{q.subject}</span>
+                        
+                        {/* 설정에 따라 토글되는 문제 ID 표시 영역 */}
+                        {showQuestionId && (
+                          <span className="text-[11px] font-mono bg-gray-200/70 dark:bg-black/40 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded animate-fade-in">
+                            ID: {q._id}
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm font-medium text-gray-800 dark:text-white truncate mb-1">
                         {q.questionNumber}번. {q.title}
@@ -307,6 +334,64 @@ export default function AdminQuestionsPage() {
             )}
           </div>
         </div>
+
+        {/* 페이지 설정 모달 */}
+        {isSettingsOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-[#1e1e1e] w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-6 animate-fade-in border border-gray-200 dark:border-gray-800">
+              <div className="flex justify-between items-center border-b border-gray-200 dark:border-gray-800 pb-4">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Settings size={20} className="text-yellow-500" /> 관리 페이지 설정
+                </h3>
+                <button onClick={() => setIsSettingsOpen(false)} className="p-2 bg-gray-100 dark:bg-[#2d2d2d] rounded-full hover:bg-gray-200 cursor-pointer">
+                  <X size={18} className="text-gray-600 dark:text-gray-400" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* ID 보이기 토글 설정 */}
+                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#252526] rounded-xl border border-gray-200 dark:border-gray-700">
+                  <div>
+                    <p className="text-sm font-bold text-gray-800 dark:text-gray-200">문제 카드에 ID 표시</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">문제 목록 카드에서 고유 MongoDB ID 가시성을 제어합니다.</p>
+                  </div>
+                  <button 
+                    onClick={() => setShowQuestionId(!showQuestionId)}
+                    className={`p-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors ${
+                      showQuestionId 
+                        ? 'bg-yellow-500 text-black shadow-sm' 
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    {showQuestionId ? <Eye size={16} /> : <EyeOff size={16} />}
+                    <span>{showQuestionId ? '표시 중 (ON)' : '숨김 (OFF)'}</span>
+                  </button>
+                </div>
+
+                {/* 전체 기록 초기화 버튼 */}
+                <div className="p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-500/20 space-y-2">
+                  <p className="text-sm font-bold text-red-700 dark:text-red-400">위험 구역</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">모든 문제의 누적 풀이 및 정답 기록을 영구적으로 초기화합니다.</p>
+                  <button 
+                    onClick={() => { setIsSettingsOpen(false); handleResetAllHistory(); }} 
+                    className="w-full flex justify-center items-center gap-2 text-xs font-bold bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl transition-colors cursor-pointer shadow-sm"
+                  >
+                    <AlertTriangle size={15} /> 전체 문제 풀이 기록 초기화 실행
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button 
+                  onClick={() => setIsSettingsOpen(false)}
+                  className="w-full py-3 bg-gray-100 dark:bg-[#2d2d2d] hover:bg-gray-200 dark:hover:bg-[#383838] text-gray-700 dark:text-gray-300 font-bold rounded-xl text-xs cursor-pointer transition-colors"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 문제 추가/수정 모달 */}
         {isModalOpen && (

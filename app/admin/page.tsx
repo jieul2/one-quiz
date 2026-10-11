@@ -1,15 +1,75 @@
 'use client';
 
-import { useState } from 'react';
-import { Database, Users, Terminal, Settings, Home, Moon, Sun, ShieldAlert, ArrowRight, Lock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Database, Users, Terminal, Settings, Home, Moon, Sun, ShieldAlert, ArrowRight, Lock, BellRing, AlertTriangle, CheckCircle, Copy, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { useSession, signIn, signOut } from 'next-auth/react';
+
+interface ReportType {
+  _id: string;
+  questionId?: string;
+  subject?: string;
+  examType?: string;
+  questionNumber?: number;
+  questionText?: string;
+  userEmail: string;
+  reportReason: string;
+  createdAt: string;
+}
 
 export default function AdminHubPage() {
   const { data: session, status } = useSession();
   const { theme, setTheme } = useTheme();
   const [mounted] = useState(true);
+  
+  // 관리자 알림(문제 오류 신고) 상태
+  const [reports, setReports] = useState<ReportType[]>([]);
+  // 복사 완료 상태 관리 (어떤 신고 ID의 복사 버튼이 눌렸는지 추적)
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (session?.user?.role === 'admin') {
+      fetchReports();
+    }
+  }, [session]);
+
+  const fetchReports = async () => {
+    try {
+      const res = await fetch('/api/admin/reports');
+      if (res.ok) {
+        const data = await res.json();
+        setReports(data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleResolveReport = async (reportId: string) => {
+    try {
+      const res = await fetch('/api/admin/reports', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportId }),
+      });
+      if (res.ok) {
+        setReports(prev => prev.filter(r => r._id !== reportId));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCopyId = (questionId?: string, reportId?: string) => {
+    if (!questionId) {
+      alert('연결된 문제 ID가 없습니다.');
+      return;
+    }
+    navigator.clipboard.writeText(questionId);
+    setCopiedId(reportId || null);
+    setTimeout(() => setCopiedId(null), 2000); // 2초 후 복사 아이콘 원복
+  };
 
   if (!mounted) return null;
 
@@ -21,21 +81,18 @@ export default function AdminHubPage() {
     );
   }
 
-  // 1. 로그인되지 않은 경우 (커스텀 로그인 페이지로 이동)
+  // 1. 로그인되지 않은 경우
   if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-[#121212]">
         <div className="bg-white dark:bg-[#1e1e1e] p-8 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-800 w-full max-w-md text-center space-y-6">
-          
           <div className="w-14 h-14 mx-auto rounded-2xl bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 flex items-center justify-center">
             <Lock size={28} />
           </div>
-
           <div className="space-y-1">
             <h1 className="text-xl font-extrabold text-gray-900 dark:text-white">관리자 인증 허브</h1>
             <p className="text-xs text-gray-500 dark:text-gray-400">관리자 모듈에 접근하려면 로그인이 필요합니다.</p>
           </div>
-
           <div className="space-y-3 pt-2">
             <button
               onClick={() => signIn()}
@@ -44,7 +101,6 @@ export default function AdminHubPage() {
               로그인 페이지로 이동
             </button>
           </div>
-
           <div className="pt-2">
             <Link href="/" className="text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
               ← 메인으로 돌아가기
@@ -85,8 +141,9 @@ export default function AdminHubPage() {
   // 3. 관리자(Admin) 권한인 경우 정상적인 제어 센터 표시
   return (
     <div className="min-h-screen p-4 md:p-8 bg-gray-50 dark:bg-[#121212] transition-colors">
-      <div className="max-w-5xl mx-auto space-y-8">
+      <div className="max-w-5xl mx-auto space-y-6">
         
+        {/* 상단 네비게이션 헤더 */}
         <div className="flex justify-between items-center bg-white dark:bg-[#1e1e1e] p-6 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 rounded-xl">
@@ -113,6 +170,85 @@ export default function AdminHubPage() {
           </div>
         </div>
 
+        {/* 헤더 바로 밑 실시간 상세 문제 오류 신고 알림 배너 */}
+        {reports.length > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 shadow-sm space-y-3 animate-fade-in">
+            <div className="flex items-center justify-between border-b border-amber-500/20 pb-3">
+              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold text-sm">
+                <BellRing size={18} className="animate-bounce" />
+                <span>유저가 신고한 문제 오류 알림 ({reports.length}건)</span>
+              </div>
+              <span className="text-xs text-gray-400">출근 후 확인 및 조치가 필요합니다.</span>
+            </div>
+
+            <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+              {reports.map(report => {
+                const isCopied = copiedId === report._id;
+
+                return (
+                  <div key={report._id} className="bg-white dark:bg-[#1e1e1e] border border-amber-500/20 p-4 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3 text-xs">
+                    <div className="space-y-1.5 flex-1">
+                      {/* 과목 및 회차 정보 */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="bg-amber-500 text-black font-bold px-2 py-0.5 rounded text-[10px]">
+                          {report.subject || '과목 미상'}
+                        </span>
+                        <span className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-semibold px-2 py-0.5 rounded text-[10px]">
+                          {report.examType || '회차 미상'} / {report.questionNumber ? `${report.questionNumber}번 문항` : ''}
+                        </span>
+                        <span className="text-gray-400 text-[11px]">신고유저: {report.userEmail}</span>
+                      </div>
+
+                      {/* 신고 사유 */}
+                      <div className="flex items-center gap-2 font-bold text-gray-900 dark:text-white text-sm">
+                        <AlertTriangle size={15} className="text-amber-500 shrink-0" />
+                        <span>신고사유: {report.reportReason}</span>
+                      </div>
+
+                      {/* 문제 내용 및 ID 복사 버튼 포함 박스 */}
+                      <div className="flex items-center justify-between gap-2 bg-gray-50 dark:bg-[#2d2d2d] p-2 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <p className="text-gray-600 dark:text-gray-400 font-mono text-xs truncate">
+                          문제 내용: {report.questionText || '내용 없음'}
+                        </p>
+                        
+                        {/* 문제 ID 복사 버튼 */}
+                        {report.questionId && (
+                          <button
+                            onClick={() => handleCopyId(report.questionId, report._id)}
+                            className="flex items-center gap-1 bg-white dark:bg-[#1e1e1e] hover:bg-gray-100 dark:hover:bg-black px-2.5 py-1 rounded border border-gray-300 dark:border-gray-600 font-mono text-[11px] text-gray-700 dark:text-gray-300 shrink-0 cursor-pointer transition-colors shadow-2xs"
+                            title="클립보드에 문제 ID 복사"
+                          >
+                            {isCopied ? (
+                              <>
+                                <Check size={13} className="text-green-500" />
+                                <span className="text-green-500 font-bold">복사됨!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={13} />
+                                <span>ID 복사</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 조치 완료 버튼 */}
+                    <button
+                      onClick={() => handleResolveReport(report._id)}
+                      className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-xl transition-all shrink-0 cursor-pointer flex items-center gap-1.5 self-end md:self-center shadow-sm"
+                    >
+                      <CheckCircle size={15} /> 조치 완료
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 기존 관리자 모듈 카드 그리드 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Link href="/admin/questions" className="bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-gray-800 p-6 rounded-2xl shadow-sm hover:border-yellow-500 transition-all group flex flex-col justify-between">
             <div>
