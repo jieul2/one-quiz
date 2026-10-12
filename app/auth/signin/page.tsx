@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Lock, Moon, Sun } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
@@ -9,23 +9,25 @@ import { useSearchParams } from 'next/navigation';
 
 function SignInContent() {
   const { theme, setTheme } = useTheme();
-  const [mounted] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const searchParams = useSearchParams();
   
   // 사용자가 원래 접근하려던 페이지 경로를 가져옴 (없으면 메인('/')으로 이동)
   const callbackUrl = searchParams.get('callbackUrl') || '/';
 
-  if (!mounted) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#121212] flex items-center justify-center p-4 transition-colors relative">
       
-      {/* 우측 상단 테마 토글 버튼 */}
+      {/* 우측 상단 테마 토글 버튼 (마운트된 후에만 아이콘 렌더링) */}
       <button 
         onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} 
-        className="absolute top-6 right-6 p-3 bg-white dark:bg-[#1e1e1e] rounded-full shadow-md border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer"
+        className="absolute top-6 right-6 p-3 bg-white dark:bg-[#1e1e1e] rounded-full shadow-md border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer w-12 h-12 flex items-center justify-center"
       >
-        {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+        {mounted && (theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />)}
       </button>
 
       <div className="bg-white dark:bg-[#1e1e1e] p-8 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-800 w-full max-w-md text-center space-y-6">
