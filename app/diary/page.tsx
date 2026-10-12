@@ -2,14 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
-import { BookOpen, Plus, Lock, Calendar, Edit3, Moon, Sun, Home, Loader2 } from 'lucide-react';
+import { BookOpen, Plus, Lock, Calendar, Edit3, Moon, Sun, Home, Loader2, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 
-interface DiaryType {
-  _id: string;
+interface DiaryItemType {
+  _id?: string;
   title: string;
   content: string;
+}
+
+interface DiaryType {
+  _id: string;
+  title?: string;
+  content?: string;
+  items?: DiaryItemType[];
   createdAt: string;
 }
 
@@ -19,18 +26,18 @@ export default function DiaryPage() {
   
   const [mounted, setMounted] = useState(false);
   const [diaries, setDiaries] = useState<DiaryType[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // 👈 일기 데이터 로딩 상태 추가
+  const [isLoading, setIsLoading] = useState(true);
+
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [editContent, setEditContent] = useState('');
+
+  const [editingDiaryId, setEditingDiaryId] = useState<string | null>(null);
+  const [editItems, setEditItems] = useState<DiaryItemType[]>([]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // 데이터를 가져오는 공통 비동기 함수
   const fetchDiaries = async () => {
     try {
       const res = await fetch('/api/diary');
@@ -43,7 +50,6 @@ export default function DiaryPage() {
     }
   };
 
-  // 린터 경고를 방지하기 위해 useEffect 안에서 직접 비동기 호출 처리
   useEffect(() => {
     let isMounted = true;
 
@@ -75,7 +81,6 @@ export default function DiaryPage() {
 
   if (!mounted) return null;
 
-  // 1. 세션 확인 중 또는 일기 데이터 동기화 중일 때 로딩 화면 출력
   if (status === 'loading' || (status === 'authenticated' && isLoading)) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-[#121212] flex flex-col items-center justify-center p-4 text-center text-gray-800 dark:text-gray-200 gap-3">
@@ -85,7 +90,6 @@ export default function DiaryPage() {
     );
   }
 
-  // 비로그인 상태 가드
   if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-[#121212]">
@@ -113,6 +117,9 @@ export default function DiaryPage() {
     );
   }
 
+  const todayStr = new Date().toDateString();
+  const todayDiary = diaries.find((diary) => new Date(diary.createdAt).toDateString() === todayStr);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) return alert('제목과 내용을 입력해주세요.');
@@ -129,24 +136,25 @@ export default function DiaryPage() {
         setContent('');
         fetchDiaries();
       } else {
-        alert('작성 실패');
+        const data = await res.json();
+        alert(data.error || '작성 실패');
       }
     } catch (e) {
       alert('서버 오류');
     }
   };
 
-  const handleUpdate = async (id: string) => {
+  const handleUpdate = async (diaryId: string) => {
     try {
       const res = await fetch('/api/diary', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, title: editTitle, content: editContent }),
+        body: JSON.stringify({ id: diaryId, items: editItems }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        setEditingId(null);
+        setEditingDiaryId(null);
         fetchDiaries();
       } else {
         alert(data.error || '수정 실패');
@@ -162,8 +170,6 @@ export default function DiaryPage() {
         
         {/* 상단 네비게이션 헤더 */}
         <div className="flex justify-between items-center bg-white dark:bg-[#1e1e1e] p-4 md:p-6 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800">
-          
-          {/* 좌측 아이콘, 제목, 계정 정보 */}
           <div className="flex items-center gap-3">
             <div className="p-3 bg-blue-500/10 text-blue-500 rounded-xl shrink-0">
               <BookOpen size={24} />
@@ -176,7 +182,6 @@ export default function DiaryPage() {
             </div>
           </div>
 
-          {/* 우측 테마 토글, 로그아웃, 메인으로(집 아이콘) 버튼 */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -198,34 +203,45 @@ export default function DiaryPage() {
               <Home size={16} /> 메인으로
             </Link>
           </div>
-
         </div>
 
-        {/* 새 일기 작성 폼 */}
-        <form onSubmit={handleCreate} className="bg-white dark:bg-[#1e1e1e] p-6 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800 space-y-4">
-          <h2 className="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-            <Plus size={16} /> 새 일기 작성하기
-          </h2>
-          <input
-            type="text"
-            placeholder="제목을 입력하세요..."
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full p-3 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white"
-          />
-          <textarea
-            placeholder="오늘 하루는 어땠나요? 마음속 이야기를 적어보세요..."
-            rows={4}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="w-full p-3 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none text-gray-900 dark:text-white"
-          />
-          <div className="flex justify-end">
-            <button type="submit" className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors shadow cursor-pointer">
-              일기 저장
-            </button>
+        {/* 오늘 일기 작성 폼 */}
+        {!todayDiary ? (
+          <form onSubmit={handleCreate} className="bg-white dark:bg-[#1e1e1e] p-6 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800 space-y-4">
+            <h2 className="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+              <Plus size={16} /> 오늘의 일기 작성하기
+            </h2>
+            <input
+              type="text"
+              placeholder="제목을 입력하세요..."
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full p-3 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white"
+            />
+            <textarea
+              placeholder="오늘 하루는 어땠나요? 마음속 이야기를 적어보세요..."
+              rows={4}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="w-full p-3 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:border-blue-500 resize-none text-gray-900 dark:text-white"
+            />
+            <div className="flex justify-end">
+              <button type="submit" className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors shadow cursor-pointer">
+                일기 저장
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="bg-blue-500/10 border border-blue-500/30 p-5 rounded-2xl flex items-center justify-between text-blue-600 dark:text-blue-400">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 size={24} className="shrink-0" />
+              <div>
+                <p className="text-xs font-bold">오늘의 일기를 이미 작성하셨습니다.</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">아래 오늘의 일기 카드에서 <b>[수정하기]</b>를 누르면 새로운 항목을 추가하거나 편집하실 수 있습니다.</p>
+              </div>
+            </div>
           </div>
-        </form>
+        )}
 
         {/* 작성한 일기 목록 */}
         <div className="space-y-4">
@@ -239,64 +255,121 @@ export default function DiaryPage() {
             </div>
           ) : (
             diaries.map((diary) => {
-              const isEditable = (new Date().getTime() - new Date(diary.createdAt).getTime()) / (1000 * 60 * 60) <= 24;
+              const diaryDate = new Date(diary.createdAt);
+              const nowDate = new Date();
+              const isToday = 
+                diaryDate.getFullYear() === nowDate.getFullYear() &&
+                diaryDate.getMonth() === nowDate.getMonth() &&
+                diaryDate.getDate() === nowDate.getDate();
+
+              const formattedDate = diaryDate.toLocaleDateString('ko-KR', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              });
+
+              const diaryItems = diary.items && Array.isArray(diary.items) 
+                ? diary.items 
+                : [{ title: diary.title || '제목 없음', content: diary.content || '' }];
+
+              const isEditing = editingDiaryId === diary._id;
 
               return (
-                <div key={diary._id} className="bg-white dark:bg-[#1e1e1e] p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 space-y-3">
-                  {editingId === diary._id ? (
-                    // 수정 모드
-                    <div className="space-y-3">
-                      <input
-                        type="text"
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        className="w-full p-2.5 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white"
-                      />
-                      <textarea
-                        rows={3}
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        className="w-full p-2.5 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl text-sm resize-none text-gray-900 dark:text-white"
-                      />
-                      <div className="flex justify-end gap-2">
-                        <button onClick={() => setEditingId(null)} className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-xs rounded-xl font-bold cursor-pointer">
-                          취소
-                        </button>
-                        <button onClick={() => handleUpdate(diary._id)} className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-xl font-bold cursor-pointer">
-                          저장
-                        </button>
-                      </div>
+                <div key={diary._id} className="bg-white dark:bg-[#1e1e1e] p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 space-y-4">
+                  
+                  <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-800 pb-3">
+                    <span className="text-xs font-bold text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                      <Calendar size={14} className="text-blue-500" /> {formattedDate}
+                    </span>
+
+                    <div>
+                      {isToday ? (
+                        !isEditing ? (
+                          <button
+                            onClick={() => {
+                              setEditingDiaryId(diary._id);
+                              setEditItems(JSON.parse(JSON.stringify(diaryItems)));
+                            }}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-[#2d2d2d] text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            <Edit3 size={14} /> 수정하기 (항목 추가 가능)
+                          </button>
+                        ) : (
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => setEditingDiaryId(null)} 
+                              className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-xs rounded-xl font-bold cursor-pointer"
+                            >
+                              취소
+                            </button>
+                            <button 
+                              onClick={() => handleUpdate(diary._id)} 
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-xl font-bold cursor-pointer shadow"
+                            >
+                              저장하기
+                            </button>
+                          </div>
+                        )
+                      ) : (
+                        <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">수정 불가</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {isEditing ? (
+                    <div className="space-y-4 pt-1">
+                      {editItems.map((item, index) => (
+                        <div key={index} className="bg-gray-50 dark:bg-[#252526] p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
+                          <span className="text-xs font-extrabold text-blue-500">항목 #{index + 1}</span>
+                          <input
+                            type="text"
+                            placeholder="제목을 입력하세요 (비워두면 저장되지 않습니다)..."
+                            value={item.title}
+                            onChange={(e) => {
+                              const newItems = [...editItems];
+                              newItems[index].title = e.target.value;
+                              setEditItems(newItems);
+                            }}
+                            className="w-full p-2.5 bg-white dark:bg-[#1e1e1e] border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white"
+                          />
+                          <textarea
+                            rows={3}
+                            placeholder="내용을 입력하세요..."
+                            value={item.content}
+                            onChange={(e) => {
+                              const newItems = [...editItems];
+                              newItems[index].content = e.target.value;
+                              setEditItems(newItems);
+                            }}
+                            className="w-full p-2.5 bg-white dark:bg-[#1e1e1e] border border-gray-300 dark:border-gray-700 rounded-lg text-sm resize-none text-gray-900 dark:text-white"
+                          />
+                        </div>
+                      ))}
+
+                      <button
+                        type="button"
+                        onClick={() => setEditItems([...editItems, { title: '', content: '' }])}
+                        className="w-full py-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-dashed border-blue-500/40 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Plus size={16} /> 새로운 제목·내용 항목 추가하기 (+)
+                      </button>
                     </div>
                   ) : (
-                    // 일반 조회 모드
-                    <>
-                      <div className="flex justify-between items-start">
-                        <h3 className="text-base font-extrabold text-gray-900 dark:text-white">{diary.title}</h3>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-gray-400 flex items-center gap-1">
-                            <Calendar size={12} /> {new Date(diary.createdAt).toLocaleString()}
-                          </span>
-                          {isEditable && (
-                            <button
-                              onClick={() => {
-                                setEditingId(diary._id);
-                                setEditTitle(diary.title);
-                                setEditContent(diary.content);
-                              }}
-                              className="p-1.5 bg-gray-100 dark:bg-[#2d2d2d] text-blue-500 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors cursor-pointer"
-                              title="수정하기 (24시간 이내)"
-                            >
-                              <Edit3 size={14} />
-                            </button>
-                          )}
+                    <div className="space-y-4">
+                      {diaryItems.map((item, index) => (
+                        <div key={index} className="space-y-1.5 last:mb-0">
+                          <h3 className="text-sm font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center text-[10px] shrink-0">{index + 1}</span>
+                            {item.title}
+                          </h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap leading-relaxed pl-7">
+                            {item.content}
+                          </p>
                         </div>
-                      </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">{diary.content}</p>
-                      {!isEditable && (
-                        <p className="text-[10px] text-red-400/80 pt-1">작성 후 24시간이 경과하여 수정할 수 없습니다.</p>
-                      )}
-                    </>
+                      ))}
+                    </div>
                   )}
+
                 </div>
               );
             })
