@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
-import { Trophy, CheckCircle, XCircle, Home, Filter, Moon, Sun, RefreshCw, Settings2, Info, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { Trophy, CheckCircle, XCircle, Home, Filter, Moon, Sun, RefreshCw, Settings2, Info, AlertCircle, Shuffle, ListOrdered } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { useSearchParams } from 'next/navigation';
-import { useSession } from 'next-auth/react'; // NextAuth 세션 훅 추가
+import { useSession } from 'next-auth/react';
 
 interface HistoryAttempt {
   isCorrect: boolean;
@@ -40,7 +40,6 @@ function ExamContent() {
   const paramSubject = searchParams.get('subject') || 'All';
   const paramExamType = searchParams.get('examType') || 'All';
   
-  // NextAuth 세션 가져오기 추가
   const { data: session } = useSession();
 
   const [questions, setQuestions] = useState<QuestionType[]>([]);
@@ -48,21 +47,27 @@ function ExamContent() {
   
   const [questionCountMode, setQuestionCountMode] = useState<'10' | '20' | '30' | 'all'>('20');
   const [prioritizeUnsolved, setPrioritizeUnsolved] = useState(false);
+  const [isSequential, setIsSequential] = useState(false);
 
   const [pendingCountMode, setPendingCountMode] = useState<'10' | '20' | '30' | 'all'>('20');
   const [pendingUnsolved, setPendingUnsolved] = useState(false);
+  const [pendingSequential, setPendingSequential] = useState(false);
   
-  const hasSettingsChanged = pendingCountMode !== questionCountMode || pendingUnsolved !== prioritizeUnsolved;
+  const hasSettingsChanged = 
+    pendingCountMode !== questionCountMode || 
+    pendingUnsolved !== prioritizeUnsolved || 
+    pendingSequential !== isSequential;
   
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
   const [results, setResults] = useState<Record<string, boolean>>({});
   const [showExplanation, setShowExplanation] = useState<Record<string, boolean>>({});
-  
   const [openHistoryId, setOpenHistoryId] = useState<string | null>(null);
   
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [isSettingOpen, setIsSettingOpen] = useState(false);
+
+  const mainScrollRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -71,7 +76,7 @@ function ExamContent() {
         const res = await fetch('/api/questions');
         const data = await res.json();
         setQuestions(data);
-        generateExamSet(data, '20', false);
+        generateExamSet(data, '20', false, false);
       } catch (e) {
         console.error(e);
       }
@@ -82,10 +87,15 @@ function ExamContent() {
   const handleApplyNewSet = () => {
     setQuestionCountMode(pendingCountMode);
     setPrioritizeUnsolved(pendingUnsolved);
-    generateExamSet(questions, pendingCountMode, pendingUnsolved);
+    setIsSequential(pendingSequential);
+    generateExamSet(questions, pendingCountMode, pendingUnsolved, pendingSequential);
+
+    if (mainScrollRef.current) {
+      mainScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
-  const generateExamSet = (baseQuestions = questions, countMode = questionCountMode, unsolved = prioritizeUnsolved) => {
+  const generateExamSet = (baseQuestions = questions, countMode = questionCountMode, unsolved = prioritizeUnsolved, sequential = isSequential) => {
     if (baseQuestions.length === 0) return;
     
     let filtered = baseQuestions.filter(q => 
@@ -99,6 +109,12 @@ function ExamContent() {
         const bCount = b.history?.length || 0;
         if (aCount !== bCount) return aCount - bCount;
         return Math.random() - 0.5;
+      });
+    } else if (sequential) {
+      filtered.sort((a, b) => {
+        if (a.subject !== b.subject) return a.subject.localeCompare(b.subject);
+        if (a.examType !== b.examType) return a.examType.localeCompare(b.examType);
+        return a.questionNumber - b.questionNumber;
       });
     } else {
       filtered = shuffleArray(filtered);
@@ -116,13 +132,37 @@ function ExamContent() {
     setOpenHistoryId(null);
   };
 
+  // 👇 [수정됨] 거리에 상관없이 빠르고 부드럽게 가속/감속하며 이동하는 커스텀 고속 스크롤 함수
   const scrollToQuestion = (id: string) => {
     const element = document.getElementById(`question-${id}`);
-    const offset = 180;
-    if (element) {
-      const bodyRect = document.body.getBoundingClientRect().top;
-      const elementRect = element.getBoundingClientRect().top;
-      document.querySelector('main')?.scrollTo({ top: (elementRect - bodyRect) - offset, behavior: 'smooth' });
+    const container = mainScrollRef.current;
+    if (element && container) {
+      const containerRect = container.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const offset = 20;
+      const targetScrollTop = container.scrollTop + (elementRect.top - containerRect.top) - offset;
+      
+      const startScrollTop = container.scrollTop;
+      const distance = targetScrollTop - startScrollTop;
+      const duration = Math.min(Math.max(Math.abs(distance) / 3, 200), 500); // 최소 0.2초 ~ 최대 0.5초 사이로 속도 제한
+      let startTime: number | null = null;
+
+      const animation = (currentTime: number) => {
+        if (!startTime) startTime = currentTime;
+        const timeElapsed = currentTime - startTime;
+        const progress = Math.min(timeElapsed / duration, 1);
+        
+        // 부드러운 이징(Ease Out) 함수 적용
+        const ease = 1 - Math.pow(1 - progress, 3);
+
+        container.scrollTop = startScrollTop + distance * ease;
+
+        if (progress < 1) {
+          requestAnimationFrame(animation);
+        }
+      };
+
+      requestAnimationFrame(animation);
     }
   };
 
@@ -212,7 +252,7 @@ function ExamContent() {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-full relative overflow-y-auto scroll-smooth">
+      <main ref={mainScrollRef as any} className="flex-1 flex flex-col h-full relative overflow-y-auto">
         
         <div className="sticky top-0 z-20 bg-white/95 dark:bg-[#121212]/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 p-3 sm:p-4 shadow-sm w-full">
           <div className="max-w-4xl mx-auto flex flex-col gap-2">
@@ -239,6 +279,11 @@ function ExamContent() {
               <label className="flex items-center gap-2 cursor-pointer bg-gray-50 dark:bg-[#1e1e1e] border border-gray-300 dark:border-gray-700 px-3 py-2 rounded-lg text-xs sm:text-sm text-gray-800 dark:text-gray-200 select-none flex-1 lg:flex-none justify-center">
                 <input type="checkbox" checked={pendingUnsolved} onChange={(e) => setPendingUnsolved(e.target.checked)} className="accent-yellow-500 w-4 h-4 cursor-pointer" />
                 안 푼 문제 우선
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer bg-gray-50 dark:bg-[#1e1e1e] border border-gray-300 dark:border-gray-700 px-3 py-2 rounded-lg text-xs sm:text-sm text-gray-800 dark:text-gray-200 select-none flex-1 lg:flex-none justify-center">
+                <input type="checkbox" checked={pendingSequential} onChange={(e) => setPendingSequential(e.target.checked)} className="accent-yellow-500 w-4 h-4 cursor-pointer" />
+                순차적 보기 (번호순)
               </label>
 
               <div className="flex gap-2 flex-1 lg:flex-none w-full lg:w-auto mt-2 lg:mt-0 lg:ml-auto">
@@ -419,7 +464,6 @@ function ExamContent() {
                                 <div className="text-gray-400 dark:text-gray-500 text-xs sm:text-sm italic">등록된 해설이 없습니다.</div>
                               )}
 
-                              {/* 문제 오류 신고 버튼 */}
                               <div className="flex justify-end pt-2 border-t border-gray-100 dark:border-gray-800">
                                 <button
                                   onClick={async () => {
@@ -431,9 +475,9 @@ function ExamContent() {
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({
                                           questionId: q._id,
-                                          subject: q.subject,           // 과목명 추가
-                                          examType: q.examType,         // 회차 추가
-                                          questionNumber: q.questionNumber, // 문항 번호 추가
+                                          subject: q.subject,          
+                                          examType: q.examType,        
+                                          questionNumber: q.questionNumber,
                                           questionText: q.title,
                                           userEmail: session?.user?.email || 'anonymous',
                                           reportReason: reason,
