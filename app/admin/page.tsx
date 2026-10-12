@@ -186,8 +186,8 @@ export default function AdminHubPage() {
                 const isCopied = copiedId === report._id;
 
                 return (
-                  <div key={report._id} className="bg-white dark:bg-[#1e1e1e] border border-amber-500/20 p-4 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3 text-xs">
-                    <div className="space-y-1.5 flex-1">
+                  <div key={report._id} className="bg-white dark:bg-[#1e1e1e] border border-amber-500/20 p-4 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3 text-xs w-full overflow-hidden">
+                    <div className="space-y-2 flex-1 w-full min-w-0">
                       {/* 과목 및 회차 정보 */}
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="bg-amber-500 text-black font-bold px-2 py-0.5 rounded text-[10px]">
@@ -202,12 +202,12 @@ export default function AdminHubPage() {
                       {/* 신고 사유 */}
                       <div className="flex items-center gap-2 font-bold text-gray-900 dark:text-white text-sm">
                         <AlertTriangle size={15} className="text-amber-500 shrink-0" />
-                        <span>신고사유: {report.reportReason}</span>
+                        <span className="break-words">신고사유: {report.reportReason}</span>
                       </div>
 
-                      {/* 문제 내용 및 ID 복사 버튼 포함 박스 */}
-                      <div className="flex items-center justify-between gap-2 bg-gray-50 dark:bg-[#2d2d2d] p-2 rounded-lg border border-gray-200 dark:border-gray-700">
-                        <p className="text-gray-600 dark:text-gray-400 font-mono text-xs truncate">
+                      {/* 문제 내용 및 ID 복사 버튼 포함 박스 (모바일 오버플로우 방지 및 세로 정렬 구조 개선) */}
+                      <div className="bg-gray-50 dark:bg-[#2d2d2d] p-3 rounded-xl border border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
+                        <p className="text-gray-600 dark:text-gray-400 font-mono text-xs break-all flex-1 min-w-0">
                           문제 내용: {report.questionText || '내용 없음'}
                         </p>
                         
@@ -215,17 +215,17 @@ export default function AdminHubPage() {
                         {report.questionId && (
                           <button
                             onClick={() => handleCopyId(report.questionId, report._id)}
-                            className="flex items-center gap-1 bg-white dark:bg-[#1e1e1e] hover:bg-gray-100 dark:hover:bg-black px-2.5 py-1 rounded border border-gray-300 dark:border-gray-600 font-mono text-[11px] text-gray-700 dark:text-gray-300 shrink-0 cursor-pointer transition-colors shadow-2xs"
+                            className="flex items-center justify-center gap-1 bg-white dark:bg-[#1e1e1e] hover:bg-gray-100 dark:hover:bg-black px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 font-mono text-xs text-gray-700 dark:text-gray-300 shrink-0 cursor-pointer transition-colors shadow-2xs self-end sm:self-auto"
                             title="클립보드에 문제 ID 복사"
                           >
                             {isCopied ? (
                               <>
-                                <Check size={13} className="text-green-500" />
+                                <Check size={14} className="text-green-500" />
                                 <span className="text-green-500 font-bold">복사됨!</span>
                               </>
                             ) : (
                               <>
-                                <Copy size={13} />
+                                <Copy size={14} />
                                 <span>ID 복사</span>
                               </>
                             )}
@@ -237,7 +237,7 @@ export default function AdminHubPage() {
                     {/* 조치 완료 버튼 */}
                     <button
                       onClick={() => handleResolveReport(report._id)}
-                      className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-xl transition-all shrink-0 cursor-pointer flex items-center gap-1.5 self-end md:self-center shadow-sm"
+                      className="w-full md:w-auto px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-xl transition-all shrink-0 cursor-pointer flex items-center justify-center gap-1.5 self-end md:self-center shadow-sm"
                     >
                       <CheckCircle size={15} /> 조치 완료
                     </button>
