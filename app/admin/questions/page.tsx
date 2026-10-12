@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { CheckCircle, Home, Trash2, PlusCircle, Edit3, X, Moon, Sun, RotateCcw, Search, ArrowUpDown, AlertTriangle, ArrowLeft, Settings, Eye, EyeOff } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { CheckCircle, Home, Trash2, PlusCircle, X, Moon, Sun, RotateCcw, Search, ArrowUpDown, AlertTriangle, ArrowLeft, Settings, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 
@@ -38,7 +38,6 @@ export default function AdminQuestionsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('default');
 
-  // 설정 관련 상태 (ID 보이기 여부, 설정 모달 열림 여부)
   const [showQuestionId, setShowQuestionId] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -228,7 +227,6 @@ export default function AdminQuestionsPage() {
             <h1 className="text-xl font-bold flex items-center gap-2 text-gray-800 dark:text-white">📚 문항 및 시험 DB 관리</h1>
           </div>
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            {/* 설정 버튼 */}
             <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-1.5 text-sm bg-gray-100 dark:bg-[#2d2d2d] text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#383838] px-4 py-2 rounded-lg transition-colors cursor-pointer font-bold">
               <Settings size={16} /> 페이지 설정
             </button>
@@ -254,31 +252,42 @@ export default function AdminQuestionsPage() {
 
           {/* 검색 및 필터 컨트롤 바 */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-            <div className="relative sm:col-span-2 lg:col-span-1">
-              <Search size={16} className="absolute left-3 top-3 text-gray-400" />
+            <div className="relative sm:col-span-2 lg:col-span-1 flex items-center">
+              <Search size={16} className="absolute left-3 text-gray-400 pointer-events-none" />
               <input 
                 type="text" 
                 placeholder="문제 내용 또는 ID 검색..." 
                 value={searchQuery} 
                 onChange={(e) => setSearchQuery(e.target.value)} 
-                className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500" 
+                className="w-full pl-9 pr-10 py-2 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white" 
               />
+              {/* 👈 루시드 X 아이콘을 입력창 세로 기준 정가운데(flex items-center justify-center)에 오도록 수정 */}
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 h-full px-1.5 flex items-center justify-center text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer"
+                  title="검색어 초기화"
+                >
+                  <X size={16} />
+                </button>
+              )}
             </div>
 
-            <div className="relative">
-              <ArrowUpDown size={16} className="absolute left-3 top-3 text-gray-400" />
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none cursor-pointer">
+            <div className="relative flex items-center">
+              <ArrowUpDown size={16} className="absolute left-3 text-gray-400 pointer-events-none" />
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none cursor-pointer text-gray-900 dark:text-white">
                 <option value="default">기본 정렬</option>
                 <option value="attempts-desc">풀이 많은 순</option>
                 <option value="attempts-asc">풀이 적은 순</option>
               </select>
             </div>
             
-            <select value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)} className={`bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 cursor-pointer transition-all ${isScrolledDown ? 'hidden lg:block' : 'block'}`}>
+            <select value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)} className={`bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 cursor-pointer text-gray-900 dark:text-white transition-all ${isScrolledDown ? 'hidden lg:block' : 'block'}`}>
               {subjects.map(s => <option key={s} value={s}>{s === 'All' ? '전체 과목 필터' : s}</option>)}
             </select>
             
-            <select value={filterExamType} onChange={(e) => setFilterExamType(e.target.value)} className={`bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 cursor-pointer transition-all ${isScrolledDown ? 'hidden lg:block' : 'block'}`}>
+            <select value={filterExamType} onChange={(e) => setFilterExamType(e.target.value)} className={`bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 cursor-pointer text-gray-900 dark:text-white transition-all ${isScrolledDown ? 'hidden lg:block' : 'block'}`}>
               {examTypes.map(e => <option key={e} value={e}>{e === 'All' ? '전체 회차 필터' : e}</option>)}
             </select>
           </div>
@@ -305,7 +314,6 @@ export default function AdminQuestionsPage() {
                         <span className="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded text-gray-700 dark:text-gray-300">{q.examType}</span>
                         <span className="text-xs text-yellow-600 dark:text-yellow-500 font-bold">{q.subject}</span>
                         
-                        {/* 설정에 따라 토글되는 문제 ID 표시 영역 */}
                         {showQuestionId && (
                           <span className="text-[11px] font-mono bg-gray-200/70 dark:bg-black/40 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded animate-fade-in">
                             ID: {q._id}
@@ -349,7 +357,6 @@ export default function AdminQuestionsPage() {
               </div>
 
               <div className="space-y-4">
-                {/* ID 보이기 토글 설정 */}
                 <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-[#252526] rounded-xl border border-gray-200 dark:border-gray-700">
                   <div>
                     <p className="text-sm font-bold text-gray-800 dark:text-gray-200">문제 카드에 ID 표시</p>
@@ -368,7 +375,6 @@ export default function AdminQuestionsPage() {
                   </button>
                 </div>
 
-                {/* 전체 기록 초기화 버튼 */}
                 <div className="p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-500/20 space-y-2">
                   <p className="text-sm font-bold text-red-700 dark:text-red-400">위험 구역</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">모든 문제의 누적 풀이 및 정답 기록을 영구적으로 초기화합니다.</p>

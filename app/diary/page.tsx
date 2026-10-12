@@ -2,14 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
-import { BookOpen, Plus, Lock, Calendar, Edit3, Moon, Sun, Home, Loader2, CheckCircle2 } from 'lucide-react';
+import { BookOpen, Plus, Lock, Calendar, Edit3, Moon, Sun, Home, Loader2, CheckCircle2, Image as ImageIcon, X, UploadCloud } from 'lucide-react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
+
+const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || '';
+const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || '';
 
 interface DiaryItemType {
   _id?: string;
   title: string;
   content: string;
+  images?: string[];
 }
 
 interface DiaryType {
@@ -27,12 +31,15 @@ export default function DiaryPage() {
   const [mounted, setMounted] = useState(false);
   const [diaries, setDiaries] = useState<DiaryType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
 
   const [editingDiaryId, setEditingDiaryId] = useState<string | null>(null);
   const [editItems, setEditItems] = useState<DiaryItemType[]>([]);
+
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -164,6 +171,57 @@ export default function DiaryPage() {
     }
   };
 
+  const handleCloudinaryUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (!CLOUD_NAME || !UPLOAD_PRESET) {
+      alert('Cloudinary 환경 변수(Cloud Name 또는 Upload Preset)가 설정되지 않았습니다.');
+      return;
+    }
+
+    setIsUploading(true);
+    const uploadedUrls: string[] = [];
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', UPLOAD_PRESET);
+
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          uploadedUrls.push(data.secure_url);
+        } else {
+          alert(`이미지 업로드 실패: ${file.name}`);
+        }
+      }
+
+      setEditItems((prev) => {
+        const newItems = [...prev];
+        if (!newItems[index].images) {
+          newItems[index].images = [];
+        }
+        // 👈 기존 이미지들과 새로 업로드된 URL을 합칠 때 중복 제거(Set 활용) 처리
+        const combinedImages = [...newItems[index].images!, ...uploadedUrls];
+        newItems[index].images = Array.from(new Set(combinedImages));
+        return newItems;
+      });
+    } catch (error) {
+      console.error(error);
+      alert('이미지 업로드 중 오류가 발생했습니다.');
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#121212] p-4 md:p-8 text-gray-800 dark:text-gray-200 transition-colors">
       <div className="max-w-3xl mx-auto space-y-6">
@@ -237,7 +295,7 @@ export default function DiaryPage() {
               <CheckCircle2 size={24} className="shrink-0" />
               <div>
                 <p className="text-xs font-bold">오늘의 일기를 이미 작성하셨습니다.</p>
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">아래 오늘의 일기 카드에서 <b>[수정하기]</b>를 누르면 새로운 항목을 추가하거나 편집하실 수 있습니다.</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">아래 일기 카드에서 <b>[수정하기]</b>를 누르면 항목 추가 및 사진 업로드를 하실 수 있습니다.</p>
               </div>
             </div>
           </div>
@@ -270,7 +328,7 @@ export default function DiaryPage() {
 
               const diaryItems = diary.items && Array.isArray(diary.items) 
                 ? diary.items 
-                : [{ title: diary.title || '제목 없음', content: diary.content || '' }];
+                : [{ title: diary.title || '제목 없음', content: diary.content || '', images: [] }];
 
               const isEditing = editingDiaryId === diary._id;
 
@@ -292,7 +350,7 @@ export default function DiaryPage() {
                             }}
                             className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-[#2d2d2d] text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                           >
-                            <Edit3 size={14} /> 수정하기 (항목 추가 가능)
+                            <Edit3 size={14} /> 수정하기 (항목/사진 추가)
                           </button>
                         ) : (
                           <div className="flex gap-2">
@@ -304,9 +362,10 @@ export default function DiaryPage() {
                             </button>
                             <button 
                               onClick={() => handleUpdate(diary._id)} 
-                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-xl font-bold cursor-pointer shadow"
+                              disabled={isUploading}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded-xl font-bold cursor-pointer shadow"
                             >
-                              저장하기
+                              {isUploading ? '업로드 중...' : '저장하기'}
                             </button>
                           </div>
                         )
@@ -323,7 +382,7 @@ export default function DiaryPage() {
                           <span className="text-xs font-extrabold text-blue-500">항목 #{index + 1}</span>
                           <input
                             type="text"
-                            placeholder="제목을 입력하세요 (비워두면 저장되지 않습니다)..."
+                            placeholder="제목을 입력하세요..."
                             value={item.title}
                             onChange={(e) => {
                               const newItems = [...editItems];
@@ -343,12 +402,50 @@ export default function DiaryPage() {
                             }}
                             className="w-full p-2.5 bg-white dark:bg-[#1e1e1e] border border-gray-300 dark:border-gray-700 rounded-lg text-sm resize-none text-gray-900 dark:text-white"
                           />
+
+                          <div className="space-y-2 pt-2">
+                            <label className="flex items-center gap-1.5 w-max px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-blue-500/30">
+                              <UploadCloud size={15} /> Cloudinary 사진 업로드
+                              <input 
+                                type="file" 
+                                accept="image/*" 
+                                multiple 
+                                onChange={(e) => handleCloudinaryUpload(index, e)} 
+                                className="hidden" 
+                              />
+                            </label>
+                            {isUploading && <p className="text-[11px] text-blue-500 animate-pulse">Cloudinary로 사진을 업로드하고 있습니다...</p>}
+
+                            {item.images && item.images.length > 0 && (
+                              <div className="flex flex-wrap gap-2 pt-1">
+                                {item.images.map((imgUrl, imgIdx) => (
+                                  <div key={imgIdx} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 group">
+                                    <img src={imgUrl} alt="업로드 이미지" className="w-full h-full object-cover" />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditItems((prev) => {
+                                          const newItems = [...prev];
+                                          newItems[index].images = newItems[index].images?.filter((_, i) => i !== imgIdx);
+                                          return newItems;
+                                        });
+                                      }}
+                                      className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                      title="사진 삭제"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ))}
 
                       <button
                         type="button"
-                        onClick={() => setEditItems([...editItems, { title: '', content: '' }])}
+                        onClick={() => setEditItems([...editItems, { title: '', content: '', images: [] }])}
                         className="w-full py-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-dashed border-blue-500/40 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                       >
                         <Plus size={16} /> 새로운 제목·내용 항목 추가하기 (+)
@@ -357,7 +454,7 @@ export default function DiaryPage() {
                   ) : (
                     <div className="space-y-4">
                       {diaryItems.map((item, index) => (
-                        <div key={index} className="space-y-1.5 last:mb-0">
+                        <div key={index} className="space-y-2 last:mb-0">
                           <h3 className="text-sm font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
                             <span className="w-5 h-5 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center text-[10px] shrink-0">{index + 1}</span>
                             {item.title}
@@ -365,6 +462,20 @@ export default function DiaryPage() {
                           <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap leading-relaxed pl-7">
                             {item.content}
                           </p>
+
+                          {item.images && item.images.length > 0 && (
+                            <div className="pl-7 pt-1 flex flex-wrap items-center gap-2">
+                              {item.images.map((img, imgIdx) => (
+                                <button
+                                  key={imgIdx}
+                                  onClick={() => setViewingImage(img)}
+                                  className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 dark:bg-[#2d2d2d] hover:bg-gray-200 dark:hover:bg-[#383838] text-blue-500 rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                                >
+                                  <ImageIcon size={13} /> 사진 보기 ({imgIdx + 1})
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -377,6 +488,20 @@ export default function DiaryPage() {
         </div>
 
       </div>
+
+      {viewingImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setViewingImage(null)}>
+          <div className="relative max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl" onClick={(e) => e.stopPropagation()}>
+            <button 
+              onClick={() => setViewingImage(null)}
+              className="absolute top-3 right-3 bg-black/60 text-white p-2 rounded-full hover:bg-black transition-colors cursor-pointer z-10"
+            >
+              <X size={20} />
+            </button>
+            <img src={viewingImage} alt="확대 이미지" className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

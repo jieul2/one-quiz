@@ -16,7 +16,7 @@ async function handleGet(req: Request) {
   return NextResponse.json(diaries);
 }
 
-// 2. 새 일기 작성 (변경 스키마 items 배열 구조 반영)
+// 2. 새 일기 작성
 async function handlePost(req: Request) {
   const session = await getServerSession();
   if (!session || !session.user?.email) {
@@ -45,10 +45,9 @@ async function handlePost(req: Request) {
     return NextResponse.json({ error: '하루에 일기는 오직 1개만 작성할 수 있습니다.' }, { status: 400 });
   }
 
-  // 👈 변경된 items 배열 구조로 새 일기 문서 생성
   const newDiary = await Diary.create({
     userEmail: session.user.email,
-    items: [{ title, content }],
+    items: [{ title, content, images: [] }],
     createdAt: new Date(),
   });
 
@@ -68,7 +67,7 @@ async function handlePut(req: Request) {
   }
 
   const validItems = items.filter(
-    (item) => item.title?.trim() !== '' || item.content?.trim() !== ''
+    (item) => item.title?.trim() !== '' || item.content?.trim() !== '' || (item.images && item.images.length > 0)
   );
 
   if (validItems.length === 0) {
