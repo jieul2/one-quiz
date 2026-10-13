@@ -4,6 +4,44 @@ import dbConnect from '@/lib/mongodb';
 import Diary from '@/models/Diary';
 import { withAudit } from '@/lib/withAudit';
 
+// 한국 시간(KST) 기준으로 오늘 하루의 시작과 끝 Date 객체를 구하는 헬퍼 함수
+function getKSTDateRange() {
+  const now = new Date();
+  
+  // 현재 시간을 기준으로 한국 시간 문자열을 가져옴
+  const kstString = now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' });
+  const kstDate = new Date(kstString);
+
+  // 한국 시간 기준 자정 (00:00:00.000)
+  const startKST = new Date(kstDate);
+  startKST.setHours(0, 0, 0, 0);
+
+  // 한국 시간 기준 하루 끝 (23:59:59.999)
+  const endKST = new Date(kstDate);
+  endKST.setHours(23, 59, 59, 999);
+
+  // UTC 기준으로 변환된 Date 객체 반환 (DB 쿼리용)
+  const offset = 9 * 60 * 60 * 1000; // 9시간 밀리초
+  return {
+    startOfDay: new Date(startKST.getTime() - offset),
+    endOfDay: new Date(endKST.getTime() - offset),
+  };
+}
+
+// 특정 날짜가 한국 기준 오늘인지 확인하는 헬퍼 함수
+function isTodayInKST(targetDate: Date) {
+  const now = new Date();
+  
+  const targetKST = new Date(targetDate.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  const nowKST = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+
+  return (
+    targetKST.getFullYear() === nowKST.getFullYear() &&
+    targetKST.getMonth() === nowKST.getMonth() &&
+    targetKST.getDate() === nowKST.getDate()
+  );
+}
+
 // 1. 본인 일기 목록 조회
 async function handleGet(req: Request) {
   const session = await getServerSession();
@@ -30,11 +68,8 @@ async function handlePost(req: Request) {
 
   await dbConnect();
 
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
-
-  const endOfDay = new Date();
-  endOfDay.setHours(23, 59, 59, 999);
+  // 한국 시간 기준 오늘 범위 설정
+  const { startOfDay, endOfDay } = getKSTDateRange();
 
   const existingTodayDiary = await Diary.findOne({
     userEmail: session.user.email,
@@ -85,13 +120,8 @@ async function handlePut(req: Request) {
     return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
   }
 
-  const createdAtDate = new Date(diary.createdAt);
-  const nowDate = new Date();
-
-  const isToday =
-    createdAtDate.getFullYear() === nowDate.getFullYear() &&
-    createdAtDate.getMonth() === nowDate.getMonth() &&
-    createdAtDate.getDate() === nowDate.getDate();
+  // 한국 시간 기준으로 오늘 작성된 일기인지 확인
+  const isToday = isTodayInKST(new Date(diary.createdAt));
 
   if (!isToday) {
     return NextResponse.json({ error: '자정이 지난 일기는 수정할 수 없습니다.' }, { status: 400 });
