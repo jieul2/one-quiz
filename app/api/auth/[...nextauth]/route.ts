@@ -15,7 +15,6 @@ declare module "next-auth" {
   }
 }
 
-// 👈 이메일이 없는 여러 유저가 공존할 수 있도록 unique: true 제거 및 sparse 유지
 const UserSchema = new mongoose.Schema({
   email: { type: String, sparse: true },
   name: { type: String },
@@ -26,7 +25,8 @@ const UserSchema = new mongoose.Schema({
 });
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
 
-const authOptions = {
+// 👈 외부에서 가져다 쓸 수 있도록 export 추가
+export const authOptions = {
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -42,7 +42,7 @@ const authOptions = {
       try {
         await dbConnect();
         const providerAccountId = account?.providerAccountId || user.id;
-        if (!providerAccountId) return true; // 방어 코드: ID가 없어도 일단 통과
+        if (!providerAccountId) return true;
 
         const dbUser = await User.findOne({ providerAccountId });
 
@@ -52,7 +52,6 @@ const authOptions = {
           dbUser.lastLoginAt = new Date();
           await dbUser.save();
         } else {
-          // 👈 신규 생성 시 이메일이 없으면 필드 자체를 안 넣거나 비워둠
           const userData: any = {
             name: user.name,
             image: user.image,
@@ -67,7 +66,7 @@ const authOptions = {
         return true;
       } catch (error) {
         console.error("User sync error (Non-blocking):", error);
-        return true; // 👈 에러가 나더라도 로그인이 절대 차단(Access Denied)되지 않도록 true 반환
+        return true;
       }
     },
     async jwt({
@@ -90,7 +89,6 @@ const authOptions = {
           token.providerAccountId = account.providerAccountId;
         }
 
-        // 프론트엔드에서 update({ email: ... }) 호출 시
         if (trigger === "update" && session?.user?.email && token.providerAccountId) {
           token.email = session.user.email;
           await User.findOneAndUpdate(

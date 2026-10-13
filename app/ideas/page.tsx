@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import {
   Plus,
   Trash2,
@@ -20,6 +21,8 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  MessageSquarePlus,
+  User,
 } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
@@ -43,6 +46,7 @@ interface IdeaType {
   description: string;
   status: "idea" | "progress" | "completed";
   priority: "urgent" | "high" | "medium" | "low";
+  authorEmail?: string;
   createdAt: string;
   updatedAt?: string;
   completedAt?: string;
@@ -50,6 +54,10 @@ interface IdeaType {
 }
 
 export default function IdeasPage() {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "admin";
+  const userEmail = session?.user?.email;
+
   const [ideas, setIdeas] = useState<IdeaType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [title, setTitle] = useState("");
@@ -61,9 +69,7 @@ export default function IdeasPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [currentEditId, setCurrentEditId] = useState<string | null>(null);
 
-  // 노션 스타일 상세 모달 상태
   const [selectedCard, setSelectedCard] = useState<IdeaType | null>(null);
-  // 히스토리 항목별 상세 Diff 열기/닫기 토글 상태
   const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -76,7 +82,6 @@ export default function IdeasPage() {
   const [sortBy, setSortBy] = useState<"latest" | "oldest" | "title" | "priority">("latest");
   const [hideCompleted, setHideCompleted] = useState(false);
 
-  // 👈 페이지네이션 상태 추가 (1페이지당 9개 표시)
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 9;
 
@@ -122,7 +127,6 @@ export default function IdeasPage() {
     };
   }, []);
 
-  // 필터나 검색어, 정렬이 바뀔 때 페이지를 1페이지로 자동 초기화
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, statusFilter, priorityFilter, sortBy, hideCompleted]);
@@ -133,6 +137,13 @@ export default function IdeasPage() {
 
     try {
       if (isEditing && currentEditId) {
+        const targetItem = ideas.find((i) => i._id === currentEditId);
+        const canEdit = isAdmin || (targetItem && targetItem.authorEmail === userEmail);
+        if (!canEdit) {
+          alert("수정 권한이 없습니다.");
+          return;
+        }
+
         const res = await fetch("/api/ideas", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -140,8 +151,8 @@ export default function IdeasPage() {
             _id: currentEditId,
             title,
             description,
-            status,
-            priority,
+            status: isAdmin ? status : targetItem?.status || "idea",
+            priority: isAdmin ? priority : targetItem?.priority || "medium",
             commitMessage,
           }),
         });
@@ -150,14 +161,23 @@ export default function IdeasPage() {
           fetchIdeas();
         }
       } else {
+        const postData = isAdmin
+          ? { title, description, status, priority, authorEmail: userEmail }
+          : { title, description, status: "idea", priority: "medium", authorEmail: userEmail };
+
         const res = await fetch("/api/ideas", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title, description, status, priority }),
+          body: JSON.stringify(postData),
         });
         if (res.ok) {
           resetForm();
           fetchIdeas();
+          alert(
+            isAdmin
+              ? "새로운 아이디어가 등록되었습니다."
+              : "소중한 아이디어/피드백이 등록되었습니다!",
+          );
         }
       }
     } catch (e) {
@@ -167,6 +187,12 @@ export default function IdeasPage() {
 
   const handleEditClick = (e: React.MouseEvent | null, item: IdeaType) => {
     if (e) e.stopPropagation();
+    const canEdit = isAdmin || item.authorEmail === userEmail;
+    if (!canEdit) {
+      alert("본인이 작성한 글만 수정할 수 있습니다.");
+      return;
+    }
+
     setIsEditing(true);
     setCurrentEditId(item._id);
     setTitle(item.title);
@@ -188,11 +214,16 @@ export default function IdeasPage() {
     setCommitMessage("");
   };
 
-  const handleDeleteIdea = async (e: React.MouseEvent | null, id: string) => {
+  const handleDeleteIdea = async (e: React.MouseEvent | null, item: IdeaType) => {
     if (e) e.stopPropagation();
+    const canDelete = isAdmin || item.authorEmail === userEmail;
+    if (!canDelete) {
+      alert("삭제 권한이 없습니다.");
+      return;
+    }
     if (!confirm("이 항목을 삭제하시겠습니까?")) return;
     try {
-      const res = await fetch(`/api/ideas?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/ideas?id=${item._id}`, { method: "DELETE" });
       if (res.ok) {
         setSelectedCard(null);
         fetchIdeas();
@@ -221,7 +252,6 @@ export default function IdeasPage() {
 
   const priorityWeight = { urgent: 4, high: 3, medium: 2, low: 1 };
 
-  // 1. 필터링 및 정렬된 전체 아이디어 목록
   const filteredIdeas = ideas
     .filter((item) => {
       const matchesStatus = statusFilter === "all" || item.status === statusFilter;
@@ -229,7 +259,10 @@ export default function IdeasPage() {
       const matchesHideCompleted = hideCompleted ? item.status !== "completed" : true;
       const matchesSearch =
         item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase()));
+        (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (isAdmin &&
+          item.authorEmail &&
+          item.authorEmail.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchesStatus && matchesPriority && matchesHideCompleted && matchesSearch;
     })
     .sort((a, b) => {
@@ -247,7 +280,6 @@ export default function IdeasPage() {
       return 0;
     });
 
-  // 👈 2. 페이지네이션 계산 로직
   const totalPages = Math.ceil(filteredIdeas.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const currentIdeas = filteredIdeas.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -268,10 +300,12 @@ export default function IdeasPage() {
             </div>
             <div className="overflow-hidden">
               <h1 className="text-base sm:text-xl md:text-2xl font-extrabold text-gray-900 dark:text-white truncate">
-                🚀 프로젝트 로드맵
+                🚀 프로젝트 로드맵 & 피드백
               </h1>
               <p className="text-[11px] sm:text-xs md:text-sm text-gray-500 dark:text-gray-400 truncate">
-                아이디어를 기획하고 우선순위별 개발 현황을 관리하세요.
+                {isAdmin
+                  ? "기능 개발 로드맵을 관리하세요."
+                  : "개발되었으면 하는 기능이나 피드백을 자유롭게 남겨주세요!"}
               </p>
             </div>
           </div>
@@ -301,8 +335,17 @@ export default function IdeasPage() {
         >
           <div className="flex justify-between items-center">
             <h2 className="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-              <Sparkles size={16} className="text-yellow-500" />
-              {isEditing ? "기능 아이디어 수정 중..." : "새로운 기능 아이디어 추가"}
+              {isAdmin ? (
+                <>
+                  <Sparkles size={16} className="text-yellow-500" />
+                  {isEditing ? "기능 아이디어 수정 중..." : "새로운 기능 아이디어 추가 (관리자)"}
+                </>
+              ) : (
+                <>
+                  <MessageSquarePlus size={16} className="text-blue-500" />
+                  {isEditing ? "내가 작성한 피드백 수정 중..." : "아이디어 / 피드백 등록하기"}
+                </>
+              )}
             </h2>
             {isEditing && (
               <button
@@ -315,68 +358,94 @@ export default function IdeasPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <input
-              type="text"
-              placeholder="기능 제목 (예: AI 오답노트 자동생성)"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="md:col-span-2 w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white"
-              required
-            />
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as "idea" | "progress" | "completed")}
-              className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white cursor-pointer font-medium"
-            >
-              <option value="idea">💡 아이디어</option>
-              <option value="progress">⚡ 개발 중</option>
-              <option value="completed">✅ 개발 완료</option>
-            </select>
+          {isAdmin ? (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <input
+                  type="text"
+                  placeholder="기능 제목 (예: AI 오답노트 자동생성)"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="md:col-span-2 w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white"
+                  required
+                />
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as "idea" | "progress" | "completed")}
+                  className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white cursor-pointer font-medium"
+                >
+                  <option value="idea">💡 아이디어</option>
+                  <option value="progress">⚡ 개발 중</option>
+                  <option value="completed">✅ 개발 완료</option>
+                </select>
 
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value as "urgent" | "high" | "medium" | "low")}
-              className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white cursor-pointer font-medium"
-            >
-              <option value="urgent">🔥 긴급 (Urgent)</option>
-              <option value="high">⭐ 높음 (High)</option>
-              <option value="medium">📌 보통 (Medium)</option>
-              <option value="low">💤 낮음 (Low)</option>
-            </select>
-          </div>
+                <select
+                  value={priority}
+                  onChange={(e) =>
+                    setPriority(e.target.value as "urgent" | "high" | "medium" | "low")
+                  }
+                  className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white cursor-pointer font-medium"
+                >
+                  <option value="urgent">🔥 긴급 (Urgent)</option>
+                  <option value="high">⭐ 높음 (High)</option>
+                  <option value="medium">📌 보통 (Medium)</option>
+                  <option value="low">💤 낮음 (Low)</option>
+                </select>
+              </div>
 
-          <textarea
-            placeholder="상세 설명이나 구현 방안을 적어주세요..."
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={2}
-            className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white"
-          />
+              <textarea
+                placeholder="상세 설명이나 구현 방안을 적어주세요..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white"
+              />
 
-          {isEditing && (
-            <div className="bg-yellow-500/5 dark:bg-yellow-500/10 p-3.5 rounded-xl border border-yellow-500/30 flex items-center gap-2">
-              <GitCommit size={18} className="text-yellow-600 dark:text-yellow-500 shrink-0" />
+              {isEditing && (
+                <div className="bg-yellow-500/5 dark:bg-yellow-500/10 p-3.5 rounded-xl border border-yellow-500/30 flex items-center gap-2">
+                  <GitCommit size={18} className="text-yellow-600 dark:text-yellow-500 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="변경 요약 (예: 로그인 API 연동 추가, UI 버그 수정 - 미입력시 자동 감지)"
+                    value={commitMessage}
+                    onChange={(e) => setCommitMessage(e.target.value)}
+                    className="w-full bg-transparent border-none text-xs focus:outline-none text-gray-900 dark:text-white placeholder-gray-400"
+                  />
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full bg-yellow-500 hover:bg-yellow-600 text-white dark:text-black font-bold py-3 rounded-xl transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer text-sm"
+              >
+                <Plus size={18} /> {isEditing ? "아이디어 수정 완료 (커밋)" : "아이디어 등록하기"}
+              </button>
+            </>
+          ) : (
+            <div className="space-y-3">
               <input
                 type="text"
-                placeholder="변경 요약 (예: 로그인 API 연동 추가, UI 버그 수정 - 미입력시 자동 감지)"
-                value={commitMessage}
-                onChange={(e) => setCommitMessage(e.target.value)}
-                className="w-full bg-transparent border-none text-xs focus:outline-none text-gray-900 dark:text-white placeholder-gray-400"
+                placeholder="어떤 기능이 필요하거나 개선되었으면 좋겠나요?"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white"
+                required
               />
+              <textarea
+                placeholder="구체적인 의견이나 피드백을 자유롭게 적어주세요..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white"
+              />
+              <button
+                type="submit"
+                className="w-full bg-yellow-500 hover:bg-yellow-600 text-white dark:text-black font-bold py-3 rounded-xl transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer text-sm"
+              >
+                <Plus size={18} /> {isEditing ? "피드백 수정 완료" : "피드백 / 아이디어 건의하기"}
+              </button>
             </div>
           )}
-
-          <button
-            type="submit"
-            className={`w-full font-bold py-3 rounded-xl transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer text-sm ${
-              isEditing
-                ? "bg-blue-600 hover:bg-blue-700 text-white"
-                : "bg-yellow-500 hover:bg-yellow-600 text-white dark:text-black"
-            }`}
-          >
-            <Plus size={18} /> {isEditing ? "아이디어 수정 완료 (커밋)" : "아이디어 등록하기"}
-          </button>
         </form>
 
         {/* 컨트롤 바 */}
@@ -503,6 +572,10 @@ export default function IdeasPage() {
                     },
                   }[item.priority || "medium"];
 
+                  const canManage = isAdmin || item.authorEmail === userEmail;
+                  // 👈 관리자이거나 본인이 작성한 글인 경우에만 작성자 정보 노출
+                  const showAuthor = isAdmin || item.authorEmail === userEmail;
+
                   return (
                     <div
                       key={item._id}
@@ -517,22 +590,24 @@ export default function IdeasPage() {
                             {pConfig.label}
                           </span>
 
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              onClick={(e) => handleEditClick(e, item)}
-                              className="p-1.5 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-gray-200 dark:hover:bg-[#333] transition-colors cursor-pointer"
-                              title="편집"
-                            >
-                              <Edit3 size={15} />
-                            </button>
-                            <button
-                              onClick={(e) => handleDeleteIdea(e, item._id)}
-                              className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-200 dark:hover:bg-[#333] transition-colors cursor-pointer"
-                              title="삭제"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
+                          {canManage && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={(e) => handleEditClick(e, item)}
+                                className="p-1.5 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-gray-200 dark:hover:bg-[#333] transition-colors cursor-pointer"
+                                title="편집"
+                              >
+                                <Edit3 size={15} />
+                              </button>
+                              <button
+                                onClick={(e) => handleDeleteIdea(e, item)}
+                                className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-200 dark:hover:bg-[#333] transition-colors cursor-pointer"
+                                title="삭제"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         <h4 className="font-bold text-sm text-gray-900 dark:text-white leading-snug mb-1.5 group-hover:text-yellow-500 transition-colors">
@@ -543,23 +618,32 @@ export default function IdeasPage() {
                         </p>
                       </div>
 
-                      <div className="text-[10px] text-gray-400 dark:text-gray-500 border-t border-gray-200 dark:border-gray-700/60 pt-2.5 flex justify-between items-center">
-                        <span>생성: {new Date(item.createdAt).toLocaleDateString()}</span>
-                        <span
-                          className={`px-2 py-0.5 rounded-full font-bold ${
-                            item.status === "completed"
-                              ? "bg-green-500/10 text-green-500"
+                      <div className="space-y-1.5 border-t border-gray-200 dark:border-gray-700/60 pt-2.5">
+                        {/* 👈 관리자 또는 본인인 경우에만 카드 하단에 작성자 표시 */}
+                        {showAuthor && item.authorEmail && (
+                          <div className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400 truncate">
+                            <User size={12} className="shrink-0 text-yellow-500" />
+                            <span className="truncate">작성자: {item.authorEmail}</span>
+                          </div>
+                        )}
+                        <div className="text-[10px] text-gray-400 dark:text-gray-500 flex justify-between items-center">
+                          <span>생성: {new Date(item.createdAt).toLocaleDateString()}</span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full font-bold ${
+                              item.status === "completed"
+                                ? "bg-green-500/10 text-green-500"
+                                : item.status === "progress"
+                                  ? "bg-blue-500/10 text-blue-500"
+                                  : "bg-yellow-500/10 text-yellow-500"
+                            }`}
+                          >
+                            {item.status === "completed"
+                              ? "개발 완료"
                               : item.status === "progress"
-                                ? "bg-blue-500/10 text-blue-500"
-                                : "bg-yellow-500/10 text-yellow-500"
-                          }`}
-                        >
-                          {item.status === "completed"
-                            ? "개발 완료"
-                            : item.status === "progress"
-                              ? "개발 중"
-                              : "아이디어"}
-                        </span>
+                                ? "개발 중"
+                                : "아이디어"}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -568,7 +652,6 @@ export default function IdeasPage() {
             )}
           </div>
 
-          {/* 👈 페이지네이션 컨트롤 바 */}
           {filteredIdeas.length > 0 && (
             <div className="flex justify-between items-center pt-6 mt-6 border-t border-gray-100 dark:border-gray-800 text-xs">
               <span className="text-gray-500">
@@ -606,11 +689,10 @@ export default function IdeasPage() {
           )}
         </div>
 
-        {/* 📋 노션 스타일 상세 모달 창 */}
+        {/* 📋 상세 모달 창 */}
         {selectedCard && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
             <div className="bg-white dark:bg-[#1e1e1e] w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 md:p-8 space-y-6">
-              {/* 모달 헤더 */}
               <div className="flex justify-between items-start border-b border-gray-100 dark:border-gray-800 pb-4">
                 <div>
                   <div className="flex items-center gap-2 mb-2">
@@ -643,31 +725,38 @@ export default function IdeasPage() {
                 </button>
               </div>
 
-              {/* 속성 메타데이터 */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-gray-50 dark:bg-[#252526] p-4 rounded-2xl border border-gray-200 dark:border-gray-700/60 text-xs">
+              {/* 👈 모달 메타데이터 영역: 관리자 또는 본인일 때만 작성자 컬럼 노출 */}
+              <div
+                className={`grid gap-4 bg-gray-50 dark:bg-[#252526] p-4 rounded-2xl border border-gray-200 dark:border-gray-700/60 text-xs ${
+                  isAdmin || selectedCard.authorEmail === userEmail
+                    ? "grid-cols-2 sm:grid-cols-3"
+                    : "grid-cols-2"
+                }`}
+              >
                 <div>
                   <span className="text-gray-400 block mb-1">우선순위</span>
                   <span className="font-bold text-gray-900 dark:text-white uppercase">
                     {selectedCard.priority}
                   </span>
                 </div>
+
+                {(isAdmin || selectedCard.authorEmail === userEmail) && (
+                  <div>
+                    <span className="text-gray-400 block mb-1">작성자</span>
+                    <span className="font-bold text-gray-900 dark:text-white truncate">
+                      {selectedCard.authorEmail || "익명"}
+                    </span>
+                  </div>
+                )}
+
                 <div>
                   <span className="text-gray-400 block mb-1">최초 생성일</span>
                   <span className="font-bold text-gray-900 dark:text-white">
                     {new Date(selectedCard.createdAt).toLocaleString()}
                   </span>
                 </div>
-                <div>
-                  <span className="text-gray-400 block mb-1">최종 수정일</span>
-                  <span className="font-bold text-gray-900 dark:text-white">
-                    {selectedCard.updatedAt
-                      ? new Date(selectedCard.updatedAt).toLocaleString()
-                      : "-"}
-                  </span>
-                </div>
               </div>
 
-              {/* 본문 내용 */}
               <div className="space-y-2">
                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
                   상세 설명 / 구현 방안
@@ -677,7 +766,6 @@ export default function IdeasPage() {
                 </div>
               </div>
 
-              {/* 변경 이력 타임라인 */}
               <div className="space-y-3">
                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                   <GitCommit size={14} className="text-yellow-500" /> 수정 히스토리 및 Diff 변경
@@ -755,22 +843,30 @@ export default function IdeasPage() {
                 </div>
               </div>
 
-              {/* 모달 하단 액션 버튼 */}
+              {/* 모달 하단 버튼 */}
               <div className="pt-2 flex justify-between items-center border-t border-gray-100 dark:border-gray-800">
-                <button
-                  onClick={(e) => handleDeleteIdea(e, selectedCard._id)}
-                  className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-colors text-xs font-bold cursor-pointer"
-                >
-                  <Trash2 size={15} /> 삭제하기
-                </button>
+                {isAdmin || selectedCard.authorEmail === userEmail ? (
+                  <button
+                    onClick={(e) => handleDeleteIdea(e, selectedCard)}
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-colors text-xs font-bold cursor-pointer"
+                  >
+                    <Trash2 size={15} /> 삭제하기
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-gray-400">
+                    본인이 작성한 글만 수정/삭제할 수 있습니다.
+                  </span>
+                )}
 
                 <div className="flex gap-2">
-                  <button
-                    onClick={(e) => handleEditClick(e, selectedCard)}
-                    className="flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors text-xs font-bold cursor-pointer shadow"
-                  >
-                    <Edit3 size={15} /> 수정하기
-                  </button>
+                  {(isAdmin || selectedCard.authorEmail === userEmail) && (
+                    <button
+                      onClick={(e) => handleEditClick(e, selectedCard)}
+                      className="flex items-center gap-1.5 px-5 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white dark:text-black rounded-xl transition-colors text-xs font-bold cursor-pointer shadow"
+                    >
+                      <Edit3 size={15} /> 수정하기
+                    </button>
+                  )}
                   <button
                     onClick={() => setSelectedCard(null)}
                     className="px-5 py-2.5 bg-gray-200 dark:bg-[#2d2d2d] hover:bg-gray-300 dark:hover:bg-[#383838] text-gray-800 dark:text-gray-200 font-bold rounded-xl transition-colors text-xs cursor-pointer"
