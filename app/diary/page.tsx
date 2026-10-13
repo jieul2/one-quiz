@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
 import {
   BookOpen,
   Plus,
@@ -45,7 +45,6 @@ interface DiaryType {
   createdAt: string;
 }
 
-// 👈 날씨 옵션 (선택 시 해당 아이콘만 색상이 진하게 채워짐)
 const WEATHER_OPTIONS = [
   { id: "sunny", icon: Sun, activeColor: "text-amber-500 scale-125" },
   { id: "cloudy", icon: Cloud, activeColor: "text-sky-500 scale-125" },
@@ -324,41 +323,35 @@ export default function DiaryPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#121212] p-4 md:p-8 text-gray-800 dark:text-gray-200 transition-colors">
       <div className="max-w-3xl mx-auto space-y-6">
-        {/* 상단 헤더 */}
-        <div className="flex justify-between items-center bg-white dark:bg-[#1e1e1e] p-4 md:p-6 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800">
-          <div className="flex items-center gap-3">
+        {/* 상단 헤더 (로그아웃 버튼 제거됨) */}
+        <div className="flex justify-between items-center bg-white dark:bg-[#1e1e1e] p-4 md:p-6 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800 gap-3">
+          <div className="flex items-center gap-3 overflow-hidden">
             <div className="p-3 bg-blue-500/10 text-blue-500 rounded-xl shrink-0">
               <BookOpen size={24} />
             </div>
-            <div>
-              <h1 className="text-base md:text-xl font-extrabold text-gray-900 dark:text-white">
+            <div className="overflow-hidden">
+              <h1 className="text-base sm:text-xl md:text-2xl font-extrabold text-gray-900 dark:text-white truncate">
                 📖 나만의 일기장
               </h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-[11px] sm:text-xs md:text-sm text-gray-500 dark:text-gray-400 truncate">
                 계정: <span className="font-bold text-blue-500">{session.user?.email}</span>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="p-2.5 bg-gray-100 dark:bg-[#2d2d2d] rounded-xl text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer"
+              className="p-2.5 bg-gray-100 dark:bg-[#2d2d2d] hover:bg-gray-200 dark:hover:bg-[#383838] rounded-xl text-gray-600 dark:text-gray-400 transition-colors cursor-pointer"
               title="테마 변경"
             >
               {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <button
-              onClick={() => signOut()}
-              className="px-3.5 py-2.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-            >
-              로그아웃
-            </button>
             <Link
               href="/"
-              className="flex items-center gap-1.5 text-xs sm:text-sm bg-gray-100 dark:bg-[#2d2d2d] hover:bg-gray-200 dark:hover:bg-[#353535] px-4 py-2.5 rounded-xl transition-colors font-medium text-gray-700 dark:text-gray-300"
+              className="flex items-center gap-1.5 text-xs sm:text-sm bg-gray-100 dark:bg-[#2d2d2d] hover:bg-gray-200 dark:hover:bg-[#383838] px-3.5 py-2.5 rounded-xl transition-colors font-medium text-gray-700 dark:text-gray-300"
             >
-              <Home size={16} /> 메인으로
+              <Home size={16} /> <span className="hidden sm:inline">메인으로</span>
             </Link>
           </div>
         </div>
@@ -376,7 +369,6 @@ export default function DiaryPage() {
               <span className="text-[11px] text-gray-400">오늘의 날씨 아이콘을 선택하세요</span>
             </div>
 
-            {/* 👈 컴팩트한 순수 루시드 아이콘 선택 UI */}
             <div className="flex items-center gap-4 py-1">
               <label className="text-xs font-bold text-gray-700 dark:text-gray-300">날씨</label>
               <div className="flex items-center gap-4">
@@ -432,7 +424,6 @@ export default function DiaryPage() {
                     className="w-full p-2.5 bg-white dark:bg-[#1e1e1e] border border-gray-300 dark:border-gray-700 rounded-lg text-sm resize-none text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
                   />
 
-                  {/* 사진 업로드 영역 */}
                   <div className="space-y-2 pt-1">
                     <label className="flex items-center gap-1.5 w-max px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-blue-500/30">
                       <UploadCloud size={15} /> 사진 첨부하기
@@ -553,7 +544,6 @@ export default function DiaryPage() {
                       },
                     ];
 
-              // 👈 카드 헤더 배지용 아이콘 (색상이 채워진 형태)
               const currentWeatherData =
                 WEATHER_OPTIONS.find((w) => w.id === (diary.weather || "sunny")) ||
                 WEATHER_OPTIONS[0];
@@ -576,7 +566,6 @@ export default function DiaryPage() {
                       <span className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
                         <Calendar size={14} className="text-blue-500" /> {formattedDate}
                       </span>
-                      {/* 👈 텍스트 없이 컴팩트한 색칠된 날씨 아이콘 배지 */}
                       <span className={`flex items-center ${currentWeatherData.activeColor}`}>
                         <WeatherIcon size={18} />
                       </span>
@@ -635,7 +624,6 @@ export default function DiaryPage() {
                     <div className="p-6 border-t border-gray-100 dark:border-gray-800 space-y-4 animate-fade-in">
                       {isEditing ? (
                         <div className="space-y-4 pt-1">
-                          {/* 👈 수정 모드 컴팩트 아이콘 선택 */}
                           <div className="flex items-center gap-4 py-2 border-b border-gray-100 dark:border-gray-800">
                             <label className="text-xs font-bold text-gray-700 dark:text-gray-300">
                               날씨 변경

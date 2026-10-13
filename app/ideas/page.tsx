@@ -7,7 +7,7 @@ import {
   Trash2,
   Lightbulb,
   Sparkles,
-  ArrowLeft,
+  Home,
   Edit3,
   X,
   Moon,
@@ -323,7 +323,7 @@ export default function IdeasPage() {
               href="/"
               className="flex items-center gap-1.5 text-xs sm:text-sm bg-gray-100 dark:bg-[#2d2d2d] hover:bg-gray-200 dark:hover:bg-[#383838] px-3.5 py-2.5 rounded-xl transition-colors font-medium"
             >
-              <ArrowLeft size={16} /> <span>메인으로</span>
+              <Home size={16} /> <span className="hidden sm:inline">메인으로</span>
             </Link>
           </div>
         </div>

@@ -25,7 +25,6 @@ const UserSchema = new mongoose.Schema({
 });
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
 
-// 👈 외부에서 가져다 쓸 수 있도록 export 추가
 export const authOptions = {
   providers: [
     GoogleProvider({
@@ -44,14 +43,25 @@ export const authOptions = {
         const providerAccountId = account?.providerAccountId || user.id;
         if (!providerAccountId) return true;
 
-        const dbUser = await User.findOne({ providerAccountId });
+        // 1. providerAccountId 또는 이메일로 기존 유저 검색 (중복 에러 방지)
+        let dbUser = await User.findOne({ providerAccountId });
+
+        if (!dbUser && user.email) {
+          dbUser = await User.findOne({ email: user.email });
+        }
 
         if (dbUser) {
+          // 이미 존재하는 경우 정보 업데이트
+          dbUser.providerAccountId = providerAccountId;
           dbUser.name = user.name || dbUser.name;
           dbUser.image = user.image || dbUser.image;
           dbUser.lastLoginAt = new Date();
+          if (user.email) {
+            dbUser.email = user.email;
+          }
           await dbUser.save();
         } else {
+          // 새로운 사용자 생성
           const userData: any = {
             name: user.name,
             image: user.image,
