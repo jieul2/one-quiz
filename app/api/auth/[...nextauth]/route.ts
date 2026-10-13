@@ -4,9 +4,8 @@ import GoogleProvider from "next-auth/providers/google";
 import KakaoProvider from "next-auth/providers/kakao";
 import dbConnect from "@/lib/mongodb";
 import mongoose from "mongoose";
-import { withAudit } from "@/lib/withAudit"; // 👈 withAudit 임포트
+import { withAudit } from "@/lib/withAudit";
 
-// 세션 사용자 타입 확장 (role, id 추가)
 declare module "next-auth" {
   interface Session {
     user: {
@@ -16,14 +15,16 @@ declare module "next-auth" {
   }
 }
 
+// 👈 이메일이 없는 여러 유저가 공존할 수 있도록 unique: true 제거 및 sparse 유지
 const UserSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true },
+  email: { type: String, sparse: true },
   name: { type: String },
   image: { type: String },
-  role: { type: String, default: 'user' },
+  role: { type: String, default: "user" },
+  providerAccountId: { type: String, required: true, unique: true },
   lastLoginAt: { type: Date, default: Date.now },
 });
-const User = mongoose.models.User || mongoose.model('User', UserSchema);
+const User = mongoose.models.User || mongoose.model("User", UserSchema);
 
 const authOptions = {
   providers: [
@@ -37,54 +38,99 @@ const authOptions = {
     }),
   ],
   callbacks: {
-    async signIn({ user }: { user: NextAuthUser }) {
+    async signIn({ user, account }: { user: NextAuthUser; account: any }) {
       try {
         await dbConnect();
-        await User.findOneAndUpdate(
-          { email: user.email },
-          { 
-            name: user.name, 
-            image: user.image, 
-            lastLoginAt: new Date() 
-          },
-          { upsert: true, new: true }
-        );
+        const providerAccountId = account?.providerAccountId || user.id;
+        if (!providerAccountId) return true; // 방어 코드: ID가 없어도 일단 통과
+
+        const dbUser = await User.findOne({ providerAccountId });
+
+        if (dbUser) {
+          dbUser.name = user.name || dbUser.name;
+          dbUser.image = user.image || dbUser.image;
+          dbUser.lastLoginAt = new Date();
+          await dbUser.save();
+        } else {
+          // 👈 신규 생성 시 이메일이 없으면 필드 자체를 안 넣거나 비워둠
+          const userData: any = {
+            name: user.name,
+            image: user.image,
+            providerAccountId,
+            lastLoginAt: new Date(),
+          };
+          if (user.email) {
+            userData.email = user.email;
+          }
+          await User.create(userData);
+        }
         return true;
       } catch (error) {
-        console.error("User sync error:", error);
-        return false;
+        console.error("User sync error (Non-blocking):", error);
+        return true; // 👈 에러가 나더라도 로그인이 절대 차단(Access Denied)되지 않도록 true 반환
       }
     },
-    async jwt({ token, user }: { token: JWT; user?: NextAuthUser }) {
-      if (user && user.email) {
-        token.email = user.email;
-      }
+    async jwt({
+      token,
+      user,
+      account,
+      trigger,
+      session,
+    }: {
+      token: JWT;
+      user?: NextAuthUser;
+      account?: any;
+      trigger?: string;
+      session?: any;
+    }) {
       try {
         await dbConnect();
-        const dbUser = await User.findOne({ email: token.email });
-        if (dbUser) {
-          token.role = dbUser.role;
+
+        if (account?.providerAccountId) {
+          token.providerAccountId = account.providerAccountId;
+        }
+
+        // 프론트엔드에서 update({ email: ... }) 호출 시
+        if (trigger === "update" && session?.user?.email && token.providerAccountId) {
+          token.email = session.user.email;
+          await User.findOneAndUpdate(
+            { providerAccountId: token.providerAccountId },
+            { $set: { email: session.user.email } },
+            { new: true },
+          );
+        } else if (user?.email) {
+          token.email = user.email;
+        }
+
+        if (token.providerAccountId) {
+          const dbUser = await User.findOne({ providerAccountId: token.providerAccountId });
+          if (dbUser) {
+            token.role = dbUser.role;
+            if (dbUser.email) {
+              token.email = dbUser.email;
+            }
+          }
         }
       } catch (e) {
-        console.error(e);
+        console.error("JWT Callback Error:", e);
       }
       return token;
     },
     async session({ session, token }: { session: Session; token: JWT }) {
       if (token && session.user) {
         session.user.role = token.role as string;
-        session.user.id = token.sub;
+        session.user.id = (token.providerAccountId as string) || token.sub;
+        session.user.email = (token.email as string) || session.user.email;
       }
       return session;
-    }
+    },
   },
   pages: {
-    signIn: '/auth/signin', // 커스텀 로그인 페이지 경로
-  }
+    signIn: "/auth/signin",
+  },
 };
 
 const handler = NextAuth(authOptions);
 
-// withAudit 래퍼로 감싸서 export (인증 및 로그인 관련 모든 요청이 로그에 자동 수집됨)
-export const GET = withAudit(handler, 'NextAuth 인증 GET 요청');
-export const POST = withAudit(handler, 'NextAuth 소셜 로그인/로그아웃 POST 요청');
+export const GET = withAudit(handler, "NextAuth 인증 GET 요청");
+export const POST = withAudit(handler, "NextAuth 소셜 로그인/로그아웃 POST 요청");
