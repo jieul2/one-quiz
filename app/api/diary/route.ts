@@ -7,21 +7,16 @@ import { withAudit } from '@/lib/withAudit';
 // 한국 시간(KST) 기준으로 오늘 하루의 시작과 끝 Date 객체를 구하는 헬퍼 함수
 function getKSTDateRange() {
   const now = new Date();
-  
-  // 현재 시간을 기준으로 한국 시간 문자열을 가져옴
   const kstString = now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' });
   const kstDate = new Date(kstString);
 
-  // 한국 시간 기준 자정 (00:00:00.000)
   const startKST = new Date(kstDate);
   startKST.setHours(0, 0, 0, 0);
 
-  // 한국 시간 기준 하루 끝 (23:59:59.999)
   const endKST = new Date(kstDate);
   endKST.setHours(23, 59, 59, 999);
 
-  // UTC 기준으로 변환된 Date 객체 반환 (DB 쿼리용)
-  const offset = 9 * 60 * 60 * 1000; // 9시간 밀리초
+  const offset = 9 * 60 * 60 * 1000;
   return {
     startOfDay: new Date(startKST.getTime() - offset),
     endOfDay: new Date(endKST.getTime() - offset),
@@ -31,7 +26,6 @@ function getKSTDateRange() {
 // 특정 날짜가 한국 기준 오늘인지 확인하는 헬퍼 함수
 function isTodayInKST(targetDate: Date) {
   const now = new Date();
-  
   const targetKST = new Date(targetDate.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
   const nowKST = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
 
@@ -54,15 +48,31 @@ async function handleGet(req: Request) {
   return NextResponse.json(diaries);
 }
 
-// 2. 새 일기 작성
+// 2. 새 일기 작성 (멀티 items 구조 대응)
 async function handlePost(req: Request) {
   const session = await getServerSession();
   if (!session || !session.user?.email) {
     return NextResponse.json({ error: '인증되지 않은 사용자입니다.' }, { status: 401 });
   }
 
-  const { title, content } = await req.json();
-  if (!title || !content) {
+  const { items, title, content } = await req.json();
+
+  // items 배열 혹은 기존 단일 title/content 방식 모두 호환되도록 처리
+  let rawItems = items;
+  if (!rawItems && title && content) {
+    rawItems = [{ title, content, images: [] }];
+  }
+
+  if (!rawItems || !Array.isArray(rawItems)) {
+    return NextResponse.json({ error: '올바른 항목 데이터가 필요합니다.' }, { status: 400 });
+  }
+
+  // 빈 항목 자동 필터링 (제목이나 내용, 또는 사진이 하나라도 있는 경우만 허용)
+  const validItems = rawItems.filter(
+    (item) => item.title?.trim() !== '' || item.content?.trim() !== '' || (item.images && item.images.length > 0)
+  );
+
+  if (validItems.length === 0) {
     return NextResponse.json({ error: '제목과 내용을 모두 입력해주세요.' }, { status: 400 });
   }
 
@@ -82,7 +92,7 @@ async function handlePost(req: Request) {
 
   const newDiary = await Diary.create({
     userEmail: session.user.email,
-    items: [{ title, content, images: [] }],
+    items: validItems,
     createdAt: new Date(),
   });
 
