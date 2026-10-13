@@ -1,15 +1,23 @@
-'use client';
+"use client";
 
-import { useState, useEffect, Suspense } from 'react';
-import { BookOpen, CheckCircle2, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useState, useEffect, Suspense } from "react";
+import {
+  BookOpen,
+  CheckCircle2,
+  ArrowRight,
+  ArrowLeft,
+  Loader2,
+  CheckSquare,
+  Square,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 function SubjectSelectionContent() {
   const router = useRouter();
   const [questions, setQuestions] = useState<any[]>([]);
-  const [selectedSubject, setSelectedSubject] = useState<string>('All');
-  const [isLoading, setIsLoading] = useState(true); // 👈 데이터 로딩 상태 추가
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]); // 👈 복수 선택을 위한 배열 상태
+  const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -17,13 +25,13 @@ function SubjectSelectionContent() {
     async function fetchQuestions() {
       setIsLoading(true);
       try {
-        const res = await fetch('/api/questions');
+        const res = await fetch("/api/questions");
         const data = await res.json();
         setQuestions(data);
       } catch (e) {
         console.error(e);
       } finally {
-        setIsLoading(false); // 👈 로딩 완료
+        setIsLoading(false);
       }
     }
     fetchQuestions();
@@ -31,65 +39,113 @@ function SubjectSelectionContent() {
 
   if (!mounted) return null;
 
-  const subjects = Array.from(new Set(questions.map(q => q.subject)));
+  // 중복 제거된 과목 목록 추출
+  const subjects = Array.from(new Set(questions.map((q) => q.subject)));
+
+  // 과목 선택/해제 토글 핸들러
+  const handleToggleSubject = (sub: string) => {
+    if (sub === "All") {
+      // '전체 과목 통합 응시'를 누르면 전체 선택 혹은 해제
+      if (selectedSubjects.length === subjects.length) {
+        setSelectedSubjects([]);
+      } else {
+        setSelectedSubjects([...subjects]);
+      }
+      return;
+    }
+
+    setSelectedSubjects((prev) =>
+      prev.includes(sub) ? prev.filter((s) => s !== sub) : [...prev, sub],
+    );
+  };
+
+  const isAllSelected = selectedSubjects.length === subjects.length && subjects.length > 0;
 
   const handleNext = () => {
-    if (isLoading) return; // 로딩 중 클릭 방어
-    router.push(`/exam/type?subject=${encodeURIComponent(selectedSubject)}`);
+    if (isLoading) return;
+    if (selectedSubjects.length === 0) {
+      alert("최소 한 개 이상의 과목을 선택해주세요.");
+      return;
+    }
+
+    // 선택된 과목들을 쉼표(,)로 묶어서 쿼리 파라미터로 전달
+    const subjectQuery = isAllSelected ? "All" : selectedSubjects.join(",");
+    router.push(`/exam/type?subject=${encodeURIComponent(subjectQuery)}`);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#121212] flex flex-col items-center justify-center text-gray-800 dark:text-gray-200 p-4 transition-colors">
       <div className="bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-gray-800 p-8 rounded-3xl shadow-2xl w-full max-w-md animate-fade-in">
-        
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <BookOpen className="text-yellow-500" size={22} /> 1단계: 과목 선택
+            <BookOpen className="text-yellow-500" size={22} /> 1단계: 과목 복수 선택
           </h2>
-          <Link href="/" className="text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-300">처음으로</Link>
+          <Link
+            href="/"
+            className="text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-300"
+          >
+            처음으로
+          </Link>
         </div>
 
         <div className="space-y-3 mb-8 max-h-60 overflow-y-auto pr-1">
+          {/* 전체 선택 토글 버튼 */}
           <button
-            onClick={() => !isLoading && setSelectedSubject('All')}
+            onClick={() => handleToggleSubject("All")}
             disabled={isLoading}
             className={`w-full p-4 rounded-xl border text-left font-bold flex justify-between items-center transition-all ${
-              isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-            } ${selectedSubject === 'All' ? 'bg-yellow-500/10 border-yellow-500 text-yellow-600 dark:text-yellow-400' : 'bg-gray-50 dark:bg-[#252526] border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}
+              isLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+            } ${isAllSelected ? "bg-yellow-500/10 border-yellow-500 text-yellow-600 dark:text-yellow-400" : "bg-gray-50 dark:bg-[#252526] border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300"}`}
           >
-            <span>전체 과목 통합 응시</span>
-            {selectedSubject === 'All' && <CheckCircle2 size={18} className="text-yellow-500" />}
+            <span>전체 과목 선택 ({subjects.length}개)</span>
+            {isAllSelected ? (
+              <CheckSquare size={18} className="text-yellow-500" />
+            ) : (
+              <Square size={18} className="text-gray-400" />
+            )}
           </button>
 
           {isLoading ? (
             <div className="text-center py-8 text-gray-400 text-xs flex items-center justify-center gap-2">
-              <Loader2 size={16} className="animate-spin text-yellow-500" /> 과목 목록 불러오는 중...
+              <Loader2 size={16} className="animate-spin text-yellow-500" /> 과목 목록 불러오는
+              중...
             </div>
           ) : (
-            subjects.map(sub => (
-              <button
-                key={sub}
-                onClick={() => setSelectedSubject(sub)}
-                className={`w-full p-4 rounded-xl border text-left font-bold flex justify-between items-center transition-all cursor-pointer ${
-                  selectedSubject === sub ? 'bg-yellow-500/10 border-yellow-500 text-yellow-600 dark:text-yellow-400' : 'bg-gray-50 dark:bg-[#252526] border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
-                }`}
-              >
-                <span>{sub}</span>
-                {selectedSubject === sub && <CheckCircle2 size={18} className="text-yellow-500" />}
-              </button>
-            ))
+            subjects.map((sub) => {
+              const isChecked = selectedSubjects.includes(sub);
+              return (
+                <button
+                  key={sub}
+                  onClick={() => handleToggleSubject(sub)}
+                  className={`w-full p-4 rounded-xl border text-left font-bold flex justify-between items-center transition-all cursor-pointer ${
+                    isChecked
+                      ? "bg-yellow-500/10 border-yellow-500 text-yellow-600 dark:text-yellow-400"
+                      : "bg-gray-50 dark:bg-[#252526] border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300"
+                  }`}
+                >
+                  <span>{sub}</span>
+                  {isChecked ? (
+                    <CheckSquare size={18} className="text-yellow-500" />
+                  ) : (
+                    <Square size={18} className="text-gray-400" />
+                  )}
+                </button>
+              );
+            })
           )}
         </div>
 
         <div className="flex gap-3">
-          <Link href="/" className="flex-1 py-3 bg-gray-100 dark:bg-[#2d2d2d] text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-200 transition-colors text-center flex items-center justify-center gap-1.5">
+          <Link
+            href="/"
+            className="flex-1 py-3 bg-gray-100 dark:bg-[#2d2d2d] text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-200 transition-colors text-center flex items-center justify-center gap-1.5"
+          >
             <ArrowLeft size={16} /> 취소
           </Link>
-          
-          {/* 로딩 중일 때 버튼 비활성화 및 스피너 표시 */}
-          <button 
-            onClick={handleNext} 
-            disabled={isLoading}
+
+          <button
+            onClick={handleNext}
+            disabled={isLoading || selectedSubjects.length === 0}
             className="flex-1 py-3 bg-yellow-500 hover:bg-yellow-600 disabled:opacity-40 text-white dark:text-black font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg disabled:cursor-not-allowed cursor-pointer"
           >
             {isLoading ? (
@@ -98,12 +154,11 @@ function SubjectSelectionContent() {
               </>
             ) : (
               <>
-                다음 <ArrowRight size={16} />
+                다음 ({selectedSubjects.length}개 선택) <ArrowRight size={16} />
               </>
             )}
           </button>
         </div>
-
       </div>
     </div>
   );
@@ -111,7 +166,13 @@ function SubjectSelectionContent() {
 
 export default function SubjectSelectionPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-50 dark:bg-[#121212] flex items-center justify-center text-gray-400">로딩 중...</div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 dark:bg-[#121212] flex items-center justify-center text-gray-400">
+          로딩 중...
+        </div>
+      }
+    >
       <SubjectSelectionContent />
     </Suspense>
   );
