@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document } from "mongoose";
 
 export interface IDiaryItem {
   title: string;
@@ -8,6 +8,7 @@ export interface IDiaryItem {
 
 export interface IDiary extends Document {
   userEmail: string;
+  weather: string;
   items: IDiaryItem[];
   createdAt: Date;
 }
@@ -20,8 +21,9 @@ const DiaryItemSchema: Schema = new Schema({
 
 const DiarySchema: Schema = new Schema({
   userEmail: { type: String, required: true, index: true },
+  weather: { type: String, default: "sunny" },
   items: [DiaryItemSchema],
   createdAt: { type: Date, default: Date.now },
 });
 
-export default mongoose.models.Diary || mongoose.model<IDiary>('Diary', DiarySchema);
+export default mongoose.models.Diary || mongoose.model<IDiary>("Diary", DiarySchema);

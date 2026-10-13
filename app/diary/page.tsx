@@ -18,6 +18,10 @@ import {
   UploadCloud,
   ChevronDown,
   ChevronUp,
+  Cloud,
+  CloudRain,
+  Snowflake,
+  Wind,
 } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
@@ -36,9 +40,19 @@ interface DiaryType {
   _id: string;
   title?: string;
   content?: string;
+  weather?: string;
   items?: DiaryItemType[];
   createdAt: string;
 }
+
+// 👈 날씨 옵션 (선택 시 해당 아이콘만 색상이 진하게 채워짐)
+const WEATHER_OPTIONS = [
+  { id: "sunny", icon: Sun, activeColor: "text-amber-500 scale-125" },
+  { id: "cloudy", icon: Cloud, activeColor: "text-sky-500 scale-125" },
+  { id: "rainy", icon: CloudRain, activeColor: "text-blue-600 scale-125" },
+  { id: "snowy", icon: Snowflake, activeColor: "text-indigo-500 scale-125" },
+  { id: "windy", icon: Wind, activeColor: "text-teal-600 scale-125" },
+];
 
 export default function DiaryPage() {
   const { data: session, status } = useSession();
@@ -49,11 +63,13 @@ export default function DiaryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
 
+  const [newWeather, setNewWeather] = useState("sunny");
   const [newDiaryItems, setNewDiaryItems] = useState<DiaryItemType[]>([
     { title: "", content: "", images: [] },
   ]);
 
   const [editingDiaryId, setEditingDiaryId] = useState<string | null>(null);
+  const [editWeather, setEditWeather] = useState("sunny");
   const [editItems, setEditItems] = useState<DiaryItemType[]>([]);
 
   const [openCards, setOpenCards] = useState<Record<string, boolean>>({});
@@ -166,11 +182,12 @@ export default function DiaryPage() {
       const res = await fetch("/api/diary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: newDiaryItems }),
+        body: JSON.stringify({ items: newDiaryItems, weather: newWeather }),
       });
 
       if (res.ok) {
         setNewDiaryItems([{ title: "", content: "", images: [] }]);
+        setNewWeather("sunny");
         fetchDiaries();
       } else {
         const data = await res.json();
@@ -186,7 +203,7 @@ export default function DiaryPage() {
       const res = await fetch("/api/diary", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: diaryId, items: editItems }),
+        body: JSON.stringify({ id: diaryId, items: editItems, weather: editWeather }),
       });
 
       const data = await res.json();
@@ -201,7 +218,10 @@ export default function DiaryPage() {
     }
   };
 
-  const handleNewCloudinaryUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNewCloudinaryUpload = async (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -246,7 +266,10 @@ export default function DiaryPage() {
     }
   };
 
-  const handleEditCloudinaryUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEditCloudinaryUpload = async (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -301,8 +324,7 @@ export default function DiaryPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#121212] p-4 md:p-8 text-gray-800 dark:text-gray-200 transition-colors">
       <div className="max-w-3xl mx-auto space-y-6">
-        
-        {/* 상단 네비게이션 헤더 */}
+        {/* 상단 헤더 */}
         <div className="flex justify-between items-center bg-white dark:bg-[#1e1e1e] p-4 md:p-6 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-blue-500/10 text-blue-500 rounded-xl shrink-0">
@@ -351,19 +373,41 @@ export default function DiaryPage() {
               <h2 className="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
                 <Plus size={16} className="text-blue-500" /> 오늘의 일기 작성하기
               </h2>
-              <span className="text-[11px] text-gray-400">여러 개의 주제와 사진을 남길 수 있어요</span>
+              <span className="text-[11px] text-gray-400">오늘의 날씨 아이콘을 선택하세요</span>
             </div>
 
-            <div className="space-y-4">
+            {/* 👈 컴팩트한 순수 루시드 아이콘 선택 UI */}
+            <div className="flex items-center gap-4 py-1">
+              <label className="text-xs font-bold text-gray-700 dark:text-gray-300">날씨</label>
+              <div className="flex items-center gap-4">
+                {WEATHER_OPTIONS.map((opt) => {
+                  const IconComponent = opt.icon;
+                  const isSelected = newWeather === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setNewWeather(opt.id)}
+                      className={`transition-all cursor-pointer ${
+                        isSelected
+                          ? `${opt.activeColor}`
+                          : "text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400"
+                      }`}
+                    >
+                      <IconComponent size={20} />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-1">
               {newDiaryItems.map((item, index) => (
                 <div
                   key={index}
                   className="bg-gray-50 dark:bg-[#252526] p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3 relative group"
                 >
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-extrabold text-blue-500">항목 #{index + 1}</span>
-                    {/* 삭제 버튼 완전 제거됨 */}
-                  </div>
+                  <span className="text-xs font-extrabold text-blue-500">항목 #{index + 1}</span>
 
                   <input
                     type="text"
@@ -419,13 +463,12 @@ export default function DiaryPage() {
                                 setNewDiaryItems((prev) => {
                                   const newItems = [...prev];
                                   newItems[index].images = newItems[index].images?.filter(
-                                    (_, i) => i !== imgIdx
+                                    (_, i) => i !== imgIdx,
                                   );
                                   return newItems;
                                 });
                               }}
                               className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                              title="사진 삭제"
                             >
                               <X size={12} />
                             </button>
@@ -465,7 +508,7 @@ export default function DiaryPage() {
               <div>
                 <p className="text-xs font-bold">오늘의 일기를 이미 작성하셨습니다.</p>
                 <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-                  아래 일기 카드를 펼쳐서 <b>[수정하기]</b>를 누르면 항목 추가 및 사진을 수정할 수
+                  아래 일기 카드를 펼쳐서 <b>[수정하기]</b>를 누르면 날씨 및 항목을 수정할 수
                   있습니다.
                 </p>
               </div>
@@ -510,6 +553,12 @@ export default function DiaryPage() {
                       },
                     ];
 
+              // 👈 카드 헤더 배지용 아이콘 (색상이 채워진 형태)
+              const currentWeatherData =
+                WEATHER_OPTIONS.find((w) => w.id === (diary.weather || "sunny")) ||
+                WEATHER_OPTIONS[0];
+              const WeatherIcon = currentWeatherData.icon;
+
               const isEditing = editingDiaryId === diary._id;
               const isOpen = openCards[diary._id] || isEditing;
 
@@ -527,14 +576,15 @@ export default function DiaryPage() {
                       <span className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
                         <Calendar size={14} className="text-blue-500" /> {formattedDate}
                       </span>
+                      {/* 👈 텍스트 없이 컴팩트한 색칠된 날씨 아이콘 배지 */}
+                      <span className={`flex items-center ${currentWeatherData.activeColor}`}>
+                        <WeatherIcon size={18} />
+                      </span>
                       {isToday && (
                         <span className="text-[10px] bg-blue-500/10 text-blue-500 font-bold px-2 py-0.5 rounded-full">
                           오늘
                         </span>
                       )}
-                      <span className="text-xs text-gray-400">
-                        ({diaryItems.length}개의 항목)
-                      </span>
                     </div>
 
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -544,6 +594,7 @@ export default function DiaryPage() {
                             <button
                               onClick={() => {
                                 setEditingDiaryId(diary._id);
+                                setEditWeather(diary.weather || "sunny");
                                 setEditItems(JSON.parse(JSON.stringify(diaryItems)));
                               }}
                               className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-[#2d2d2d] text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-xl text-xs font-bold transition-colors cursor-pointer"
@@ -584,17 +635,41 @@ export default function DiaryPage() {
                     <div className="p-6 border-t border-gray-100 dark:border-gray-800 space-y-4 animate-fade-in">
                       {isEditing ? (
                         <div className="space-y-4 pt-1">
+                          {/* 👈 수정 모드 컴팩트 아이콘 선택 */}
+                          <div className="flex items-center gap-4 py-2 border-b border-gray-100 dark:border-gray-800">
+                            <label className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                              날씨 변경
+                            </label>
+                            <div className="flex items-center gap-4">
+                              {WEATHER_OPTIONS.map((opt) => {
+                                const IconComponent = opt.icon;
+                                const isSelected = editWeather === opt.id;
+                                return (
+                                  <button
+                                    key={opt.id}
+                                    type="button"
+                                    onClick={() => setEditWeather(opt.id)}
+                                    className={`transition-all cursor-pointer ${
+                                      isSelected
+                                        ? `${opt.activeColor}`
+                                        : "text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400"
+                                    }`}
+                                  >
+                                    <IconComponent size={20} />
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
                           {editItems.map((item, index) => (
                             <div
                               key={index}
                               className="bg-gray-50 dark:bg-[#252526] p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3"
                             >
-                              <div className="flex justify-between items-center">
-                                <span className="text-xs font-extrabold text-blue-500">
-                                  항목 #{index + 1}
-                                </span>
-                                {/* 수정 모드에서도 삭제 버튼 완전 제거됨 */}
-                              </div>
+                              <span className="text-xs font-extrabold text-blue-500">
+                                항목 #{index + 1}
+                              </span>
                               <input
                                 type="text"
                                 placeholder="제목을 입력하세요..."
@@ -654,7 +729,6 @@ export default function DiaryPage() {
                                             });
                                           }}
                                           className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                                          title="사진 삭제"
                                         >
                                           <X size={12} />
                                         </button>
