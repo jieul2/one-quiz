@@ -18,6 +18,11 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { atomDark } from "react-syntax-highlighter/dist/cjs/styles/prism"; // 👈 다크모드용 테마
+import { oneLight } from "react-syntax-highlighter/dist/cjs/styles/prism"; // 👈 라이트모드용 테마
 
 interface HistoryAttempt {
   isCorrect: boolean;
@@ -33,8 +38,9 @@ interface QuestionType {
   title: string;
   codeSnippet?: string;
   options?: string[];
-  correctAnswer: string[] | string; // 👈 복수 정답 배열 대응
+  correctAnswer: string[] | string;
   explanation?: string;
+  isActive?: boolean;
   history?: HistoryAttempt[];
 }
 
@@ -45,6 +51,77 @@ const shuffleArray = (array: any[]) => {
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   return shuffled;
+};
+
+// 공통 마크다운 렌더러 컴포넌트 (다크/라이트 모드 테마 자동 대응)
+const MarkdownRenderer = ({
+  content,
+  currentTheme,
+}: {
+  content: string;
+  currentTheme?: string;
+}) => {
+  const isDark = currentTheme === "dark";
+
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        code({ node, inline, className, children, ...props }: any) {
+          const match = /language-(\w+)/.exec(className || "");
+          return !inline && match ? (
+            <SyntaxHighlighter
+              style={isDark ? atomDark : oneLight} // 👈 테마 자동 전환
+              language={match[1]}
+              PreTag="div"
+              {...props}
+            >
+              {String(children).replace(/\n$/, "")}
+            </SyntaxHighlighter>
+          ) : (
+            <code
+              className="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-[#333] text-pink-600 dark:text-pink-400 font-mono text-xs"
+              {...props}
+            >
+              {children}
+            </code>
+          );
+        },
+        table({ children }) {
+          return (
+            <div className="overflow-x-auto my-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+              <table className="w-full border-collapse text-left text-xs sm:text-sm">
+                {children}
+              </table>
+            </div>
+          );
+        },
+        thead({ children }) {
+          return (
+            <thead className="bg-gray-100 dark:bg-[#2d2d2d] text-gray-700 dark:text-gray-200">
+              {children}
+            </thead>
+          );
+        },
+        th({ children }) {
+          return (
+            <th className="border-b border-gray-200 dark:border-gray-700 px-4 py-2.5 font-bold">
+              {children}
+            </th>
+          );
+        },
+        td({ children }) {
+          return (
+            <td className="border-b border-gray-100 dark:border-gray-800 px-4 py-2.5 text-gray-800 dark:text-gray-300">
+              {children}
+            </td>
+          );
+        },
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
 };
 
 function ExamContent() {
@@ -115,13 +192,14 @@ function ExamContent() {
   ) => {
     if (baseQuestions.length === 0) return;
 
-    // 👈 복수 선택된 과목 및 회차를 배열로 파싱하여 필터링
     const targetSubjects =
       paramSubject === "All" ? [] : paramSubject.split(",").map((s) => decodeURIComponent(s));
     const targetExamTypes =
       paramExamType === "All" ? [] : paramExamType.split(",").map((e) => decodeURIComponent(e));
 
     let filtered = baseQuestions.filter((q) => {
+      if (q.isActive === false) return false;
+
       const matchSubject = paramSubject === "All" || targetSubjects.includes(q.subject);
       const matchExamType = paramExamType === "All" || targetExamTypes.includes(q.examType);
       return matchSubject && matchExamType;
@@ -192,7 +270,6 @@ function ExamContent() {
   const handleTextChange = (qId: string, e: React.ChangeEvent<HTMLInputElement>) =>
     setUserAnswers((prev) => ({ ...prev, [qId]: e.target.value }));
 
-  // 👈 복수 정답 배열(correctAnswer)과 단일 문자열 정답 모두 호환되는 채점 로직
   const handleSubmit = async (qId: string, currentQ: QuestionType) => {
     if (!userAnswers[qId]) return;
 
@@ -497,16 +574,14 @@ function ExamContent() {
                         <span className="text-yellow-600 dark:text-yellow-500 font-black text-xl sm:text-2xl shrink-0 mt-0.5">
                           {q.questionNumber}.
                         </span>
-                        <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white leading-relaxed">
-                          {q.title}
-                        </h2>
+                        <div className="text-base sm:text-lg font-bold text-gray-900 dark:text-white leading-relaxed prose dark:prose-invert max-w-none">
+                          <MarkdownRenderer content={q.title} currentTheme={theme} />
+                        </div>
                       </div>
 
                       {q.codeSnippet && (
-                        <div className="bg-gray-50 dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-6 sm:mb-8 ml-0 sm:ml-12 shadow-inner">
-                          <pre className="p-4 sm:p-5 overflow-x-auto text-xs sm:text-sm text-gray-800 dark:text-[#d4d4d4] font-mono leading-relaxed">
-                            <code>{q.codeSnippet}</code>
-                          </pre>
+                        <div className="bg-gray-50 dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-6 sm:mb-8 ml-0 sm:ml-12 shadow-inner p-4 prose dark:prose-invert max-w-none">
+                          <MarkdownRenderer content={q.codeSnippet} currentTheme={theme} />
                         </div>
                       )}
 
@@ -623,11 +698,11 @@ function ExamContent() {
                                   : q.correctAnswer}
                               </div>
                               {q.explanation ? (
-                                <div className="text-gray-700 dark:text-gray-300 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap bg-gray-50 dark:bg-[#1e1e1e] p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-800">
+                                <div className="text-gray-700 dark:text-gray-300 text-xs sm:text-sm leading-relaxed bg-gray-50 dark:bg-[#1e1e1e] p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-800 prose dark:prose-invert max-w-none">
                                   <span className="font-bold text-gray-500 dark:text-gray-400 block mb-1 sm:mb-2">
                                     📖 해설
                                   </span>
-                                  {q.explanation}
+                                  <MarkdownRenderer content={q.explanation} currentTheme={theme} />
                                 </div>
                               ) : (
                                 <div className="text-gray-400 dark:text-gray-500 text-xs sm:text-sm italic">

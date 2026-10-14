@@ -10,6 +10,7 @@ export interface IQuestion extends Document {
   options?: string[]; // 객관식 보기 배열 (기본 4개, 최소 2개 이상)
   correctAnswer: string[]; // 주관식/객관식 복수 정답 대응 배열
   explanation?: string;
+  isActive: boolean; // 👈 문제 활성화 여부
   history: {
     isCorrect: boolean;
     timestamp: Date;
@@ -20,6 +21,7 @@ const QuestionSchema: Schema = new Schema({
   subjectId: { type: Schema.Types.ObjectId, ref: "Subject", required: true }, // 👈 과목 컬렉션과 연동
   examType: { type: String, required: true },
   questionNumber: { type: Number, required: true },
+  isActive: { type: Boolean, default: true },
   questionType: {
     type: String,
     required: true,
