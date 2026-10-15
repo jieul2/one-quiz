@@ -134,7 +134,7 @@ function ExamContent() {
   const [questions, setQuestions] = useState<QuestionType[]>([]);
   const [displayQuestions, setDisplayQuestions] = useState<QuestionType[]>([]);
 
-  // 보기 셔플 시 원본 보기와 정답 매핑을 기억하기 위한 상태 (qId -> 셔플된 보기 배열 및 새로운 정답 매핑)
+  // 보기 셔플 시 원본 보기와 정답 매핑을 기억하기 위한 상태
   const [shuffledOptionsMap, setShuffledOptionsMap] = useState<
     Record<string, { options: string[]; newCorrectAnswer: string[] | string }>
   >({});
@@ -240,17 +240,14 @@ function ExamContent() {
 
     filtered.forEach((q) => {
       if (Array.isArray(q.options) && q.options.length > 0 && q.options[0] !== "") {
-        // 원래 보기와 인덱스 결합 (1부터 시작하는 번호 문자열 유지)
         const indexedOptions = q.options.map((opt, idx) => ({
           text: opt,
           originalNum: String(idx + 1),
         }));
 
         const shuffledIndexed = shuffleArray(indexedOptions);
-
         const newOptions = shuffledIndexed.map((item) => item.text);
 
-        // 정답 재매핑
         if (Array.isArray(q.correctAnswer)) {
           const newCorrect = q.correctAnswer.map((ans) => {
             const foundIndex = shuffledIndexed.findIndex((item) => item.originalNum === ans.trim());
@@ -317,11 +314,12 @@ function ExamContent() {
     const userAnswer = userAnswers[qId].trim().toLowerCase();
     let isCorrect = false;
 
-    // 셔플된 정답 기준과 비교
     const activeCorrectAnswer = shuffledOptionsMap[qId]?.newCorrectAnswer ?? currentQ.correctAnswer;
 
     if (Array.isArray(activeCorrectAnswer)) {
-      isCorrect = activeCorrectAnswer.some((ans) => ans.trim().toLowerCase() === userAnswer);
+      isCorrect = activeCorrectAnswer.some(
+        (ans) => typeof ans === "string" && ans.trim().toLowerCase() === userAnswer,
+      );
     } else if (typeof activeCorrectAnswer === "string") {
       isCorrect = userAnswer === activeCorrectAnswer.trim().toLowerCase();
     }
@@ -526,7 +524,6 @@ function ExamContent() {
               displayQuestions.map((q, idx) => {
                 const isSubmitted = results[q._id] !== undefined;
 
-                // 셔플된 옵션 가져오기 (없으면 원본 사용)
                 const currentOptions = shuffledOptionsMap[q._id]?.options || q.options;
                 const activeCorrectAnswer =
                   shuffledOptionsMap[q._id]?.newCorrectAnswer ?? q.correctAnswer;
