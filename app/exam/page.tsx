@@ -21,8 +21,8 @@ import { useSession } from "next-auth/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { atomDark } from "react-syntax-highlighter/dist/cjs/styles/prism"; // 👈 다크모드용 테마
-import { oneLight } from "react-syntax-highlighter/dist/cjs/styles/prism"; // 👈 라이트모드용 테마
+import { atomDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
+import { oneLight } from "react-syntax-highlighter/dist/cjs/styles/prism";
 
 interface HistoryAttempt {
   isCorrect: boolean;
@@ -53,7 +53,7 @@ const shuffleArray = (array: any[]) => {
   return shuffled;
 };
 
-// 공통 마크다운 렌더러 컴포넌트 (다크/라이트 모드 테마 자동 대응)
+// 공통 마크다운 렌더러 컴포넌트
 const MarkdownRenderer = ({
   content,
   currentTheme,
@@ -71,7 +71,7 @@ const MarkdownRenderer = ({
           const match = /language-(\w+)/.exec(className || "");
           return !inline && match ? (
             <SyntaxHighlighter
-              style={isDark ? atomDark : oneLight} // 👈 테마 자동 전환
+              style={isDark ? atomDark : oneLight}
               language={match[1]}
               PreTag="div"
               {...props}
@@ -134,7 +134,6 @@ function ExamContent() {
   const [questions, setQuestions] = useState<QuestionType[]>([]);
   const [displayQuestions, setDisplayQuestions] = useState<QuestionType[]>([]);
 
-  // 보기 셔플 시 원본 보기와 정답 매핑을 기억하기 위한 상태
   const [shuffledOptionsMap, setShuffledOptionsMap] = useState<
     Record<string, { options: string[]; newCorrectAnswer: string[] | string }>
   >({});
@@ -232,7 +231,6 @@ function ExamContent() {
       filtered = filtered.slice(0, limit);
     }
 
-    // 각 문제별로 보기(options) 셔플 및 정답 매핑 생성
     const newOptionsMap: Record<
       string,
       { options: string[]; newCorrectAnswer: string[] | string }
@@ -250,14 +248,15 @@ function ExamContent() {
 
         if (Array.isArray(q.correctAnswer)) {
           const newCorrect = q.correctAnswer.map((ans) => {
-            const foundIndex = shuffledIndexed.findIndex((item) => item.originalNum === ans.trim());
+            const trimmedAns = typeof ans === "string" ? ans.trim() : String(ans);
+            const foundIndex = shuffledIndexed.findIndex((item) => item.originalNum === trimmedAns);
             return foundIndex !== -1 ? String(foundIndex + 1) : ans;
           });
           newOptionsMap[q._id] = { options: newOptions, newCorrectAnswer: newCorrect };
         } else {
-          const foundIndex = shuffledIndexed.findIndex(
-            (item) => item.originalNum === q.correctAnswer.trim(),
-          );
+          const trimmedAns =
+            typeof q.correctAnswer === "string" ? q.correctAnswer.trim() : String(q.correctAnswer);
+          const foundIndex = shuffledIndexed.findIndex((item) => item.originalNum === trimmedAns);
           const newCorrect = foundIndex !== -1 ? String(foundIndex + 1) : q.correctAnswer;
           newOptionsMap[q._id] = { options: newOptions, newCorrectAnswer: newCorrect };
         }
