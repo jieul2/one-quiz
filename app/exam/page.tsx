@@ -314,7 +314,8 @@ function ExamContent() {
     const userAnswer = userAnswers[qId].trim().toLowerCase();
     let isCorrect = false;
 
-    const activeCorrectAnswer = shuffledOptionsMap[qId]?.newCorrectAnswer ?? currentQ.correctAnswer;
+    const activeCorrectAnswer: string[] | string =
+      shuffledOptionsMap[qId]?.newCorrectAnswer ?? currentQ.correctAnswer;
 
     if (Array.isArray(activeCorrectAnswer)) {
       isCorrect = activeCorrectAnswer.some(
@@ -525,7 +526,7 @@ function ExamContent() {
                 const isSubmitted = results[q._id] !== undefined;
 
                 const currentOptions = shuffledOptionsMap[q._id]?.options || q.options;
-                const activeCorrectAnswer =
+                const activeCorrectAnswer: string[] | string =
                   shuffledOptionsMap[q._id]?.newCorrectAnswer ?? q.correctAnswer;
 
                 const isMultipleChoice =
