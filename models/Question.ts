@@ -49,7 +49,7 @@ const QuestionSchema: Schema = new Schema({
     validate: {
       validator: function (v: string[]) {
         return v && v.length > 0;
-      },
+    },
       message: "최소 한 개 이상의 정답이 필요합니다.",
     },
   },
