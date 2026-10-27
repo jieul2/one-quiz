@@ -21,8 +21,8 @@ import { useSession } from "next-auth/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { atomDark } from "react-syntax-highlighter/dist/cjs/styles/prism"; // 👈 다크모드용 테마
-import { oneLight } from "react-syntax-highlighter/dist/cjs/styles/prism"; // 👈 라이트모드용 테마
+import { atomDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
+import { oneLight } from "react-syntax-highlighter/dist/cjs/styles/prism";
 
 interface HistoryAttempt {
   isCorrect: boolean;
@@ -53,7 +53,7 @@ const shuffleArray = (array: any[]) => {
   return shuffled;
 };
 
-// 공통 마크다운 렌더러 컴포넌트 (다크/라이트 모드 테마 자동 대응)
+// 공통 마크다운 렌더러 컴포넌트
 const MarkdownRenderer = ({
   content,
   currentTheme,
@@ -71,7 +71,7 @@ const MarkdownRenderer = ({
           const match = /language-(\w+)/.exec(className || "");
           return !inline && match ? (
             <SyntaxHighlighter
-              style={isDark ? atomDark : oneLight} // 👈 테마 자동 전환
+              style={isDark ? atomDark : oneLight}
               language={match[1]}
               PreTag="div"
               {...props}
@@ -133,6 +133,10 @@ function ExamContent() {
 
   const [questions, setQuestions] = useState<QuestionType[]>([]);
   const [displayQuestions, setDisplayQuestions] = useState<QuestionType[]>([]);
+
+  const [shuffledOptionsMap, setShuffledOptionsMap] = useState<
+    Record<string, { options: string[]; newCorrectAnswer: string[] | string }>
+  >({});
 
   const [questionCountMode, setQuestionCountMode] = useState<"10" | "20" | "30" | "all">("20");
   const [prioritizeUnsolved, setPrioritizeUnsolved] = useState(false);
@@ -227,6 +231,39 @@ function ExamContent() {
       filtered = filtered.slice(0, limit);
     }
 
+    const newOptionsMap: Record<
+      string,
+      { options: string[]; newCorrectAnswer: string[] | string }
+    > = {};
+
+    filtered.forEach((q) => {
+      if (Array.isArray(q.options) && q.options.length > 0 && q.options[0] !== "") {
+        const indexedOptions = q.options.map((opt, idx) => ({
+          text: opt,
+          originalNum: String(idx + 1),
+        }));
+
+        const shuffledIndexed = shuffleArray(indexedOptions);
+        const newOptions = shuffledIndexed.map((item) => item.text);
+
+        if (Array.isArray(q.correctAnswer)) {
+          const newCorrect = q.correctAnswer.map((ans) => {
+            const trimmedAns = typeof ans === "string" ? ans.trim() : String(ans);
+            const foundIndex = shuffledIndexed.findIndex((item) => item.originalNum === trimmedAns);
+            return foundIndex !== -1 ? String(foundIndex + 1) : ans;
+          });
+          newOptionsMap[q._id] = { options: newOptions, newCorrectAnswer: newCorrect };
+        } else {
+          const trimmedAns =
+            typeof q.correctAnswer === "string" ? q.correctAnswer.trim() : String(q.correctAnswer);
+          const foundIndex = shuffledIndexed.findIndex((item) => item.originalNum === trimmedAns);
+          const newCorrect = foundIndex !== -1 ? String(foundIndex + 1) : q.correctAnswer;
+          newOptionsMap[q._id] = { options: newOptions, newCorrectAnswer: newCorrect };
+        }
+      }
+    });
+
+    setShuffledOptionsMap(newOptionsMap);
     setDisplayQuestions(filtered);
     setUserAnswers({});
     setResults({});
@@ -276,10 +313,15 @@ function ExamContent() {
     const userAnswer = userAnswers[qId].trim().toLowerCase();
     let isCorrect = false;
 
-    if (Array.isArray(currentQ.correctAnswer)) {
-      isCorrect = currentQ.correctAnswer.some((ans) => ans.trim().toLowerCase() === userAnswer);
-    } else if (typeof currentQ.correctAnswer === "string") {
-      isCorrect = userAnswer === currentQ.correctAnswer.trim().toLowerCase();
+    const activeCorrectAnswer: string[] | string =
+      shuffledOptionsMap[qId]?.newCorrectAnswer ?? currentQ.correctAnswer;
+
+    if (Array.isArray(activeCorrectAnswer)) {
+      isCorrect = activeCorrectAnswer.some(
+        (ans) => typeof ans === "string" && ans.trim().toLowerCase() === userAnswer,
+      );
+    } else if (typeof activeCorrectAnswer === "string") {
+      isCorrect = userAnswer === activeCorrectAnswer.trim().toLowerCase();
     }
 
     setResults((prev) => ({ ...prev, [qId]: isCorrect }));
@@ -481,9 +523,16 @@ function ExamContent() {
             ) : (
               displayQuestions.map((q, idx) => {
                 const isSubmitted = results[q._id] !== undefined;
+
+                const currentOptions = shuffledOptionsMap[q._id]?.options || q.options;
+                const activeCorrectAnswer: string[] | string =
+                  shuffledOptionsMap[q._id]?.newCorrectAnswer ?? q.correctAnswer;
+
                 const isMultipleChoice =
                   q.questionType === "multiple-choice" ||
-                  (Array.isArray(q.options) && q.options.length > 0 && q.options[0] !== "");
+                  (Array.isArray(currentOptions) &&
+                    currentOptions.length > 0 &&
+                    currentOptions[0] !== "");
 
                 const attemptCount = q.history?.length || 0;
                 const correctCount = q.history?.filter((h) => h.isCorrect).length || 0;
@@ -588,7 +637,7 @@ function ExamContent() {
                       <div className="ml-0 sm:ml-12">
                         {isMultipleChoice ? (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3">
-                            {q.options?.map((option, oIdx) => {
+                            {currentOptions?.map((option, oIdx) => {
                               const optionNum = String(oIdx + 1);
                               const isSelected = userAnswers[q._id] === optionNum;
 
@@ -599,9 +648,9 @@ function ExamContent() {
                                   "bg-yellow-50 dark:bg-yellow-600/20 border-yellow-500 text-yellow-700 dark:text-yellow-400 shadow-md ring-1 ring-yellow-500";
 
                               if (isSubmitted) {
-                                const isOptCorrect = Array.isArray(q.correctAnswer)
-                                  ? q.correctAnswer.includes(optionNum)
-                                  : q.correctAnswer === optionNum;
+                                const isOptCorrect = Array.isArray(activeCorrectAnswer)
+                                  ? activeCorrectAnswer.includes(optionNum)
+                                  : activeCorrectAnswer === optionNum;
 
                                 if (isOptCorrect)
                                   buttonClass =
@@ -626,9 +675,9 @@ function ExamContent() {
                                   <span
                                     className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold shrink-0 shadow-sm ${
                                       isSubmitted &&
-                                      (Array.isArray(q.correctAnswer)
-                                        ? q.correctAnswer.includes(optionNum)
-                                        : q.correctAnswer === optionNum)
+                                      (Array.isArray(activeCorrectAnswer)
+                                        ? activeCorrectAnswer.includes(optionNum)
+                                        : activeCorrectAnswer === optionNum)
                                         ? "bg-green-500 text-white dark:text-black"
                                         : isSubmitted && isSelected
                                           ? "bg-red-500 text-white"
@@ -693,9 +742,9 @@ function ExamContent() {
                             <div className="p-4 sm:p-5 bg-white dark:bg-[#252526] rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-3">
                               <div className="text-sm sm:text-base font-bold text-yellow-600 dark:text-yellow-500 mb-2 sm:mb-3">
                                 정답:{" "}
-                                {Array.isArray(q.correctAnswer)
-                                  ? q.correctAnswer.join(", ")
-                                  : q.correctAnswer}
+                                {Array.isArray(activeCorrectAnswer)
+                                  ? activeCorrectAnswer.join(", ")
+                                  : activeCorrectAnswer}
                               </div>
                               {q.explanation ? (
                                 <div className="text-gray-700 dark:text-gray-300 text-xs sm:text-sm leading-relaxed bg-gray-50 dark:bg-[#1e1e1e] p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-800 prose dark:prose-invert max-w-none">
