@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { ArrowLeft, Users, Shield, Moon, Sun } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { ArrowLeft, Shield, Moon, Sun } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { useTheme } from "next-themes";
+import { useMounted } from "@/lib/hooks/useMounted";
 
 interface UserType {
   _id: string;
@@ -16,38 +18,37 @@ interface UserType {
 
 export default function AdminAccountsPage() {
   const [users, setUsers] = useState<UserType[]>([]);
-  const [mounted] = useState(true);
+  const mounted = useMounted();
   const { theme, setTheme } = useTheme();
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const res = await fetch("/api/users");
-      const data = await res.json();
-      setUsers(data);
-    } catch (e) {
-      console.error(e);
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
+      }
+    } catch {
+      console.error("Failed to fetch users");
     }
-  };
+  }, []);
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function loadData() {
+    let ignore = false;
+    async function load() {
       try {
         const res = await fetch("/api/users");
-        const data = await res.json();
-        if (isMounted) {
-          setUsers(data);
+        if (res.ok) {
+          const data = await res.json();
+          if (!ignore) setUsers(data);
         }
-      } catch (e) {
-        console.error(e);
+      } catch {
+        console.error("Failed to fetch users");
       }
     }
-
-    loadData();
-
+    load();
     return () => {
-      isMounted = false;
+      ignore = true;
     };
   }, []);
 
@@ -72,7 +73,7 @@ export default function AdminAccountsPage() {
       } else {
         alert("권한 변경에 실패했습니다.");
       }
-    } catch (e) {
+    } catch {
       alert("서버 오류가 발생했습니다.");
     }
   };
@@ -82,7 +83,7 @@ export default function AdminAccountsPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#121212] p-4 md:p-8 text-gray-800 dark:text-gray-200 transition-colors">
       <div className="max-w-5xl mx-auto space-y-6">
-        {/* 💡 상단 네비게이션 헤더 (다른 관리자/일기장 페이지와 동일한 반응형 디자인 구조) */}
+        {/* 상단 네비게이션 헤더 */}
         <div className="flex justify-between items-center bg-white dark:bg-[#1e1e1e] p-4 md:p-6 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800 gap-3">
           <div className="flex items-center gap-3 overflow-hidden">
             <Link
@@ -145,9 +146,12 @@ export default function AdminAccountsPage() {
                     >
                       <td className="py-3 px-3 flex items-center gap-2.5">
                         {u.image ? (
-                          <img
+                          <Image
                             src={u.image}
                             alt=""
+                            width={28}
+                            height={28}
+                            unoptimized
                             className="w-7 h-7 rounded-full object-cover shrink-0"
                           />
                         ) : (

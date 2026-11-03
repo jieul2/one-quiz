@@ -4,13 +4,8 @@ import { useState, useEffect, Suspense } from "react";
 import { BookOpen, ArrowRight, ArrowLeft, Loader2, CheckSquare, Square } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-
-interface QuestionItem {
-  _id: string;
-  subject: string;
-  examType: string;
-  [key: string]: any;
-}
+import { useMounted } from "@/lib/hooks/useMounted";
+import { getQuestions, QuestionItem } from "@/lib/questionsClient";
 
 function ExamTypeSelectionContent() {
   const router = useRouter();
@@ -20,23 +15,29 @@ function ExamTypeSelectionContent() {
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [selectedExamTypes, setSelectedExamTypes] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
 
   useEffect(() => {
-    setMounted(true);
+    let ignore = false;
     async function fetchQuestions() {
       setIsLoading(true);
       try {
-        const res = await fetch("/api/questions");
-        const data = await res.json();
-        setQuestions(data);
+        const data = await getQuestions();
+        if (!ignore) {
+          setQuestions(data);
+        }
       } catch (e) {
         console.error(e);
       } finally {
-        setIsLoading(false);
+        if (!ignore) {
+          setIsLoading(false);
+        }
       }
     }
     fetchQuestions();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   if (!mounted) return null;
@@ -47,11 +48,12 @@ function ExamTypeSelectionContent() {
       ? []
       : selectedSubjectsParam.split(",").map((s) => decodeURIComponent(s));
 
-  // 2. 선택된 과목들 중 하나라도 포함되는 문제들만 필터링
+  // 2. 활성화된(isActive !== false) 문제 중 선택된 과목에 속하는 문제만 필터링
+  const activeQuestions = questions.filter((q) => q.isActive !== false && q.examType);
   const filteredQuestions =
     selectedSubjectsParam === "All"
-      ? questions
-      : questions.filter((q) => targetSubjects.includes(q.subject));
+      ? activeQuestions
+      : activeQuestions.filter((q) => targetSubjects.includes(q.subject));
 
   // 3. 회차별로 어떤 과목에 속하는지 매핑 정보 생성 (중복 제거 및 과목 매칭용)
   // key: examType, value: Set 형태의 subject 목록들

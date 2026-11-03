@@ -3,7 +3,6 @@
 import { useState, useEffect, Suspense } from "react";
 import {
   BookOpen,
-  CheckCircle2,
   ArrowRight,
   ArrowLeft,
   Loader2,
@@ -11,36 +10,45 @@ import {
   Square,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useMounted } from "@/lib/hooks/useMounted";
 import Link from "next/link";
+import { getQuestions, QuestionItem } from "@/lib/questionsClient";
 
 function SubjectSelectionContent() {
   const router = useRouter();
-  const [questions, setQuestions] = useState<any[]>([]);
+  const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]); // 👈 복수 선택을 위한 배열 상태
   const [isLoading, setIsLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
 
   useEffect(() => {
-    setMounted(true);
+    let ignore = false;
     async function fetchQuestions() {
       setIsLoading(true);
       try {
-        const res = await fetch("/api/questions");
-        const data = await res.json();
-        setQuestions(data);
+        const data = await getQuestions();
+        if (!ignore) {
+          setQuestions(data);
+        }
       } catch (e) {
         console.error(e);
       } finally {
-        setIsLoading(false);
+        if (!ignore) {
+          setIsLoading(false);
+        }
       }
     }
     fetchQuestions();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   if (!mounted) return null;
 
-  // 중복 제거된 과목 목록 추출
-  const subjects = Array.from(new Set(questions.map((q) => q.subject)));
+  // 활성화된(isActive !== false) 문제가 1개 이상 존재하는 과목만 추출 (비활성화 과목 제외)
+  const activeQuestions = questions.filter((q) => q.isActive !== false && q.subject);
+  const subjects = Array.from(new Set(activeQuestions.map((q) => q.subject)));
 
   // 과목 선택/해제 토글 핸들러
   const handleToggleSubject = (sub: string) => {
@@ -109,6 +117,10 @@ function SubjectSelectionContent() {
             <div className="text-center py-8 text-gray-400 text-xs flex items-center justify-center gap-2">
               <Loader2 size={16} className="animate-spin text-yellow-500" /> 과목 목록 불러오는
               중...
+            </div>
+          ) : subjects.length === 0 ? (
+            <div className="text-center py-8 text-gray-400 text-xs">
+              현재 활성화된 문제가 있는 과목이 없습니다.
             </div>
           ) : (
             subjects.map((sub) => {

@@ -42,7 +42,7 @@ export default function InputEmailPage() {
       } else {
         setErrorMsg(data.error || "인증 번호 발송 실패");
       }
-    } catch (e) {
+    } catch {
       setErrorMsg("서버 오류가 발생했습니다.");
     } finally {
       setIsLoading(false);
@@ -69,7 +69,7 @@ export default function InputEmailPage() {
       const data = await res.json();
 
       if (res.ok) {
-        // 👈 NextAuth 세션에 이메일 값을 명확히 주입하여 업데이트
+        // NextAuth 세션에 이메일 값을 명확히 주입하여 업데이트
         await update({
           ...session,
           user: {
@@ -78,12 +78,13 @@ export default function InputEmailPage() {
           },
         });
 
-        // 메인으로 강제 이동 및 새로고침
-        window.location.href = "/";
+        // 메인으로 이동 및 세션 리프레시
+        router.push("/");
+        router.refresh();
       } else {
         setErrorMsg(data.error || "인증 번호가 일치하지 않습니다.");
       }
-    } catch (e) {
+    } catch {
       setErrorMsg("서버 오류가 발생했습니다.");
     } finally {
       setIsLoading(false);

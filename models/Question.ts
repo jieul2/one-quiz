@@ -1,7 +1,8 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IQuestion extends Document {
-  subjectId: mongoose.Types.ObjectId; // 👈 분리된 과목 스키마 참조
+  subject?: string; // 과목명 (문자열 호환)
+  subjectId?: mongoose.Types.ObjectId; // 분리된 과목 스키마 참조용 (선택)
   examType: string;
   questionNumber: number;
   questionType: "multiple-choice" | "short-answer";
@@ -10,7 +11,7 @@ export interface IQuestion extends Document {
   options?: string[]; // 객관식 보기 배열 (기본 4개, 최소 2개 이상)
   correctAnswer: string[]; // 주관식/객관식 복수 정답 대응 배열
   explanation?: string;
-  isActive: boolean; // 👈 문제 활성화 여부
+  isActive: boolean; // 문제 활성화 여부
   history: {
     isCorrect: boolean;
     timestamp: Date;
@@ -18,7 +19,8 @@ export interface IQuestion extends Document {
 }
 
 const QuestionSchema: Schema = new Schema({
-  subjectId: { type: Schema.Types.ObjectId, ref: "Subject", required: true }, // 👈 과목 컬렉션과 연동
+  subject: { type: String, required: false },
+  subjectId: { type: Schema.Types.ObjectId, ref: "Subject", required: false },
   examType: { type: String, required: true },
   questionNumber: { type: Number, required: true },
   isActive: { type: Boolean, default: true },
@@ -32,7 +34,7 @@ const QuestionSchema: Schema = new Schema({
   codeSnippet: { type: String },
   options: {
     type: [String],
-    default: ["", "", "", ""], // 기본 4개 보기
+    default: ["", "", "", ""],
     validate: {
       validator: function (this: IQuestion, v: string[]) {
         if (this.questionType === "multiple-choice") {
@@ -49,7 +51,7 @@ const QuestionSchema: Schema = new Schema({
     validate: {
       validator: function (v: string[]) {
         return v && v.length > 0;
-    },
+      },
       message: "최소 한 개 이상의 정답이 필요합니다.",
     },
   },

@@ -1,27 +1,29 @@
-import dbConnect from '@/lib/mongodb';
-import AuditLog from '@/models/AuditLog';
+import dbConnect from "@/lib/mongodb";
+import AuditLog from "@/models/AuditLog";
 
-export async function createAuditLog({
-  email = 'anonymous',
-  method,
-  endpoint,
-  statusCode = 200,
-  level = 'INFO',
-  ip = '127.0.0.1',
-  userAgent = 'Unknown',
-  responseTime = 0,
-  message,
-}: {
+export interface CreateAuditLogParams {
   email?: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   endpoint: string;
   statusCode?: number;
-  level?: 'INFO' | 'WARN' | 'ERROR' | 'SECURITY';
+  level?: "INFO" | "WARN" | "ERROR" | "SECURITY";
   ip?: string;
   userAgent?: string;
   responseTime?: number;
   message: string;
-}) {
+}
+
+export async function createAuditLog({
+  email = "anonymous",
+  method,
+  endpoint,
+  statusCode = 200,
+  level = "INFO",
+  ip = "127.0.0.1",
+  userAgent = "Unknown",
+  responseTime = 0,
+  message,
+}: CreateAuditLogParams): Promise<void> {
   try {
     await dbConnect();
     await AuditLog.create({
@@ -37,6 +39,6 @@ export async function createAuditLog({
       timestamp: new Date(),
     });
   } catch (error) {
-    console.error('Audit Log Generation Error:', error);
+    console.error("Audit Log Generation Error:", error);
   }
 }

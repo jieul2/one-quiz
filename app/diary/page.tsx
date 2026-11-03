@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
+import Image from "next/image";
+import { useMounted } from "@/lib/hooks/useMounted";
 
 const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "";
 const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "";
@@ -57,7 +59,7 @@ export default function DiaryPage() {
   const { data: session, status } = useSession();
   const { theme, setTheme } = useTheme();
 
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
   const [diaries, setDiaries] = useState<DiaryType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -74,9 +76,7 @@ export default function DiaryPage() {
   const [openCards, setOpenCards] = useState<Record<string, boolean>>({});
   const [viewingImage, setViewingImage] = useState<string | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+
 
   const fetchDiaries = async () => {
     try {
@@ -85,8 +85,8 @@ export default function DiaryPage() {
         const data = await res.json();
         setDiaries(data);
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      console.error("Failed to load diary");
     }
   };
 
@@ -102,8 +102,8 @@ export default function DiaryPage() {
             const data = await res.json();
             setDiaries(data);
           }
-        } catch (e) {
-          console.error(e);
+        } catch {
+          console.error("Failed to load diary");
         } finally {
           if (isMounted) setIsLoading(false);
         }
@@ -192,7 +192,7 @@ export default function DiaryPage() {
         const data = await res.json();
         alert(data.error || "작성 실패");
       }
-    } catch (e) {
+    } catch {
       alert("서버 오류");
     }
   };
@@ -212,7 +212,7 @@ export default function DiaryPage() {
       } else {
         alert(data.error || "수정 실패");
       }
-    } catch (e) {
+    } catch {
       alert("서버 오류");
     }
   };
@@ -443,9 +443,12 @@ export default function DiaryPage() {
                             key={imgIdx}
                             className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 group"
                           >
-                            <img
+                            <Image
                               src={imgUrl}
                               alt="업로드 이미지"
+                              width={64}
+                              height={64}
+                              unoptimized
                               className="w-full h-full object-cover"
                             />
                             <button
@@ -700,9 +703,12 @@ export default function DiaryPage() {
                                         key={imgIdx}
                                         className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 group"
                                       >
-                                        <img
+                                        <Image
                                           src={imgUrl}
                                           alt="업로드 이미지"
+                                          width={64}
+                                          height={64}
+                                          unoptimized
                                           className="w-full h-full object-cover"
                                         />
                                         <button
@@ -793,10 +799,13 @@ export default function DiaryPage() {
             >
               <X size={20} />
             </button>
-            <img
+            <Image
               src={viewingImage}
               alt="확대 이미지"
-              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+              width={1200}
+              height={800}
+              unoptimized
+              className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-xl shadow-2xl"
             />
           </div>
         </div>

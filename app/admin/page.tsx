@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useMounted } from "@/lib/hooks/useMounted";
 import {
   Database,
   Users,
@@ -37,30 +38,35 @@ interface ReportType {
 export default function AdminHubPage() {
   const { data: session, status } = useSession();
   const { theme, setTheme } = useTheme();
-  const [mounted] = useState(true);
+  const mounted = useMounted();
 
   // 관리자 알림(문제 오류 신고) 상태
   const [reports, setReports] = useState<ReportType[]>([]);
   // 복사 완료 상태 관리
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (session?.user?.role === "admin") {
-      fetchReports();
-    }
-  }, [session]);
 
-  const fetchReports = async () => {
-    try {
-      const res = await fetch("/api/admin/reports");
-      if (res.ok) {
-        const data = await res.json();
-        setReports(data);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadReports() {
+      if (session?.user?.role === "admin") {
+        try {
+          const res = await fetch("/api/admin/reports");
+          if (res.ok) {
+            const data = await res.json();
+            if (!ignore) setReports(data);
+          }
+        } catch (e) {
+          console.error(e);
+        }
       }
-    } catch (e) {
-      console.error(e);
     }
-  };
+    loadReports();
+    return () => {
+      ignore = true;
+    };
+  }, [session]);
 
   const handleResolveReport = async (reportId: string) => {
     try {
@@ -177,7 +183,7 @@ export default function AdminHubPage() {
   return (
     <div className="min-h-screen p-4 md:p-8 bg-gray-50 dark:bg-[#121212] transition-colors">
       <div className="max-w-5xl mx-auto space-y-6">
-        {/* 💡 상단 네비게이션 헤더 (캘린더/일기장과 동일한 반응형 디자인 구조 적용) */}
+        {/* 상단 네비게이션 헤더 */}
         <div className="flex justify-between items-center bg-white dark:bg-[#1e1e1e] p-4 md:p-6 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800 gap-3">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="p-3 bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 rounded-xl shrink-0">
@@ -185,7 +191,7 @@ export default function AdminHubPage() {
             </div>
             <div className="overflow-hidden">
               <h1 className="text-base sm:text-xl md:text-2xl font-extrabold text-gray-900 dark:text-white truncate">
-                ⚙️ 관리자 제어 센터
+                관리자 콘솔
               </h1>
               <p className="text-[11px] sm:text-xs md:text-sm text-gray-500 dark:text-gray-400 truncate">
                 관리자 계정:{" "}
@@ -303,7 +309,7 @@ export default function AdminHubPage() {
           </div>
         )}
 
-        {/* 💡 관리자 모듈 카드 그리드 (반응형 패딩 및 호버 효과 정돈) */}
+        {/* 관리자 모듈 카드 그리드 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <Link
             href="/admin/questions"
@@ -314,14 +320,14 @@ export default function AdminHubPage() {
                 <Database size={24} />
               </div>
               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
-                문항 및 시험 DB 관리
+                문항 및 시험 데이터 관리
               </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 기출문제를 등록, 수정, 삭제하고 사용자 풀이 기록을 관리합니다.
               </p>
             </div>
             <div className="mt-6 flex items-center gap-1 text-xs font-bold text-yellow-600 dark:text-yellow-500 group-hover:translate-x-1 transition-transform">
-              <span>모듈 접속하기</span> <ArrowRight size={14} />
+              <span>바로가기</span> <ArrowRight size={14} />
             </div>
           </Link>
 
@@ -341,7 +347,7 @@ export default function AdminHubPage() {
               </p>
             </div>
             <div className="mt-6 flex items-center gap-1 text-xs font-bold text-blue-500 group-hover:translate-x-1 transition-transform">
-              <span>모듈 접속하기</span> <ArrowRight size={14} />
+              <span>바로가기</span> <ArrowRight size={14} />
             </div>
           </Link>
 
@@ -361,7 +367,7 @@ export default function AdminHubPage() {
               </p>
             </div>
             <div className="mt-6 flex items-center gap-1 text-xs font-bold text-purple-500 group-hover:translate-x-1 transition-transform">
-              <span>모듈 접속하기</span> <ArrowRight size={14} />
+              <span>바로가기</span> <ArrowRight size={14} />
             </div>
           </Link>
 
@@ -374,14 +380,14 @@ export default function AdminHubPage() {
                 <Settings size={24} />
               </div>
               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
-                사이트 전역 설정
+                사이트 운영 설정
               </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 플랫폼 타이틀, 서비스 점검 모드 및 글로벌 환경설정을 제어합니다.
               </p>
             </div>
             <div className="mt-6 flex items-center gap-1 text-xs font-bold text-green-500 group-hover:translate-x-1 transition-transform">
-              <span>모듈 접속하기</span> <ArrowRight size={14} />
+              <span>바로가기</span> <ArrowRight size={14} />
             </div>
           </Link>
         </div>

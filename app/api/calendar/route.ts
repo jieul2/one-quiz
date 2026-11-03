@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/mongodb";
 import CalendarEvent from "@/models/CalendarEvent";
 import { withAudit } from "@/lib/withAudit";
 
-// 1. 일정 조회 (본인 일정 + 추후 그룹 일정까지 확장 가능)
-async function handleGet(req: Request) {
+// 1. 일정 조회 (본인 일정)
+async function handleGet() {
   const session = await getServerSession(authOptions);
   if (!session || !session.user?.email) {
     return NextResponse.json(
@@ -22,7 +22,7 @@ async function handleGet(req: Request) {
   return NextResponse.json(events, { status: 200 });
 }
 
-// 2. 일정 생성
+// 2. 일정 생성 (단일 또는 다중 일괄 등록)
 async function handlePost(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session || !session.user?.email) {
@@ -34,6 +34,17 @@ async function handlePost(req: Request) {
 
   await dbConnect();
   const body = await req.json();
+
+  if (Array.isArray(body)) {
+    const items = body.map((item) => ({
+      ...item,
+      authorEmail: session.user.email,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+    const newEvents = await CalendarEvent.insertMany(items);
+    return NextResponse.json({ success: true, data: newEvents }, { status: 201 });
+  }
 
   const newEvent = await CalendarEvent.create({
     ...body,

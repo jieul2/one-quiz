@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   ArrowLeft,
-  Settings,
+
   Save,
   ShieldAlert,
   Power,
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
+import { useMounted } from "@/lib/hooks/useMounted";
 
 interface SettingsType {
   siteTitle: string;
@@ -39,7 +40,7 @@ export default function AdminSettingsPage() {
   });
   const [loading, setLoading] = useState(true);
   const [successMsg, setSuccessMsg] = useState("");
-  const [mounted] = useState(true);
+  const mounted = useMounted();
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
@@ -61,8 +62,8 @@ export default function AdminSettingsPage() {
             },
           });
         }
-      } catch (e) {
-        console.error(e);
+      } catch {
+        console.error("Failed to load settings");
       } finally {
         setLoading(false);
       }
@@ -97,7 +98,7 @@ export default function AdminSettingsPage() {
       } else {
         alert("저장 실패");
       }
-    } catch (e) {
+    } catch {
       alert("서버 오류 발생");
     }
   };
@@ -107,7 +108,7 @@ export default function AdminSettingsPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#121212] p-4 md:p-8 text-gray-800 dark:text-gray-200 transition-colors">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* 💡 상단 네비게이션 헤더 (캘린더/일기장/기타 관리자 페이지와 통일된 반응형 구조) */}
+        {/* 상단 네비게이션 헤더 */}
         <div className="flex justify-between items-center bg-white dark:bg-[#1e1e1e] p-4 md:p-6 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800 gap-3">
           <div className="flex items-center gap-3 overflow-hidden">
             <Link
@@ -119,7 +120,7 @@ export default function AdminSettingsPage() {
             </Link>
             <div className="overflow-hidden">
               <h1 className="text-base sm:text-xl md:text-2xl font-extrabold text-gray-900 dark:text-white truncate">
-                ⚙️ 사이트 전역 설정
+                사이트 운영 설정
               </h1>
               <p className="text-[11px] sm:text-xs md:text-sm text-gray-500 dark:text-gray-400 truncate">
                 서비스 점검 모드, 상태메시지 및 개별 기능 제어
@@ -158,7 +159,7 @@ export default function AdminSettingsPage() {
               <span
                 className={`text-[10px] px-2.5 py-1 rounded-full font-bold w-max ${settings.isMaintenanceMode ? "bg-red-500/10 text-red-500" : "bg-green-500/10 text-green-500"}`}
               >
-                {settings.isMaintenanceMode ? "🔴 점검 중" : "🟢 정상 서비스 중"}
+                {settings.isMaintenanceMode ? "점검 중" : "정상 서비스 중"}
               </span>
             </div>
 

@@ -34,7 +34,7 @@ function isTodayInKST(targetDate: Date) {
   );
 }
 
-async function handleGet(req: Request) {
+async function handleGet() {
   const session = await getServerSession();
   if (!session || !session.user?.email) {
     return NextResponse.json({ error: "인증되지 않은 사용자입니다." }, { status: 401 });
@@ -91,7 +91,7 @@ async function handlePost(req: Request) {
 
   const newDiary = await Diary.create({
     userEmail: session.user.email,
-    weather: weather || "sunny", // 👈 날씨 저장 (기본값: sunny)
+    weather: weather || "sunny",
     items: validItems,
     createdAt: new Date(),
   });
@@ -141,7 +141,7 @@ async function handlePut(req: Request) {
     return NextResponse.json({ error: "자정이 지난 일기는 수정할 수 없습니다." }, { status: 400 });
   }
 
-  if (weather) diary.weather = weather; // 👈 날씨 업데이트
+  if (weather) diary.weather = weather;
   diary.items = validItems;
   await diary.save();
 

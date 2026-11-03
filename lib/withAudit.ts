@@ -1,20 +1,28 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { createAuditLog } from '@/lib/logger';
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { createAuditLog } from "@/lib/logger";
 
-export function withAudit(handler: Function, actionDescription?: string) {
-  return async function (request: Request, context?: any) {
+type RouteHandler<TContext = unknown> = (
+  request: Request,
+  context?: TContext,
+) => Promise<Response | NextResponse> | Response | NextResponse;
+
+export function withAudit<TContext = unknown>(
+  handler: RouteHandler<TContext>,
+  actionDescription?: string,
+) {
+  return async function (request: Request, context?: TContext): Promise<Response> {
     const startTime = Date.now();
     const session = await getServerSession();
-    const email = session?.user?.email || 'anonymous';
-    const method = request.method as 'GET' | 'POST' | 'PUT' | 'DELETE';
+    const email = session?.user?.email || "anonymous";
+    const method = request.method as "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
     const endpoint = new URL(request.url).pathname;
-    
-    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
-    const userAgent = request.headers.get('user-agent') || 'Unknown';
+
+    const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
+    const userAgent = request.headers.get("user-agent") || "Unknown";
 
     let statusCode = 200;
-    let errorMessage = '';
+    let errorMessage = "";
 
     try {
       // 실제 API 핸들러 실행
@@ -22,14 +30,14 @@ export function withAudit(handler: Function, actionDescription?: string) {
       statusCode = response.status || 200;
 
       const responseTime = Date.now() - startTime;
-      
+
       // 성공 로그 기록
       await createAuditLog({
         email,
         method,
         endpoint,
         statusCode,
-        level: method === 'GET' ? 'INFO' : 'SECURITY',
+        level: method === "GET" ? "INFO" : "SECURITY",
         ip,
         userAgent,
         responseTime,
@@ -37,9 +45,9 @@ export function withAudit(handler: Function, actionDescription?: string) {
       });
 
       return response;
-    } catch (error: any) {
+    } catch (error: unknown) {
       statusCode = 500;
-      errorMessage = error.message || 'Unknown error';
+      errorMessage = error instanceof Error ? error.message : "Unknown error";
       const responseTime = Date.now() - startTime;
 
       // 에러 발생 로그 기록
@@ -48,14 +56,14 @@ export function withAudit(handler: Function, actionDescription?: string) {
         method,
         endpoint,
         statusCode,
-        level: 'ERROR',
+        level: "ERROR",
         ip,
         userAgent,
         responseTime,
         message: `[오류 발생] ${endpoint} - ${errorMessage}`,
       });
 
-      return NextResponse.json({ error: '서버 내부 오류가 발생했습니다.' }, { status: 500 });
+      return NextResponse.json({ error: "서버 내부 오류가 발생했습니다." }, { status: 500 });
     }
   };
 }

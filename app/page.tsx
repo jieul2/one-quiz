@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { useSession, signIn, signOut } from "next-auth/react";
 
 interface SettingsType {
@@ -169,9 +170,12 @@ export default function LandingPage() {
                 className="flex items-center p-1 bg-white dark:bg-[#1e1e1e] rounded-full shadow-md border border-gray-200 dark:border-gray-800 hover:border-yellow-500 transition-all cursor-pointer"
               >
                 {session.user?.image ? (
-                  <img
+                  <Image
                     src={session.user.image}
                     alt="프로필"
+                    width={32}
+                    height={32}
+                    unoptimized
                     className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover"
                   />
                 ) : (

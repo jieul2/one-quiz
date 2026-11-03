@@ -40,3 +40,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# AI Assistant & Local Context
+PROJECT_CONTEXT.md
+*.context.md
+.antigravity/
+.antigravity*
+.gemini/
+.gemini*
+.system_generated/
+scratch/
+*.bak
+*.tmp

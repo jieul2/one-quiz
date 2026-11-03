@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useMounted } from "@/lib/hooks/useMounted";
 import {
   Trophy,
   CheckCircle,
@@ -23,28 +24,13 @@ import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { atomDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { oneLight } from "react-syntax-highlighter/dist/cjs/styles/prism";
+import {
+  getQuestions,
+  updateCachedQuestionHistory,
+  QuestionItem as QuestionType,
+} from "@/lib/questionsClient";
 
-interface HistoryAttempt {
-  isCorrect: boolean;
-  timestamp: string;
-}
-
-interface QuestionType {
-  _id: string;
-  subject: string;
-  examType: string;
-  questionNumber: number;
-  questionType?: "multiple-choice" | "short-answer";
-  title: string;
-  codeSnippet?: string;
-  options?: string[];
-  correctAnswer: string[] | string;
-  explanation?: string;
-  isActive?: boolean;
-  history?: HistoryAttempt[];
-}
-
-const shuffleArray = (array: any[]) => {
+const shuffleArray = <T,>(array: T[]): T[] => {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -67,7 +53,7 @@ const MarkdownRenderer = ({
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        code({ node, inline, className, children, ...props }: any) {
+        code({ inline, className, children, style: _style, ...props }: React.ComponentPropsWithoutRef<"code"> & { inline?: boolean; node?: unknown }) {
           const match = /language-(\w+)/.exec(className || "");
           return !inline && match ? (
             <SyntaxHighlighter
@@ -81,6 +67,7 @@ const MarkdownRenderer = ({
           ) : (
             <code
               className="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-[#333] text-pink-600 dark:text-pink-400 font-mono text-xs"
+              style={_style}
               {...props}
             >
               {children}
@@ -157,25 +144,117 @@ function ExamContent() {
   const [openHistoryId, setOpenHistoryId] = useState<string | null>(null);
 
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
   const [isSettingOpen, setIsSettingOpen] = useState(false);
 
-  const mainScrollRef = useRef<HTMLElement>(null);
+  const mainScrollRef = useRef<HTMLDivElement>(null);
 
+  const generateExamSet = useCallback(
+    (
+      baseQuestions: QuestionType[],
+      countMode: "10" | "20" | "30" | "all" = "20",
+      unsolved = false,
+      sequential = false,
+    ) => {
+      if (!baseQuestions || baseQuestions.length === 0) return;
+
+      const targetSubjects =
+        paramSubject === "All" ? [] : paramSubject.split(",").map((s) => decodeURIComponent(s));
+      const targetExamTypes =
+        paramExamType === "All" ? [] : paramExamType.split(",").map((e) => decodeURIComponent(e));
+
+      let filtered = baseQuestions.filter((q) => {
+        if (q.isActive === false) return false;
+
+        const matchSubject = paramSubject === "All" || targetSubjects.includes(q.subject);
+        const matchExamType = paramExamType === "All" || targetExamTypes.includes(q.examType);
+        return matchSubject && matchExamType;
+      });
+
+      if (unsolved) {
+        filtered.sort((a, b) => {
+          const aCount = a.history?.length || 0;
+          const bCount = b.history?.length || 0;
+          if (aCount !== bCount) return aCount - bCount;
+          return Math.random() - 0.5;
+        });
+      } else if (sequential) {
+        filtered.sort((a, b) => {
+          if (a.subject !== b.subject) return a.subject.localeCompare(b.subject);
+          if (a.examType !== b.examType) return a.examType.localeCompare(b.examType);
+          return a.questionNumber - b.questionNumber;
+        });
+      } else {
+        filtered = shuffleArray(filtered);
+      }
+
+      if (countMode !== "all") {
+        const limit = Number(countMode);
+        filtered = filtered.slice(0, limit);
+      }
+
+      const newOptionsMap: Record<
+        string,
+        { options: string[]; newCorrectAnswer: string[] | string }
+      > = {};
+
+      filtered.forEach((q) => {
+        if (Array.isArray(q.options) && q.options.length > 0 && q.options[0] !== "") {
+          const indexedOptions = q.options.map((opt, idx) => ({
+            text: opt,
+            originalNum: String(idx + 1),
+          }));
+
+          const shuffledIndexed = shuffleArray(indexedOptions);
+          const newOptions = shuffledIndexed.map((item) => item.text);
+
+          if (Array.isArray(q.correctAnswer)) {
+            const newCorrect = q.correctAnswer.map((ans) => {
+              const trimmedAns = typeof ans === "string" ? ans.trim() : String(ans);
+              const foundIndex = shuffledIndexed.findIndex((item) => item.originalNum === trimmedAns);
+              return foundIndex !== -1 ? String(foundIndex + 1) : ans;
+            });
+            newOptionsMap[q._id] = { options: newOptions, newCorrectAnswer: newCorrect };
+          } else {
+            const trimmedAns =
+              typeof q.correctAnswer === "string" ? q.correctAnswer.trim() : String(q.correctAnswer);
+            const foundIndex = shuffledIndexed.findIndex((item) => item.originalNum === trimmedAns);
+            const newCorrect = foundIndex !== -1 ? String(foundIndex + 1) : q.correctAnswer;
+            newOptionsMap[q._id] = { options: newOptions, newCorrectAnswer: newCorrect };
+          }
+        }
+      });
+
+      setShuffledOptionsMap(newOptionsMap);
+      setDisplayQuestions(filtered);
+      setUserAnswers({});
+      setResults({});
+      setShowExplanation({});
+      setOpenHistoryId(null);
+    },
+    [paramSubject, paramExamType],
+  );
+
+  // 컴포넌트 마운트 및 쿼리 파라미터 변경 시 문제 목록 로드
+  // (클라이언트 인메모리 캐시 및 in-flight promise 재사용으로 중복 GET 호출 완벽 차단)
   useEffect(() => {
-    setMounted(true);
-    async function fetchQuestions() {
+    let ignore = false;
+    async function loadData() {
       try {
-        const res = await fetch("/api/questions");
-        const data = await res.json();
-        setQuestions(data);
-        generateExamSet(data, "20", false, false);
+        const data = await getQuestions();
+        if (!ignore && Array.isArray(data)) {
+          setQuestions(data);
+          generateExamSet(data, "20", false, false);
+        }
       } catch (e) {
         console.error(e);
       }
     }
-    fetchQuestions();
-  }, [paramSubject, paramExamType]);
+    loadData();
+    return () => {
+      ignore = true;
+    };
+  }, [generateExamSet]);
 
   const handleApplyNewSet = () => {
     setQuestionCountMode(pendingCountMode);
@@ -186,89 +265,6 @@ function ExamContent() {
     if (mainScrollRef.current) {
       mainScrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
     }
-  };
-
-  const generateExamSet = (
-    baseQuestions = questions,
-    countMode = questionCountMode,
-    unsolved = prioritizeUnsolved,
-    sequential = isSequential,
-  ) => {
-    if (baseQuestions.length === 0) return;
-
-    const targetSubjects =
-      paramSubject === "All" ? [] : paramSubject.split(",").map((s) => decodeURIComponent(s));
-    const targetExamTypes =
-      paramExamType === "All" ? [] : paramExamType.split(",").map((e) => decodeURIComponent(e));
-
-    let filtered = baseQuestions.filter((q) => {
-      if (q.isActive === false) return false;
-
-      const matchSubject = paramSubject === "All" || targetSubjects.includes(q.subject);
-      const matchExamType = paramExamType === "All" || targetExamTypes.includes(q.examType);
-      return matchSubject && matchExamType;
-    });
-
-    if (unsolved) {
-      filtered.sort((a, b) => {
-        const aCount = a.history?.length || 0;
-        const bCount = b.history?.length || 0;
-        if (aCount !== bCount) return aCount - bCount;
-        return Math.random() - 0.5;
-      });
-    } else if (sequential) {
-      filtered.sort((a, b) => {
-        if (a.subject !== b.subject) return a.subject.localeCompare(b.subject);
-        if (a.examType !== b.examType) return a.examType.localeCompare(b.examType);
-        return a.questionNumber - b.questionNumber;
-      });
-    } else {
-      filtered = shuffleArray(filtered);
-    }
-
-    if (countMode !== "all") {
-      const limit = Number(countMode);
-      filtered = filtered.slice(0, limit);
-    }
-
-    const newOptionsMap: Record<
-      string,
-      { options: string[]; newCorrectAnswer: string[] | string }
-    > = {};
-
-    filtered.forEach((q) => {
-      if (Array.isArray(q.options) && q.options.length > 0 && q.options[0] !== "") {
-        const indexedOptions = q.options.map((opt, idx) => ({
-          text: opt,
-          originalNum: String(idx + 1),
-        }));
-
-        const shuffledIndexed = shuffleArray(indexedOptions);
-        const newOptions = shuffledIndexed.map((item) => item.text);
-
-        if (Array.isArray(q.correctAnswer)) {
-          const newCorrect = q.correctAnswer.map((ans) => {
-            const trimmedAns = typeof ans === "string" ? ans.trim() : String(ans);
-            const foundIndex = shuffledIndexed.findIndex((item) => item.originalNum === trimmedAns);
-            return foundIndex !== -1 ? String(foundIndex + 1) : ans;
-          });
-          newOptionsMap[q._id] = { options: newOptions, newCorrectAnswer: newCorrect };
-        } else {
-          const trimmedAns =
-            typeof q.correctAnswer === "string" ? q.correctAnswer.trim() : String(q.correctAnswer);
-          const foundIndex = shuffledIndexed.findIndex((item) => item.originalNum === trimmedAns);
-          const newCorrect = foundIndex !== -1 ? String(foundIndex + 1) : q.correctAnswer;
-          newOptionsMap[q._id] = { options: newOptions, newCorrectAnswer: newCorrect };
-        }
-      }
-    });
-
-    setShuffledOptionsMap(newOptionsMap);
-    setDisplayQuestions(filtered);
-    setUserAnswers({});
-    setResults({});
-    setShowExplanation({});
-    setOpenHistoryId(null);
   };
 
   const scrollToQuestion = (id: string) => {
@@ -344,8 +340,9 @@ function ExamContent() {
         setQuestions((prev) =>
           prev.map((q) => (q._id === qId ? { ...q, history: updatedData.history } : q)),
         );
+        updateCachedQuestionHistory(qId, updatedData.history);
       }
-    } catch (error) {
+    } catch {
       console.error("기록 저장 실패");
     }
   };
@@ -430,7 +427,7 @@ function ExamContent() {
       </aside>
 
       <main
-        ref={mainScrollRef as any}
+        ref={mainScrollRef}
         className="flex-1 flex flex-col h-full relative overflow-y-auto"
       >
         <div className="sticky top-0 z-20 bg-white/95 dark:bg-[#121212]/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 p-3 sm:p-4 shadow-sm w-full">
@@ -458,7 +455,7 @@ function ExamContent() {
             >
               <select
                 value={pendingCountMode}
-                onChange={(e) => setPendingCountMode(e.target.value as any)}
+                onChange={(e) => setPendingCountMode(e.target.value as "10" | "20" | "30" | "all")}
                 className="flex-1 lg:flex-none bg-gray-50 dark:bg-[#1e1e1e] border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-xs sm:text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 cursor-pointer"
               >
                 <option value="10">10문제</option>
@@ -575,7 +572,7 @@ function ExamContent() {
                           }`}
                         >
                           <div className="font-bold mb-2 border-b border-gray-700 pb-1.5 flex justify-between items-center text-yellow-400">
-                            <span>📝 내 풀이 상세 기록</span>
+                            <span>풀이 기록</span>
                             <span>({attemptCount}회)</span>
                           </div>
                           <div className="flex justify-between mb-1">
@@ -749,7 +746,7 @@ function ExamContent() {
                               {q.explanation ? (
                                 <div className="text-gray-700 dark:text-gray-300 text-xs sm:text-sm leading-relaxed bg-gray-50 dark:bg-[#1e1e1e] p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-800 prose dark:prose-invert max-w-none">
                                   <span className="font-bold text-gray-500 dark:text-gray-400 block mb-1 sm:mb-2">
-                                    📖 해설
+                                    해설
                                   </span>
                                   <MarkdownRenderer content={q.explanation} currentTheme={theme} />
                                 </div>
