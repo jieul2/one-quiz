@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { BookOpen, ArrowRight, ArrowLeft, Loader2, CheckSquare, Square } from "lucide-react";
+import { ArrowRight, ArrowLeft, Loader2, CheckSquare, Square, Layers } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useMounted } from "@/lib/hooks/useMounted";
 import { getQuestions, QuestionItem } from "@/lib/questionsClient";
+import { AppShell } from "@/components/layout/AppShell";
 
 function ExamTypeSelectionContent() {
   const router = useRouter();
@@ -55,8 +56,7 @@ function ExamTypeSelectionContent() {
       ? activeQuestions
       : activeQuestions.filter((q) => targetSubjects.includes(q.subject));
 
-  // 3. 회차별로 어떤 과목에 속하는지 매핑 정보 생성 (중복 제거 및 과목 매칭용)
-  // key: examType, value: Set 형태의 subject 목록들
+  // 3. 회차별로 어떤 과목에 속하는지 매핑 정보 생성
   const examToSubjectsMap = new Map<string, Set<string>>();
   filteredQuestions.forEach((q) => {
     if (!examToSubjectsMap.has(q.examType)) {
@@ -67,7 +67,7 @@ function ExamTypeSelectionContent() {
 
   const availableExamTypes = Array.from(examToSubjectsMap.keys());
 
-  // 회차 선택/해제 토글 핸들러 (복수 선택 지원)
+  // 회차 선택/해제 토글 핸들러
   const handleToggleExamType = (exam: string) => {
     if (exam === "All") {
       if (selectedExamTypes.length === availableExamTypes.length) {
@@ -100,81 +100,101 @@ function ExamTypeSelectionContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-[#121212] flex flex-col items-center justify-center text-gray-800 dark:text-gray-200 p-4 transition-colors">
-      <div className="bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-gray-800 p-8 rounded-3xl shadow-2xl w-full max-w-md animate-fade-in">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <BookOpen className="text-yellow-500" size={22} /> 2단계: 회차 복수 선택
-          </h2>
-          <Link
-            href="/exam/subject"
-            className="text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-300"
-          >
-            이전으로
-          </Link>
+    <div className="w-full max-w-2xl mx-auto space-y-6">
+      {/* 단계 인디케이터 헤더 (라운딩 박스 없이 플랫 헤더) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-on-surface tracking-tight">회차 선택</h1>
+            <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-primary text-[11px] font-semibold font-mono">
+              2단계 / 총 2단계
+            </span>
+          </div>
+          <p className="text-xs text-on-surface-variant font-light mt-0.5">
+            응시할 시험 회차를 복수로 선택할 수 있습니다.
+          </p>
         </div>
+        <Link
+          href="/exam/subject"
+          className="text-xs text-on-surface-variant hover:text-on-surface font-light transition-colors self-start sm:self-auto"
+        >
+          ← 이전 단계로
+        </Link>
+      </div>
 
-        <div className="text-xs text-gray-500 dark:text-gray-400 mb-4 bg-gray-50 dark:bg-[#252526] p-3 rounded-xl border border-gray-200 dark:border-gray-700">
-          선택한 과목:{" "}
-          <strong className="text-yellow-600 dark:text-yellow-400">
-            {selectedSubjectsParam === "All" ? "전체 과목" : targetSubjects.join(", ")}
+      <div className="bg-surface-container-lowest border border-outline-variant p-5 md:p-6 rounded-lg shadow-xs space-y-5 text-on-surface">
+        {/* 선택된 과목 표시 바 */}
+        <div className="text-xs text-on-surface-variant bg-surface-container-low p-3.5 rounded-xl border border-outline-variant flex items-center justify-between">
+          <span>선택된 과목:</span>
+          <strong className="text-primary font-bold">
+            {selectedSubjectsParam === "All" ? "전체 과목 통합" : targetSubjects.join(", ")}
           </strong>
         </div>
 
-        <div className="space-y-3 mb-8 max-h-60 overflow-y-auto pr-1">
-          {/* 전체 회차 선택 토글 버튼 */}
-          <button
-            onClick={() => handleToggleExamType("All")}
-            disabled={isLoading || availableExamTypes.length === 0}
-            className={`w-full p-4 rounded-xl border text-left font-bold flex justify-between items-center transition-all ${
-              isLoading || availableExamTypes.length === 0
-                ? "opacity-50 cursor-not-allowed"
-                : "cursor-pointer"
-            } ${isAllSelected ? "bg-yellow-500/10 border-yellow-500 text-yellow-600 dark:text-yellow-400" : "bg-gray-50 dark:bg-[#252526] border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300"}`}
-          >
+        {/* 전체 회차 선택 토글 버튼 */}
+        <button
+          onClick={() => handleToggleExamType("All")}
+          disabled={isLoading || availableExamTypes.length === 0}
+          className={`w-full p-4 rounded-xl border text-left font-bold flex justify-between items-center transition-all ${
+            isLoading || availableExamTypes.length === 0
+              ? "opacity-50 cursor-not-allowed"
+              : "cursor-pointer"
+          } ${
+            isAllSelected
+              ? "bg-primary/10 border-primary text-primary"
+              : "bg-surface-container-low border-outline-variant text-on-surface hover:bg-surface-container"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Layers size={18} className="text-primary" />
             <span>전체 회차 선택 ({availableExamTypes.length}개)</span>
-            {isAllSelected ? (
-              <CheckSquare size={18} className="text-yellow-500" />
-            ) : (
-              <Square size={18} className="text-gray-400" />
-            )}
-          </button>
+          </div>
+          {isAllSelected ? (
+            <CheckSquare size={18} className="text-primary" />
+          ) : (
+            <Square size={18} className="text-on-surface-variant" />
+          )}
+        </button>
 
+        {/* 회차 리스트 */}
+        <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
           {isLoading ? (
-            <div className="text-center py-8 text-gray-400 text-xs flex items-center justify-center gap-2">
-              <Loader2 size={16} className="animate-spin text-yellow-500" /> 회차 목록 불러오는
-              중...
+            <div className="text-center py-12 text-on-surface-variant text-xs flex items-center justify-center gap-2">
+              <Loader2 size={16} className="animate-spin text-primary" /> 회차 목록 불러오는 중...
             </div>
           ) : availableExamTypes.length === 0 ? (
-            <div className="text-center py-8 text-gray-400 text-xs">
+            <div className="text-center py-12 text-on-surface-variant text-xs">
               선택한 과목에 등록된 회차가 없습니다.
             </div>
           ) : (
             availableExamTypes.map((exam) => {
               const isChecked = selectedExamTypes.includes(exam);
               const relatedSubjects = Array.from(examToSubjectsMap.get(exam) || []).join(", ");
+              const count = filteredQuestions.filter((q) => q.examType === exam).length;
 
               return (
                 <button
                   key={exam}
                   onClick={() => handleToggleExamType(exam)}
-                  className={`w-full p-4 rounded-xl border text-left flex justify-between items-center transition-all cursor-pointer ${
+                  className={`w-full p-3.5 rounded-xl border text-left flex justify-between items-center transition-all cursor-pointer ${
                     isChecked
-                      ? "bg-yellow-500/10 border-yellow-500 text-yellow-600 dark:text-yellow-400"
-                      : "bg-gray-50 dark:bg-[#252526] border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300"
+                      ? "bg-primary/10 border-primary text-primary"
+                      : "bg-surface-container-low border-outline-variant text-on-surface hover:bg-surface-container"
                   }`}
                 >
-                  <div className="space-y-1">
-                    <span className="font-bold block">{exam}</span>
-                    {/* 👈 어떤 과목의 회차인지 보여주는 작은 글씨 */}
-                    <span className="text-[11px] text-gray-400 dark:text-gray-500 font-normal block">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm">{exam}</span>
+                      <span className="text-xs text-on-surface-variant font-mono">({count}문제)</span>
+                    </div>
+                    <span className="text-[11px] text-on-surface-variant font-normal block">
                       과목: {relatedSubjects}
                     </span>
                   </div>
                   {isChecked ? (
-                    <CheckSquare size={18} className="text-yellow-500 shrink-0" />
+                    <CheckSquare size={18} className="text-primary shrink-0" />
                   ) : (
-                    <Square size={18} className="text-gray-400 shrink-0" />
+                    <Square size={18} className="text-on-surface-variant shrink-0" />
                   )}
                 </button>
               );
@@ -182,26 +202,27 @@ function ExamTypeSelectionContent() {
           )}
         </div>
 
-        <div className="flex gap-3">
+        {/* 하단 버튼 */}
+        <div className="flex gap-3 pt-4 border-t border-outline-variant">
           <Link
             href="/exam/subject"
-            className="flex-1 py-3 bg-gray-100 dark:bg-[#2d2d2d] text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-200 transition-colors text-center flex items-center justify-center gap-1.5"
+            className="flex-1 py-3 bg-surface-container-low text-on-surface font-bold rounded-xl hover:bg-surface-container transition-colors text-center flex items-center justify-center gap-1.5 text-xs"
           >
-            <ArrowLeft size={16} /> 이전
+            <ArrowLeft size={15} /> 이전 단계
           </Link>
 
           <button
             onClick={handleNext}
             disabled={isLoading || selectedExamTypes.length === 0}
-            className="flex-1 py-3 bg-yellow-500 hover:bg-yellow-600 disabled:opacity-40 text-white dark:text-black font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg disabled:cursor-not-allowed cursor-pointer"
+            className="flex-1 py-3 bg-primary hover:opacity-90 disabled:opacity-40 text-on-primary font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-xs disabled:cursor-not-allowed cursor-pointer text-xs"
           >
             {isLoading ? (
               <>
-                <Loader2 size={16} className="animate-spin" /> 동기화 중
+                <Loader2 size={15} className="animate-spin" /> 준비 중...
               </>
             ) : (
               <>
-                시험 시작 ({selectedExamTypes.length}개 선택) <ArrowRight size={16} />
+                시험 시작하기 ({selectedExamTypes.length}개 회차) <ArrowRight size={15} />
               </>
             )}
           </button>
@@ -213,14 +234,16 @@ function ExamTypeSelectionContent() {
 
 export default function ExamTypeSelectionPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-gray-50 dark:bg-[#121212] flex items-center justify-center text-gray-400">
-          로딩 중...
-        </div>
-      }
-    >
-      <ExamTypeSelectionContent />
-    </Suspense>
+    <AppShell>
+      <Suspense
+        fallback={
+          <div className="min-h-[50vh] flex items-center justify-center text-on-surface-variant">
+            로딩 중...
+          </div>
+        }
+      >
+        <ExamTypeSelectionContent />
+      </Suspense>
+    </AppShell>
   );
 }

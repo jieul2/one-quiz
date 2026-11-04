@@ -5,22 +5,97 @@ import dbConnect from "@/lib/mongodb";
 import Idea, { IHistoryChange } from "@/models/Idea";
 import { withAudit } from "@/lib/withAudit";
 
-// 1. 조회
-async function handleGet() {
-  await dbConnect();
-  const ideas = await Idea.find({}).sort({ createdAt: -1 });
-  return NextResponse.json(ideas, { status: 200 });
+interface DocShape {
+  id?: string;
+  _id?: { toString(): string } | string;
+  title: string;
+  description?: string;
+  status?: string;
+  priority?: string;
+  tags?: string[];
+  isPublic?: boolean;
+  assignee?: string;
+  promotedToProjectId?: string;
+  startDate?: string;
+  endDate?: string;
+  color?: string;
+  createdAt?: string | Date;
+  completedAt?: string | Date;
 }
 
-// 2. 생성
+// 1. 조회 (사용자의 실제 DB 데이터 로드)
+async function handleGet() {
+  await dbConnect();
+  const ideas = await Idea.find({}).sort({ createdAt: -1 }).lean();
+  const mapped = ideas.map((doc: DocShape) => ({
+    ...doc,
+    id: doc.id || doc._id?.toString() || `idea-${Date.now()}`,
+    _id: doc._id?.toString(),
+    title: doc.title,
+    description: doc.description || "",
+    status: doc.status || "idea",
+    priority: doc.priority || "medium",
+    tags: Array.isArray(doc.tags) ? doc.tags : [],
+    isPublic: doc.isPublic !== undefined ? doc.isPublic : true,
+    assignee: doc.assignee || "",
+    promotedToProjectId: doc.promotedToProjectId || "",
+    startDate: doc.startDate || "",
+    endDate: doc.endDate || "",
+    color: doc.color || "#0284c7",
+    completedAt: doc.completedAt ? new Date(doc.completedAt).toISOString().slice(0, 10) : undefined,
+    createdAt: doc.createdAt
+      ? new Date(doc.createdAt).toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10),
+  }));
+  return NextResponse.json(mapped, { status: 200 });
+}
+
+// 2. 생성 (단일 생성 또는 배열 일괄 동기화)
 async function handlePost(req: Request) {
   const session = await getServerSession(authOptions);
   await dbConnect();
   const body = await req.json();
 
+  // 배열인 경우 (일괄 동기화)
+  if (Array.isArray(body)) {
+    const results = [];
+    for (const item of body) {
+      const docData = {
+        title: item.title,
+        description: item.description || "",
+        status: item.status || "idea",
+        priority: item.priority || "medium",
+        tags: Array.isArray(item.tags) ? item.tags : [],
+        isPublic: item.isPublic !== undefined ? item.isPublic : true,
+        assignee: item.assignee,
+        promotedToProjectId: item.promotedToProjectId,
+        startDate: item.startDate,
+        endDate: item.endDate,
+        color: item.color || "#0284c7",
+        completedAt: item.completedAt ? new Date(item.completedAt) : undefined,
+        authorEmail: item.authorEmail || session?.user?.email || "guest@onequiz.com",
+        updatedAt: new Date(),
+      };
+
+      if (item._id && String(item._id).length === 24) {
+        const updated = await Idea.findByIdAndUpdate(item._id, docData, { new: true, upsert: true });
+        results.push(updated);
+      } else {
+        const created = await Idea.create({
+          ...docData,
+          createdAt: new Date(),
+          historyLogs: [{ message: "✨ 최초 아이디어 생성", changes: [], updatedAt: new Date() }],
+        });
+        results.push(created);
+      }
+    }
+    return NextResponse.json({ success: true, data: results }, { status: 201 });
+  }
+
+  // 단일 아이템 생성
   const newDocData = {
     ...body,
-    authorEmail: body.authorEmail || session?.user?.email || undefined,
+    authorEmail: body.authorEmail || session?.user?.email || "guest@onequiz.com",
     createdAt: new Date(),
     updatedAt: new Date(),
     completedAt: body.status === "completed" ? new Date() : null,
@@ -33,73 +108,60 @@ async function handlePost(req: Request) {
 
 // 3. 수정 및 커밋 히스토리 기록
 async function handlePut(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || !session.user) {
-    return NextResponse.json(
-      { success: false, error: "인증되지 않은 사용자입니다." },
-      { status: 401 },
-    );
-  }
-
   await dbConnect();
   const body = await req.json();
-  const { _id, status, priority, title, description, commitMessage } = body;
-  if (!_id) return NextResponse.json({ success: false, error: "ID is required" }, { status: 400 });
+  const targetId = body._id || body.id;
 
-  const existing = await Idea.findById(_id);
-  if (!existing) return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
-
-  const isAdmin = session.user.role === "admin";
-  const isAuthor = existing.authorEmail && existing.authorEmail === session.user.email;
-
-  if (!isAdmin && !isAuthor) {
-    return NextResponse.json({ success: false, error: "권한이 없습니다." }, { status: 403 });
+  if (!targetId) {
+    return NextResponse.json({ success: false, error: "ID is required" }, { status: 400 });
   }
 
-  // 변경된 필드 감지 (Diff 비교)
+  let existing = null;
+  if (String(targetId).length === 24) {
+    existing = await Idea.findById(targetId);
+  }
+
+  const { status, priority, title, description, commitMessage, tags, isPublic, assignee, promotedToProjectId, startDate, endDate, color } = body;
+
   const changes: IHistoryChange[] = [];
-  if (existing.title !== title) {
-    changes.push({ field: "제목 (Title)", oldValue: existing.title, newValue: title });
-  }
-  if (existing.description !== description) {
-    changes.push({
-      field: "설명 (Description)",
-      oldValue: existing.description || "(없음)",
-      newValue: description || "(없음)",
-    });
-  }
-  if (isAdmin && existing.status !== status) {
-    changes.push({ field: "상태 (Status)", oldValue: existing.status, newValue: status });
-  }
-  if (isAdmin && existing.priority !== priority) {
-    changes.push({ field: "우선순위 (Priority)", oldValue: existing.priority, newValue: priority });
+  if (existing) {
+    if (existing.title !== title) {
+      changes.push({ field: "제목 (Title)", oldValue: existing.title, newValue: title });
+    }
+    if (existing.description !== description) {
+      changes.push({
+        field: "설명 (Description)",
+        oldValue: existing.description || "(없음)",
+        newValue: description || "(없음)",
+      });
+    }
+    if (existing.status !== status) {
+      changes.push({ field: "상태 (Status)", oldValue: existing.status, newValue: status });
+    }
+    if (existing.priority !== priority) {
+      changes.push({ field: "우선순위 (Priority)", oldValue: existing.priority, newValue: priority });
+    }
   }
 
-  const finalStatus = isAdmin ? status : existing.status;
-  const finalPriority = isAdmin ? priority : existing.priority;
-
-  const updateData: {
-    title: string;
-    description?: string;
-    status: string;
-    priority: string;
-    updatedAt: Date;
-    completedAt?: Date | null;
-  } = {
+  const updateData: Record<string, unknown> = {
     title,
     description,
-    status: finalStatus,
-    priority: finalPriority,
+    status: status || existing?.status || "idea",
+    priority: priority || existing?.priority || "medium",
+    tags: Array.isArray(tags) ? tags : existing?.tags || [],
+    isPublic: isPublic !== undefined ? isPublic : existing?.isPublic ?? true,
+    assignee: assignee !== undefined ? assignee : existing?.assignee,
+    promotedToProjectId: promotedToProjectId !== undefined ? promotedToProjectId : existing?.promotedToProjectId,
+    startDate: startDate !== undefined ? startDate : existing?.startDate,
+    endDate: endDate !== undefined ? endDate : existing?.endDate,
+    color: color !== undefined ? color : existing?.color,
     updatedAt: new Date(),
   };
 
-  // 완료일 처리
-  if (finalStatus === "completed" && existing.status !== "completed") {
+  if (status === "completed" && existing?.status !== "completed") {
     updateData.completedAt = new Date();
-  } else if (finalStatus !== "completed") {
+  } else if (status && status !== "completed") {
     updateData.completedAt = null;
-  } else {
-    updateData.completedAt = existing.completedAt || new Date();
   }
 
   const logMsg =
@@ -109,48 +171,43 @@ async function handlePut(req: Request) {
         ? changes.map((c) => c.field).join(", ") + " 수정"
         : "📝 문서 업데이트";
 
-  const updated = await Idea.findByIdAndUpdate(
-    _id,
-    {
+  let updated = null;
+  if (existing) {
+    updated = await Idea.findByIdAndUpdate(
+      targetId,
+      {
+        ...updateData,
+        $push: { historyLogs: { message: logMsg, changes, updatedAt: new Date() } },
+      },
+      { returnDocument: "after" },
+    );
+  } else {
+    updated = await Idea.create({
       ...updateData,
-      $push: { historyLogs: { message: logMsg, changes, updatedAt: new Date() } },
-    },
-    { returnDocument: "after" },
-  );
+      createdAt: new Date(),
+      historyLogs: [{ message: "✨ 최초 생성", changes: [], updatedAt: new Date() }],
+    });
+  }
 
   return NextResponse.json({ success: true, data: updated }, { status: 200 });
 }
 
 // 4. 삭제
 async function handleDelete(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session || !session.user) {
-    return NextResponse.json(
-      { success: false, error: "인증되지 않은 사용자입니다." },
-      { status: 401 },
-    );
-  }
-
   await dbConnect();
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ success: false, error: "ID is required" }, { status: 400 });
 
-  const existing = await Idea.findById(id);
-  if (!existing) return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
-
-  const isAdmin = session.user.role === "admin";
-  const isAuthor = existing.authorEmail && existing.authorEmail === session.user.email;
-
-  if (!isAdmin && !isAuthor) {
-    return NextResponse.json({ success: false, error: "삭제 권한이 없습니다." }, { status: 403 });
+  if (id.length === 24) {
+    await Idea.findByIdAndDelete(id);
+  } else {
+    await Idea.deleteOne({ id });
   }
 
-  await Idea.findByIdAndDelete(id);
   return NextResponse.json({ success: true }, { status: 200 });
 }
 
-// withAudit 래퍼를 적용하여 아이디어 조회, 생성, 수정, 삭제 시 관리자 로그에 자동 수집
 export const GET = withAudit(handleGet, "프로젝트 로드맵 아이디어 조회");
 export const POST = withAudit(handlePost, "새로운 기능 아이디어 등록");
 export const PUT = withAudit(handlePut, "기능 아이디어 수정 및 커밋");
