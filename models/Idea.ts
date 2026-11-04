@@ -18,6 +18,13 @@ export interface IIdea extends Document {
   status: string;
   priority: string;
   authorEmail?: string;
+  tags?: string[];
+  isPublic?: boolean;
+  assignee?: string;
+  promotedToProjectId?: string;
+  startDate?: string;
+  endDate?: string;
+  color?: string;
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date | null;
@@ -38,10 +45,17 @@ const HistoryLogSchema = new mongoose.Schema({
 
 const IdeaSchema = new mongoose.Schema({
   title: { type: String, required: true },
-  description: { type: String },
+  description: { type: String, default: "" },
   status: { type: String, default: "idea" },
   priority: { type: String, default: "medium" },
   authorEmail: { type: String },
+  tags: [{ type: String }],
+  isPublic: { type: Boolean, default: true },
+  assignee: { type: String },
+  promotedToProjectId: { type: String },
+  startDate: { type: String },
+  endDate: { type: String },
+  color: { type: String, default: "#0284c7" },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
   completedAt: { type: Date, default: null },

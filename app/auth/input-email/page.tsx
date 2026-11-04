@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Mail, Loader2, Send, ShieldCheck } from "lucide-react";
+import { AppShell } from "@/components/layout/AppShell";
 
 export default function InputEmailPage() {
   const { data: session, update } = useSession();
@@ -92,102 +93,104 @@ export default function InputEmailPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-[#121212]">
-      <div className="bg-white dark:bg-[#1e1e1e] p-8 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-800 w-full max-w-md text-center space-y-6">
-        <div className="w-14 h-14 mx-auto rounded-2xl bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 flex items-center justify-center">
-          <Mail size={28} />
-        </div>
+    <AppShell>
+      <div className="min-h-[70vh] flex items-center justify-center p-4">
+        <div className="bg-surface-container-lowest p-8 md:p-10 rounded-3xl shadow-xl border border-outline-variant w-full max-w-md text-center space-y-6">
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+            <Mail size={30} />
+          </div>
 
-        <div className="space-y-1">
-          <h1 className="text-xl font-extrabold text-gray-900 dark:text-white">
-            실제 이메일 본인 인증
-          </h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            서비스 이용을 위해 <b>실제로 사용하는 이메일 주소</b>를 인증해 주세요.
-          </p>
-        </div>
+          <div className="space-y-1.5">
+            <h1 className="text-2xl font-black text-on-surface tracking-tight">
+              실제 이메일 본인 인증
+            </h1>
+            <p className="text-xs text-on-surface-variant">
+              서비스 이용을 위해 <b>실제로 사용하는 이메일 주소</b>를 인증해 주세요.
+            </p>
+          </div>
 
-        {!isCodeSent ? (
-          <form onSubmit={handleSendCode} className="space-y-4 text-left">
-            <div>
-              <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                이메일 주소
-              </label>
-              <div className="flex gap-2">
+          {!isCodeSent ? (
+            <form onSubmit={handleSendCode} className="space-y-4 text-left">
+              <div>
+                <label className="block text-xs font-bold text-on-surface mb-1.5">
+                  이메일 주소
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    placeholder="example@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="flex-1 p-3 bg-surface-container-low border border-outline-variant rounded-xl text-sm focus:outline-none focus:border-primary text-on-surface"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="px-4 bg-primary hover:opacity-90 disabled:opacity-50 text-on-primary font-bold rounded-xl transition-all text-xs cursor-pointer flex items-center gap-1.5 shrink-0"
+                  >
+                    {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                    <span>인증번호 받기</span>
+                  </button>
+                </div>
+              </div>
+
+              {errorMsg && <p className="text-xs text-destructive font-medium text-center">{errorMsg}</p>}
+              {successMsg && (
+                <p className="text-xs text-primary font-medium text-center">{successMsg}</p>
+              )}
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyCode} className="space-y-4 text-left">
+              <div className="bg-primary/10 p-3 rounded-xl border border-primary/20 text-xs text-primary">
+                <b>{email}</b>로 발송된 6자리 인증 번호를 입력해주세요.
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-on-surface mb-1.5">
+                  인증 번호 6자리
+                </label>
                 <input
-                  type="email"
-                  placeholder="example@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="flex-1 p-3 bg-gray-50 dark:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:border-yellow-500 text-gray-900 dark:text-white"
+                  type="text"
+                  maxLength={6}
+                  placeholder="123456"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  className="w-full p-3 text-center tracking-widest font-mono text-lg bg-surface-container-low border border-outline-variant rounded-xl focus:outline-none focus:border-primary text-on-surface"
                   required
                 />
+              </div>
+
+              {errorMsg && <p className="text-xs text-destructive font-medium text-center">{errorMsg}</p>}
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCodeSent(false)}
+                  className="py-3 px-4 bg-surface-container-low hover:bg-surface-container text-on-surface font-bold rounded-xl text-xs cursor-pointer transition-colors"
+                >
+                  이메일 재입력
+                </button>
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="px-4 bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-white dark:text-black font-bold rounded-xl transition-all text-xs cursor-pointer flex items-center gap-1 shrink-0"
+                  className="flex-1 bg-primary hover:opacity-90 disabled:opacity-50 text-on-primary font-bold py-3 px-4 rounded-xl transition-all shadow-xs text-sm cursor-pointer flex items-center justify-center gap-2"
                 >
-                  {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                  <span>인증번호 받기</span>
+                  {isLoading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" /> 확인 중...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck size={16} /> 인증 완료 및 시작하기
+                    </>
+                  )}
                 </button>
               </div>
-            </div>
-
-            {errorMsg && <p className="text-xs text-red-500 font-medium text-center">{errorMsg}</p>}
-            {successMsg && (
-              <p className="text-xs text-green-600 font-medium text-center">{successMsg}</p>
-            )}
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyCode} className="space-y-4 text-left">
-            <div className="bg-yellow-500/10 p-3 rounded-xl border border-yellow-500/30 text-xs text-yellow-700 dark:text-yellow-400">
-              <b>{email}</b>로 발송된 6자리 인증 번호를 입력해주세요.
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                인증 번호 6자리
-              </label>
-              <input
-                type="text"
-                maxLength={6}
-                placeholder="123456"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                className="w-full p-3 text-center tracking-widest font-mono text-lg bg-gray-50 dark:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:border-yellow-500 text-gray-900 dark:text-white"
-                required
-              />
-            </div>
-
-            {errorMsg && <p className="text-xs text-red-500 font-medium text-center">{errorMsg}</p>}
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setIsCodeSent(false)}
-                className="py-3 px-4 bg-gray-100 dark:bg-[#2d2d2d] text-gray-700 dark:text-gray-300 font-bold rounded-xl text-xs cursor-pointer"
-              >
-                이메일 재입력
-              </button>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="flex-1 bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-white dark:text-black font-bold py-3 px-4 rounded-xl transition-all shadow-md text-sm cursor-pointer flex items-center justify-center gap-2"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" /> 확인 중...
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck size={16} /> 인증 완료 및 시작하기
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        )}
+            </form>
+          )}
+        </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

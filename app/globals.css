@@ -1,33 +1,137 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
+
 @import "tailwindcss";
+@import "./themes.css";
 
-/* next-themes 다크모드 클래스 연동 */
-@custom-variant dark (&:is(.dark *));
+@theme {
+  --font-sans: "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
 
-/* 전체 페이지 커스텀 스크롤바 (여기서부터는 기존 코드 유지) */
+  --color-background: var(--background);
+  --color-on-background: var(--on-background);
+  --color-surface: var(--surface);
+  --color-surface-dim: var(--surface-container-low);
+  --color-surface-bright: var(--surface);
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+  --color-surface-variant: var(--surface-container);
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-inverse-surface: var(--on-surface);
+  --color-inverse-on-surface: var(--surface);
+
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary-container: var(--on-primary-container);
+  --color-primary-fixed: var(--primary-container);
+  --color-primary-fixed-dim: var(--primary);
+  --color-on-primary-fixed: var(--on-primary-container);
+  --color-on-primary-fixed-variant: var(--on-primary-container);
+
+  --color-secondary: var(--secondary);
+  --color-on-secondary: var(--on-secondary);
+  --color-secondary-container: var(--secondary-container);
+  --color-on-secondary-container: var(--on-secondary-container);
+  --color-secondary-fixed: var(--secondary-container);
+  --color-secondary-fixed-dim: var(--secondary);
+  --color-on-secondary-fixed: var(--on-secondary-container);
+  --color-on-secondary-fixed-variant: var(--on-secondary-container);
+
+  --color-outline: var(--outline);
+  --color-outline-variant: var(--outline-variant);
+
+  --color-error: var(--error);
+  --color-on-error: #ffffff;
+  --color-error-container: var(--error-container);
+  --color-on-error-container: var(--error);
+
+  /* Spacing */
+  --spacing-margin: 1.5rem;
+  --spacing-gutter: 1rem;
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 0.75rem;
+  --spacing-space-lg: 1.25rem;
+  --spacing-space-xl: 1.75rem;
+
+  /* Typography Fonts */
+  --font-display-lg: "Pretendard", sans-serif;
+  --font-display-time: "Pretendard", sans-serif;
+  --font-headline-lg: "Pretendard", sans-serif;
+  --font-headline-md: "Pretendard", sans-serif;
+  --font-headline-sm: "Pretendard", sans-serif;
+  --font-body-lg: "Pretendard", sans-serif;
+  --font-body-md: "Pretendard", sans-serif;
+  --font-body-sm: "Pretendard", sans-serif;
+  --font-label-md: "Pretendard", sans-serif;
+  --font-label-sm: "Pretendard", sans-serif;
+  --font-caption: "Pretendard", sans-serif;
+}
+
+/* Typography Scale Utilities */
+.text-display-lg { font-size: 32px; line-height: 40px; font-weight: 700; }
+.text-display-time { font-size: 28px; line-height: 32px; font-weight: 800; }
+.text-headline-lg { font-size: 22px; line-height: 30px; font-weight: 700; }
+.text-headline-md { font-size: 18px; line-height: 26px; font-weight: 700; }
+.text-headline-sm { font-size: 15px; line-height: 22px; font-weight: 600; }
+.text-body-lg { font-size: 15px; line-height: 24px; font-weight: 400; }
+.text-body-md { font-size: 13px; line-height: 20px; font-weight: 400; }
+.text-body-sm { font-size: 12px; line-height: 18px; font-weight: 400; }
+.text-label-md { font-size: 13px; line-height: 18px; font-weight: 600; }
+.text-label-sm { font-size: 11px; line-height: 16px; font-weight: 500; }
+.text-caption { font-size: 10px; line-height: 14px; font-weight: 400; }
+
+/* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 10px;
-}
-.dark ::-webkit-scrollbar-thumb {
-  background: #4b5563;
+  background: var(--outline-variant);
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--outline);
 }
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
-}
+
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* 🌟 공통 커스텀 스크롤 모듈 클래스 */
+.custom-scroll-module {
+  scrollbar-width: thin;
+  scrollbar-color: var(--outline-variant) transparent;
+}
+.custom-scroll-module::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scroll-module::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scroll-module::-webkit-scrollbar-thumb {
+  background: var(--outline-variant);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+.custom-scroll-module::-webkit-scrollbar-thumb:hover {
+  background: var(--outline);
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--background);
+  color: var(--on-surface);
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
