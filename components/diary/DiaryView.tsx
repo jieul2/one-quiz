@@ -390,16 +390,16 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
       {/* 1. 상단 액션 바 (라운딩 박스 없이 플랫 헤더) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-outline-variant">
         <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="text-xl sm:text-2xl font-semibold text-on-surface tracking-tight">
+          <h1 className="ui-page-title">
             일기
           </h1>
           {/* 탭 전환 스위처 */}
           <div className="flex items-center bg-surface-container-low p-0.5 rounded-md border border-outline-variant">
             <button
               onClick={() => setActiveTab("diary")}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded text-sm font-semibold transition-all cursor-pointer ${
                 activeTab === "diary"
-                  ? "bg-surface-container text-on-surface font-semibold"
+                  ? "bg-surface-container text-on-surface font-bold"
                   : "text-on-surface-variant hover:text-on-surface font-light"
               }`}
             >
@@ -407,9 +407,9 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
             </button>
             <button
               onClick={() => setActiveTab("notes")}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded text-sm font-semibold transition-all cursor-pointer ${
                 activeTab === "notes"
-                  ? "bg-surface-container text-on-surface font-semibold"
+                  ? "bg-surface-container text-on-surface font-bold"
                   : "text-on-surface-variant hover:text-on-surface font-light"
               }`}
             >
@@ -419,18 +419,18 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
         </div>
 
         {/* 우측 도구 버튼들 */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap text-sm">
           {/* 저장 상태 인디케이터 */}
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 
           <div className="relative flex items-center">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 text-on-surface-variant pointer-events-none" />
+            <Search className="w-4 h-4 absolute left-2.5 text-on-surface-variant pointer-events-none" />
             <input
               type="text"
               placeholder="일기 검색..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-surface-container-low pl-8 pr-3 py-1.5 rounded-md border border-outline-variant text-xs text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary w-36 sm:w-44 font-medium"
+              className="bg-surface-container-low pl-8 pr-3 py-2 rounded-md border border-outline-variant text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary w-40 sm:w-48 font-medium"
             />
           </div>
 
@@ -446,10 +446,10 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
                       setExpandedDiaryIds(new Set(filteredDiaries.map((d) => d._id)));
                     }
                   }}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-xs font-medium border border-outline-variant transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-sm font-medium border border-outline-variant transition-colors cursor-pointer"
                   title={expandedDiaryIds.size === filteredDiaries.length ? "모든 일기 접기" : "모든 일기 펼치기"}
                 >
-                  <ChevronsUpDown className="w-3.5 h-3.5 text-primary" />
+                  <ChevronsUpDown className="w-4 h-4 text-primary" />
                   <span>
                     {expandedDiaryIds.size === filteredDiaries.length ? "모두 접기" : "모두 펼치기"}
                   </span>
@@ -463,9 +463,9 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
                   setImages([]);
                   setShowWriteModal(true);
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-on-primary text-xs font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-on-primary text-sm font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer"
               >
-                <PenSquare className="w-3.5 h-3.5" />
+                <PenSquare className="w-4 h-4" />
                 <span>오늘의 일기 쓰기</span>
               </button>
             </>
@@ -485,9 +485,9 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
                   setSelectedNote(newN);
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-on-primary text-xs font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-on-primary text-sm font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer"
             >
-              <FilePlus className="w-3.5 h-3.5" />
+              <FilePlus className="w-4 h-4" />
               <span>새 노트</span>
             </button>
           )}
@@ -520,8 +520,8 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
           ) : filteredDiaries.length === 0 ? (
             <div className="p-12 text-center bg-surface-container-lowest rounded-2xl border border-outline-variant flex flex-col items-center gap-3">
               <BookOpen className="w-12 h-12 text-on-surface-variant opacity-40" />
-              <p className="font-headline-sm font-bold text-on-surface">작성된 일기가 없습니다</p>
-              <p className="text-body-sm text-on-surface-variant">
+              <p className="ui-card-title">작성된 일기가 없습니다</p>
+              <p className="ui-caption">
                 오늘 공부하며 느낀 점이나 배운 핵심 개념, 스크린샷 사진을 첫 일기로 남겨보세요.
               </p>
               <button
@@ -791,8 +791,8 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
             {notes.filter((n) => selectedFolder === "전체" || n.folder === selectedFolder).length === 0 ? (
               <div className="p-12 text-center bg-surface-container-lowest rounded-xl border border-dashed border-outline-variant flex flex-col items-center gap-2">
                 <FilePlus className="w-8 h-8 text-on-surface-variant opacity-40 mb-1" />
-                <p className="text-sm font-semibold text-on-surface">작성된 지식 노트가 없습니다</p>
-                <p className="text-xs text-on-surface-variant font-light">
+                <p className="ui-card-title">작성된 지식 노트가 없습니다</p>
+                <p className="ui-caption">
                   {selectedFolder !== "전체" ? `"${selectedFolder}" 폴더에 노트가 없습니다.` : "학습한 핵심 개념이나 요약 노트를 기록해보세요."}
                 </p>
               </div>

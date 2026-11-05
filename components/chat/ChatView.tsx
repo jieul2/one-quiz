@@ -54,15 +54,15 @@ export function ChatView() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-on-surface tracking-tight">
+            <h1 className="ui-page-title">
               스터디 채팅
             </h1>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container text-primary text-[11px] font-semibold border border-outline-variant">
+            <span className="ui-badge inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container text-primary border border-outline-variant">
               <ShieldCheck className="w-3.5 h-3.5 text-primary" />
               보안 연결
             </span>
           </div>
-          <p className="text-xs text-on-surface-variant font-light mt-0.5">
+          <p className="ui-page-subtitle mt-0.5">
             원퀴즈 스터디 동료들과 실시간으로 질의응답을 나누고 학습 팁을 공유하세요.
           </p>
         </div>

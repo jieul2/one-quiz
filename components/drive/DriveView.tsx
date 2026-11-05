@@ -166,17 +166,17 @@ export function DriveView() {
       {/* 1. 플랫 헤더 표준 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl sm:text-2xl font-bold text-on-surface tracking-tight">드라이브</h1>
-          <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono text-[11px] font-semibold">
+          <h1 className="ui-page-title">드라이브</h1>
+          <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono">
             {docs.length}개
           </span>
         </div>
 
-        <div className="flex items-center gap-2 relative">
+        <div className="flex items-center gap-2 relative text-sm">
           {session?.user ? (
             <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
           ) : (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-container-low text-on-surface-variant text-xs font-mono border border-outline-variant">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-low text-on-surface-variant text-xs font-mono border border-outline-variant">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
               <span>게스트 모드</span>
             </div>
@@ -184,32 +184,32 @@ export function DriveView() {
 
           <button
             onClick={() => setShowCreateMenu(!showCreateMenu)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-primary text-on-primary text-xs font-semibold hover:opacity-90 shadow-xs cursor-pointer transition-opacity"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-on-primary text-sm font-semibold hover:opacity-90 shadow-xs cursor-pointer transition-opacity"
           >
             <Plus className="w-4 h-4" />
             <span>문서 생성</span>
-            <ChevronDown className="w-3.5 h-3.5" />
+            <ChevronDown className="w-4 h-4" />
           </button>
 
           {showCreateMenu && (
-            <div className="absolute right-0 top-10 w-44 bg-surface-container-lowest border border-outline-variant rounded-lg shadow-xl z-20 p-1 flex flex-col gap-0.5">
+            <div className="absolute right-0 top-11 w-48 bg-surface-container-lowest border border-outline-variant rounded-lg shadow-xl z-20 p-1 flex flex-col gap-0.5 text-sm">
               <button
                 onClick={() => handleCreateDoc("text")}
-                className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-surface-container text-xs text-on-surface text-left cursor-pointer transition-colors"
+                className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-surface-container text-sm text-on-surface text-left cursor-pointer transition-colors"
               >
                 <FileText className="w-4 h-4 text-primary" />
                 <span>새 텍스트 문서</span>
               </button>
               <button
                 onClick={() => handleCreateDoc("sheet")}
-                className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-surface-container text-xs text-on-surface text-left cursor-pointer transition-colors"
+                className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-surface-container text-sm text-on-surface text-left cursor-pointer transition-colors"
               >
                 <Table className="w-4 h-4 text-emerald-500" />
                 <span>새 스프레드시트</span>
               </button>
               <button
                 onClick={() => handleCreateDoc("draw")}
-                className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-surface-container text-xs text-on-surface text-left cursor-pointer transition-colors"
+                className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-surface-container text-sm text-on-surface text-left cursor-pointer transition-colors"
               >
                 <PenTool className="w-4 h-4 text-rose-500" />
                 <span>새 캔버스/그리기</span>
@@ -226,8 +226,8 @@ export function DriveView() {
             <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant mb-3">
               <FileText className="w-5 h-5 text-on-surface-variant" />
             </div>
-            <p className="text-sm font-semibold text-on-surface">보관된 문서가 없습니다</p>
-            <p className="text-xs text-on-surface-variant mt-1 mb-4">
+            <p className="ui-card-title">보관된 문서가 없습니다</p>
+            <p className="ui-caption mt-1 mb-4">
               문서 생성 버튼을 눌러 새 텍스트 문서, 스프레드시트, 캔버스를 만들어보세요.
             </p>
             <button

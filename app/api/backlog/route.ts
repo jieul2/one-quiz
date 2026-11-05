@@ -55,9 +55,20 @@ async function handlePost(req: Request) {
   const body = await req.json();
 
   if (Array.isArray(body)) {
-    const results = [];
-    for (const item of body) {
-      const docData = {
+    if (body.length === 0) {
+      return NextResponse.json({ success: true, count: 0 }, { status: 200 });
+    }
+
+    const defaultAuthor = session?.user?.email || "guest@onequiz.com";
+    const now = new Date();
+
+    const operations = body.map((item) => {
+      const isObjectId = item._id && String(item._id).length === 24;
+      const itemId = item.id || (item._id ? String(item._id) : `idea-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+      const filter = isObjectId ? { _id: item._id } : { id: itemId };
+
+      const docData: Record<string, unknown> = {
+        id: itemId,
         title: item.title,
         description: item.description || "",
         status: item.status || "idea",
@@ -69,23 +80,27 @@ async function handlePost(req: Request) {
         startDate: item.startDate,
         endDate: item.endDate,
         color: item.color || "#0284c7",
-        authorEmail: item.authorEmail || session?.user?.email || "guest@onequiz.com",
-        updatedAt: new Date(),
+        updatedAt: now,
       };
 
-      if (item._id && String(item._id).length === 24) {
-        const updated = await Idea.findByIdAndUpdate(item._id, docData, { new: true, upsert: true });
-        results.push(updated);
-      } else {
-        const created = await Idea.create({
-          ...docData,
-          createdAt: new Date(),
-          historyLogs: [{ message: "✨ 최초 백로그 생성", changes: [], updatedAt: new Date() }],
-        });
-        results.push(created);
-      }
-    }
-    return NextResponse.json({ success: true, data: results }, { status: 201 });
+      return {
+        updateOne: {
+          filter,
+          update: {
+            $set: docData,
+            $setOnInsert: {
+              authorEmail: item.authorEmail || defaultAuthor,
+              createdAt: now,
+              historyLogs: [{ message: "✨ 최초 백로그 생성", changes: [], updatedAt: now }],
+            },
+          },
+          upsert: true,
+        },
+      };
+    });
+
+    await Idea.bulkWrite(operations);
+    return NextResponse.json({ success: true, count: operations.length }, { status: 201 });
   }
 
   // 단일 아이템
@@ -97,7 +112,7 @@ async function handlePost(req: Request) {
         ...body,
         updatedAt: new Date(),
       },
-      { new: true, upsert: true }
+      { returnDocument: "after", upsert: true }
     );
     return NextResponse.json({ success: true, data: updated }, { status: 200 });
   }

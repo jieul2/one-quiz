@@ -447,22 +447,22 @@ export function TasksView() {
       {/* 1. 상단 컨트롤 바 */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-outline-variant pb-3">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl sm:text-2xl font-semibold text-on-surface tracking-tight">
+          <h1 className="ui-page-title">
             할일
           </h1>
           {!session?.user && (
-            <span className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-[11px] font-medium border border-outline-variant">
+            <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant">
               로컬 임시 저장
             </span>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
           {/* 저장 상태 인디케이터 (로그인 시 실시간 DB 상태, 비로그인 시 로컬 모드) */}
           {session?.user ? (
             <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
           ) : (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-container-low text-on-surface-variant text-xs font-mono border border-outline-variant">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-low text-on-surface-variant text-xs font-mono border border-outline-variant">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
               <span>게스트 모드</span>
             </div>
@@ -479,7 +479,7 @@ export function TasksView() {
             title={showDoneColumn ? "완료 보드 숨기기" : "완료 보드 표시하기"}
           >
             <span>완료</span>
-            <span className="font-mono text-[11px] px-1 rounded bg-black/10">
+            <span className="font-mono text-xs px-1.5 py-0.2 rounded bg-black/10">
               {doneCount}
             </span>
           </button>
@@ -488,24 +488,24 @@ export function TasksView() {
           <div className="flex items-center bg-surface-container-low p-0.5 rounded-md border border-outline-variant">
             <button
               onClick={() => handleChangeViewMode("kanban")}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer ${
+              className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm transition-colors cursor-pointer ${
                 viewMode === "kanban"
                   ? "bg-surface-container text-on-surface font-semibold"
                   : "text-on-surface-variant font-light hover:text-on-surface"
               }`}
             >
-              <LayoutGrid size={13} />
+              <LayoutGrid size={15} />
               <span>칸반 보드</span>
             </button>
             <button
               onClick={() => handleChangeViewMode("swimlane")}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer ${
+              className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm transition-colors cursor-pointer ${
                 viewMode === "swimlane"
                   ? "bg-surface-container text-on-surface font-semibold"
                   : "text-on-surface-variant font-light hover:text-on-surface"
               }`}
             >
-              <Rows size={13} />
+              <Rows size={15} />
               <span>스윔레인</span>
             </button>
           </div>
@@ -513,16 +513,16 @@ export function TasksView() {
           {/* 카테고리 관리 버튼 */}
           <button
             onClick={() => setIsCategoryModalOpen(true)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-surface-container-low hover:bg-surface-container border border-outline-variant font-medium text-on-surface transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-low hover:bg-surface-container border border-outline-variant font-medium text-on-surface transition-colors cursor-pointer text-sm"
           >
-            <FolderPlus size={13} className="text-primary" />
+            <FolderPlus size={15} className="text-primary" />
             <span>카테고리 관리</span>
           </button>
 
           {/* 검색창 */}
-          <div className="relative w-44">
+          <div className="relative w-48">
             <Search
-              size={13}
+              size={15}
               className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none"
             />
             <input
@@ -530,7 +530,7 @@ export function TasksView() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="할일·메모 검색"
-              className="w-full pl-8 pr-2.5 py-1.5 bg-surface-container-low border border-outline-variant rounded-md text-xs text-on-surface focus:outline-none focus:border-primary font-light"
+              className="w-full pl-8 pr-2.5 py-1.5 bg-surface-container-low border border-outline-variant rounded-md text-sm text-on-surface focus:outline-none focus:border-primary font-light"
             />
           </div>
         </div>
@@ -544,17 +544,17 @@ export function TasksView() {
               <CheckSquare size={18} />
             </div>
             <div>
-              <p className="text-sm font-semibold text-on-surface">등록된 할일이 없습니다</p>
-              <p className="text-xs text-on-surface-variant font-light">
+              <p className="ui-card-title">등록된 할일이 없습니다</p>
+              <p className="ui-caption">
                 카테고리별 + 버튼이나 상단의 새 할일 추가를 통해 오늘의 목표를 기록해보세요.
               </p>
             </div>
           </div>
           <button
             onClick={() => handleOpenCreateModal(categories[0]?.id || "cat-today")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-xs shrink-0"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-primary text-on-primary text-sm font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-xs shrink-0"
           >
-            <Plus size={14} />
+            <Plus size={15} />
             <span>새 할일 추가</span>
           </button>
         </div>
@@ -594,11 +594,11 @@ export function TasksView() {
                 <div className="space-y-3">
                   {/* 컬럼 헤더: 카테고리 이름 + 0/20 배지 */}
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <h2 className="text-sm font-semibold text-on-surface">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold text-on-surface">
                         {cat.name}
                       </h2>
-                      <span className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-surface-container text-on-surface-variant">
+                      <span className="px-2 py-0.5 rounded text-xs font-mono font-medium bg-surface-container text-on-surface-variant">
                         {catTasks.length} / 20
                       </span>
                     </div>
@@ -608,7 +608,7 @@ export function TasksView() {
                       className="p-1 rounded text-on-surface-variant hover:text-on-surface cursor-pointer"
                       title="할일 추가"
                     >
-                      <Plus size={14} />
+                      <Plus size={16} />
                     </button>
                   </div>
 
@@ -698,7 +698,7 @@ export function TasksView() {
 
                 <div className="space-y-2 max-h-[520px] overflow-y-auto pr-0.5">
                   {doneTasks.length === 0 && dragOverColumnId !== "done" && (
-                    <div className="py-12 text-center text-on-surface-variant text-xs font-light opacity-60">
+                    <div className="py-12 ui-empty-state opacity-60">
                       완료된 항목이 없습니다.
                     </div>
                   )}
@@ -792,7 +792,7 @@ export function TasksView() {
                 {!isCollapsed && (
                   <div className="p-3 space-y-2">
                     {catTasks.length === 0 ? (
-                      <div className="text-center py-4 text-on-surface-variant text-xs font-light">
+                      <div className="py-4 ui-empty-state">
                         등록된 할일이 없습니다.
                       </div>
                     ) : (
@@ -854,7 +854,7 @@ export function TasksView() {
                       type="text"
                       value={c.name}
                       onChange={(e) => handleUpdateCategoryName(c.id, e.target.value)}
-                      className="flex-1 px-3 py-1.5 bg-surface-container-low border border-outline-variant rounded-md text-xs text-on-surface font-medium focus:outline-none focus:border-primary"
+                      className="flex-1 px-3 py-2 bg-surface-container-low border border-outline-variant rounded-md text-sm text-on-surface font-medium focus:outline-none focus:border-primary"
                     />
 
                     {/* 개수 표시 */}
@@ -869,7 +869,7 @@ export function TasksView() {
                       className="p-1.5 text-on-surface-variant hover:text-on-surface rounded transition-colors cursor-pointer shrink-0"
                       title="삭제"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={15} />
                     </button>
                   </div>
                 );
@@ -881,16 +881,16 @@ export function TasksView() {
               <button
                 type="button"
                 onClick={handleAddCategoryItem}
-                className="flex items-center gap-1 px-3 py-1.5 bg-surface-container-low hover:bg-surface-container border border-outline-variant text-on-surface font-medium text-xs rounded-md transition-colors cursor-pointer"
+                className="flex items-center gap-1 px-3 py-1.5 bg-surface-container-low hover:bg-surface-container border border-outline-variant text-on-surface font-medium text-sm rounded-md transition-colors cursor-pointer"
               >
-                <Plus size={13} />
+                <Plus size={14} />
                 <span>카테고리 추가</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setIsCategoryModalOpen(false)}
-                className="px-4 py-1.5 bg-primary text-on-primary font-semibold text-xs rounded-md transition-colors cursor-pointer"
+                className="px-4 py-1.5 bg-primary text-on-primary font-semibold text-sm rounded-md transition-colors cursor-pointer"
               >
                 완료
               </button>
@@ -904,7 +904,7 @@ export function TasksView() {
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-5 w-full max-w-sm shadow-xl space-y-4 text-on-surface">
             <div className="flex justify-between items-center border-b border-outline-variant pb-2.5">
-              <h2 className="text-sm font-semibold text-on-surface">
+              <h2 className="text-base font-semibold text-on-surface">
                 {editingTaskId ? "할일 수정" : "새 할일 추가"}
               </h2>
               <button
@@ -915,7 +915,7 @@ export function TasksView() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveTaskSubmit} className="space-y-3 text-xs">
+            <form onSubmit={handleSaveTaskSubmit} className="space-y-3.5 text-sm">
               <div>
                 <label className="block font-medium text-on-surface mb-1">내용</label>
                 <input
@@ -923,7 +923,7 @@ export function TasksView() {
                   value={modalTitle}
                   onChange={(e) => setModalTitle(e.target.value)}
                   placeholder="예: 기출문제 20문제 풀이"
-                  className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-on-surface focus:outline-none focus:border-primary font-normal"
+                  className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-md text-on-surface focus:outline-none focus:border-primary font-normal text-sm"
                   required
                   autoFocus
                 />
@@ -934,7 +934,7 @@ export function TasksView() {
                 <select
                   value={modalCategoryId}
                   onChange={(e) => setModalCategoryId(e.target.value)}
-                  className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-on-surface font-normal"
+                  className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-md text-on-surface font-normal text-sm"
                 >
                   {categories.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -947,12 +947,12 @@ export function TasksView() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="font-medium text-on-surface">마감 기한</label>
-                  <label className="flex items-center gap-1 cursor-pointer text-[11px] text-on-surface-variant font-light">
+                  <label className="flex items-center gap-1 cursor-pointer text-xs text-on-surface-variant font-light">
                     <input
                       type="checkbox"
                       checked={!modalHasDueDate}
                       onChange={(e) => setModalHasDueDate(!e.target.checked)}
-                      className="accent-primary w-3 h-3"
+                      className="accent-primary w-3.5 h-3.5"
                     />
                     <span>기한 없음</span>
                   </label>
@@ -962,7 +962,7 @@ export function TasksView() {
                     type="date"
                     value={modalDueDate}
                     onChange={(e) => setModalDueDate(e.target.value)}
-                    className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-on-surface"
+                    className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-md text-on-surface text-sm font-mono"
                   />
                 )}
               </div>
@@ -974,7 +974,7 @@ export function TasksView() {
                   onChange={(e) => setModalMemo(e.target.value)}
                   placeholder="참고 링크나 세부 메모를 적어보세요"
                   rows={2}
-                  className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-on-surface resize-none font-light"
+                  className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-md text-on-surface resize-none font-light text-sm"
                 />
               </div>
 
@@ -982,13 +982,13 @@ export function TasksView() {
                 <button
                   type="button"
                   onClick={() => setIsTaskModalOpen(false)}
-                  className="flex-1 py-2 bg-surface-container-low hover:bg-surface-container text-on-surface font-light rounded-md text-xs cursor-pointer"
+                  className="flex-1 py-2 bg-surface-container-low hover:bg-surface-container text-on-surface font-medium rounded-md text-sm cursor-pointer"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 bg-primary text-on-primary font-semibold rounded-md text-xs cursor-pointer"
+                  className="flex-1 py-2 bg-primary text-on-primary font-semibold rounded-md text-sm cursor-pointer hover:opacity-90 transition-opacity"
                 >
                   {editingTaskId ? "수정 완료" : "추가"}
                 </button>
@@ -1007,9 +1007,9 @@ function GhostTaskCard({ task }: { task: TaskItem }) {
     <div className="bg-primary/5 border-2 border-dashed border-primary p-3 rounded-md opacity-50 space-y-1 select-none pointer-events-none animate-pulse">
       <div className="flex items-center gap-2">
         <Square size={16} className="text-primary/60 shrink-0" />
-        <p className="text-xs font-semibold text-primary truncate">{task.title}</p>
+        <p className="text-sm font-semibold text-primary truncate">{task.title}</p>
       </div>
-      <p className="text-[10px] text-primary/70 font-light pl-6">
+      <p className="text-xs text-primary/70 font-light pl-6">
         여기로 이동 예정
       </p>
     </div>
@@ -1039,26 +1039,26 @@ function TaskCard({
     <div
       draggable
       onDragStart={(e) => onDragStart(e, task.id)}
-      className={`group relative bg-surface-container-low hover:bg-surface-container border border-outline-variant p-3 rounded-md transition-all cursor-grab active:cursor-grabbing select-none ${
+      className={`group relative bg-surface-container-low hover:bg-surface-container border border-outline-variant p-3.5 rounded-lg transition-all cursor-grab active:cursor-grabbing select-none ${
         task.completed ? "opacity-60" : ""
       } ${isDragging ? "opacity-25 scale-95" : "opacity-100"}`}
     >
-      <div className="flex items-start gap-2.5">
+      <div className="flex items-start gap-3">
         <button
           type="button"
           onClick={() => onToggleTask(task.id)}
           className="mt-0.5 text-primary hover:opacity-80 transition-colors cursor-pointer shrink-0"
         >
           {task.completed ? (
-            <CheckSquare size={16} className="text-primary" />
+            <CheckSquare size={17} className="text-primary" />
           ) : (
-            <Square size={16} className="text-on-surface-variant hover:text-on-surface" />
+            <Square size={17} className="text-on-surface-variant hover:text-on-surface" />
           )}
         </button>
 
         <div className="flex-1 min-w-0 space-y-1">
           <p
-            className={`text-xs font-medium text-on-surface break-words leading-tight ${
+            className={`text-sm font-semibold text-on-surface break-words leading-tight ${
               task.completed ? "line-through text-on-surface-variant font-light" : ""
             }`}
           >
@@ -1066,14 +1066,14 @@ function TaskCard({
           </p>
 
           {task.memo && (
-            <p className="text-[11px] text-on-surface-variant font-light line-clamp-2">
+            <p className="text-xs text-on-surface-variant font-light line-clamp-2">
               {task.memo}
             </p>
           )}
 
-          <div className="flex items-center gap-2 pt-0.5 text-[10px] text-on-surface-variant font-light">
-            <span className="flex items-center gap-1">
-              <Clock size={10} />
+          <div className="flex items-center gap-2 pt-0.5 text-xs text-on-surface-variant font-light">
+            <span className="flex items-center gap-1 font-mono">
+              <Clock size={11} />
               <span>{task.dueDate ? task.dueDate : "기한 없음"}</span>
             </span>
           </div>
@@ -1085,14 +1085,14 @@ function TaskCard({
             className="p-1 text-on-surface-variant hover:text-on-surface rounded cursor-pointer"
             title="수정"
           >
-            <Edit3 size={12} />
+            <Edit3 size={14} />
           </button>
           <button
             onClick={() => onDeleteTask(task.id)}
-            className="p-1 text-on-surface-variant hover:text-on-surface rounded cursor-pointer"
+            className="p-1 text-on-surface-variant hover:text-destructive rounded cursor-pointer"
             title="삭제"
           >
-            <Trash2 size={12} />
+            <Trash2 size={14} />
           </button>
         </div>
       </div>

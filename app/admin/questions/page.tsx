@@ -117,7 +117,7 @@ const MarkdownRenderer = ({ content }: { content: string }) => {
             </SyntaxHighlighter>
           ) : (
             <code
-              className="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-[#333] text-pink-600 dark:text-pink-400 font-mono text-xs"
+              className="px-1.5 py-0.5 rounded bg-surface-container text-primary font-mono text-xs"
               style={_style}
               {...props}
             >
@@ -150,7 +150,7 @@ const MarkdownRenderer = ({ content }: { content: string }) => {
         },
         td({ children }) {
           return (
-            <td className="border-b border-outline-variant px-4 py-2.5 text-gray-800 dark:text-gray-300">
+            <td className="border-b border-outline-variant px-4 py-2.5 text-on-surface">
               {children}
             </td>
           );
@@ -830,18 +830,18 @@ export default function AdminQuestionsPage() {
             onScroll={(e) => setIsScrolledDown(e.currentTarget.scrollTop > 20)}
             className="flex-1 overflow-y-auto pr-1 relative"
           >
-            {isLoading && (
-              <div className="absolute inset-0 bg-white/60 dark:bg-[#1e1e1e]/60 backdrop-blur-2xs flex items-center justify-center z-10 rounded-xl">
-                <div className="flex items-center gap-2 bg-white dark:bg-[#2d2d2d] px-4 py-2.5 rounded-xl shadow-lg border border-outline-variant text-xs font-bold text-on-surface">
-                  <Loader2 size={16} className="animate-spin text-primary" />
-                  문제를 불러오는 중...
-                </div>
+            {isLoading ? (
+              <div className="min-h-[320px] flex flex-col items-center justify-center gap-3 text-center py-16 animate-fade-in">
+                <Loader2 size={32} className="animate-spin text-primary" />
+                <span className="text-sm font-semibold text-on-surface">문제를 불러오는 중...</span>
+                <span className="text-xs text-on-surface-variant">잠시만 기다려주세요</span>
               </div>
-            )}
-            {filteredQuestions.length === 0 ? (
-              <p className="text-gray-500 text-center py-12 text-sm">
-                조건에 맞는 문제가 없습니다.
-              </p>
+            ) : filteredQuestions.length === 0 ? (
+              <div className="min-h-[260px] flex flex-col items-center justify-center gap-2 text-center text-on-surface-variant py-16">
+                <Layers size={32} className="opacity-40 text-primary" />
+                <p className="text-sm font-semibold text-on-surface">조건에 맞는 문제가 없습니다.</p>
+                <p className="text-xs text-on-surface-variant">다른 과목이나 회차 필터를 선택해보세요.</p>
+              </div>
             ) : viewMode === "card" ? (
               /* 카드형 그리드 뷰 */
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 pb-2">
@@ -1200,13 +1200,13 @@ export default function AdminQuestionsPage() {
                   <button
                     type="button"
                     onClick={() => setIsTransferListExpanded(!isTransferListExpanded)}
-                    className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-gray-100/70 dark:hover:bg-[#2d2d2d]/60 transition-colors cursor-pointer group"
+                    className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-surface-container-low transition-colors cursor-pointer group"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div
                         className={`p-2.5 rounded-xl transition-all ${
                           isTransferListExpanded
-                            ? "bg-primary text-black shadow-xs font-black"
+                            ? "bg-primary text-on-primary shadow-xs font-bold"
                             : "bg-primary/10 text-primary group-hover:bg-primary/20"
                         }`}
                       >
@@ -1217,7 +1217,7 @@ export default function AdminQuestionsPage() {
                           <h4 className="text-sm sm:text-base font-extrabold text-on-surface">
                             과목 및 회차별 출제 설정
                           </h4>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-950/80 text-yellow-800 dark:text-yellow-300">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                             출제 상태 변경
                           </span>
                         </div>
@@ -1245,7 +1245,7 @@ export default function AdminQuestionsPage() {
 
                   {/* 펼쳐지는 리스트박스 본체 영역 */}
                   {isTransferListExpanded && (
-                    <div className="p-4 sm:p-5 border-t border-outline-variant/80 space-y-4 animate-fade-in bg-white/40 dark:bg-[#1f1f20]/60">
+                    <div className="p-4 sm:p-5 border-t border-outline-variant/80 space-y-4 animate-fade-in bg-surface-container-lowest">
                       {/* 상단 탭: 과목 기준 관리 vs 회차 기준 관리 */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-outline-variant/80 pb-3">
                     <div className="flex gap-2">
@@ -1258,8 +1258,8 @@ export default function AdminQuestionsPage() {
                         }}
                         className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                           transferMode === "subject"
-                            ? "bg-primary text-black shadow-xs font-black"
-                            : "bg-surface-container-lowest text-on-surface-variant hover:text-gray-900 border border-outline-variant"
+                            ? "bg-primary text-on-primary shadow-xs font-bold"
+                            : "bg-surface-container-lowest text-on-surface-variant hover:text-on-surface border border-outline-variant"
                         }`}
                       >
                         <BookOpen size={16} />
@@ -1275,8 +1275,8 @@ export default function AdminQuestionsPage() {
                         }}
                         className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                           transferMode === "examType"
-                            ? "bg-primary text-black shadow-xs font-black"
-                            : "bg-surface-container-lowest text-on-surface-variant hover:text-gray-900 border border-outline-variant"
+                            ? "bg-primary text-on-primary shadow-xs font-bold"
+                            : "bg-surface-container-lowest text-on-surface-variant hover:text-on-surface border border-outline-variant"
                         }`}
                       >
                         <Calendar size={16} />
@@ -1309,7 +1309,7 @@ export default function AdminQuestionsPage() {
                     return (
                       <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3.5 items-center">
                         {/* 좌측: 미출제 목록 (비활성) */}
-                        <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-rose-200/90 dark:border-rose-950/60 p-3.5 space-y-3 flex flex-col h-[380px] shadow-2xs">
+                        <div className="bg-surface-container-lowest rounded-2xl border border-rose-300 dark:border-rose-900/60 p-3.5 space-y-3 flex flex-col h-[380px] shadow-2xs">
                           {/* 헤더 */}
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1.5">
@@ -1317,7 +1317,7 @@ export default function AdminQuestionsPage() {
                               <span className="text-xs font-bold text-on-surface">
                                 미출제 목록 (비활성)
                               </span>
-                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300">
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-destructive/15 text-destructive">
                                 {inactiveList.length}
                               </span>
                             </div>
@@ -1333,7 +1333,7 @@ export default function AdminQuestionsPage() {
                                   setSelectedInactiveItems(filteredInactive.map((i) => i.name));
                                 }
                               }}
-                              className="text-[11px] text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 font-semibold cursor-pointer"
+                              className="text-[11px] text-on-surface-variant hover:text-on-surface font-semibold cursor-pointer"
                             >
                               {selectedInactiveItems.length === filteredInactive.length &&
                               filteredInactive.length > 0
@@ -1346,7 +1346,7 @@ export default function AdminQuestionsPage() {
                           <div className="relative">
                             <Search
                               size={13}
-                              className="absolute left-2.5 top-2.5 text-gray-400"
+                              className="absolute left-2.5 top-2.5 text-on-surface-variant"
                             />
                             <input
                               type="text"
@@ -1355,14 +1355,14 @@ export default function AdminQuestionsPage() {
                               placeholder={`${
                                 transferMode === "subject" ? "비활성 과목" : "비활성 회차"
                               } 검색...`}
-                              className="w-full bg-surface-container-low border border-outline-variant rounded-xl pl-7 pr-3 py-1.5 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-yellow-500"
+                              className="w-full bg-surface-container-low border border-outline-variant rounded-xl pl-7 pr-3 py-1.5 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                             />
                           </div>
 
                           {/* 아이템 목록 */}
                           <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
                             {filteredInactive.length === 0 ? (
-                              <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 space-y-1 py-8">
+                              <div className="h-full flex flex-col items-center justify-center text-center text-on-surface-variant space-y-1 py-8">
                                 <Layers size={22} className="opacity-30" />
                                 <p className="text-xs">미출제 항목이 없습니다.</p>
                               </div>
@@ -1381,23 +1381,23 @@ export default function AdminQuestionsPage() {
                                     }}
                                     className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 text-xs select-none ${
                                       isSelected
-                                        ? "bg-rose-50/70 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 font-bold"
-                                        : "bg-gray-50 dark:bg-[#222222] border-outline-variant hover:border-gray-300 dark:hover:border-gray-600"
+                                        ? "bg-destructive/10 border-destructive/40 text-on-surface font-bold"
+                                        : "bg-surface-container-low border-outline-variant hover:border-primary/40"
                                     }`}
                                   >
                                     <div className="flex items-center gap-2 min-w-0 flex-1">
                                       {isSelected ? (
                                         <CheckSquare
                                           size={15}
-                                          className="text-rose-500 shrink-0"
+                                          className="text-destructive shrink-0"
                                         />
                                       ) : (
-                                        <Square size={15} className="text-gray-400 shrink-0" />
+                                        <Square size={15} className="text-on-surface-variant shrink-0" />
                                       )}
                                       <span className="truncate" title={item.name}>
                                         {item.name}
                                       </span>
-                                      <span className="text-[10px] text-gray-400 font-mono shrink-0">
+                                      <span className="text-[10px] text-on-surface-variant font-mono shrink-0">
                                         ({item.total}문제)
                                       </span>
                                     </div>
@@ -1410,7 +1410,7 @@ export default function AdminQuestionsPage() {
                                           e.stopPropagation();
                                           handleTransferItems([item.name], true);
                                         }}
-                                        className="p-1 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-lg transition-colors cursor-pointer"
+                                        className="p-1 hover:bg-secondary/15 text-secondary rounded-lg transition-colors cursor-pointer"
                                         title="출제 활성화"
                                       >
                                         <ArrowRight size={14} />
@@ -1422,7 +1422,7 @@ export default function AdminQuestionsPage() {
                                           e.stopPropagation();
                                           handleDeleteGroup(item.name, item.total);
                                         }}
-                                        className="p-1 hover:bg-red-100 dark:hover:bg-red-950/60 text-gray-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                                        className="p-1 hover:bg-destructive/15 text-on-surface-variant hover:text-destructive rounded-lg transition-colors cursor-pointer"
                                         title="해당 과목/회차 전체 문제 삭제"
                                       >
                                         <Trash2 size={13} />
@@ -1486,7 +1486,7 @@ export default function AdminQuestionsPage() {
                             type="button"
                             disabled={isTogglingSubject !== null || inactiveList.length === 0}
                             onClick={() => handleTransferAll(true)}
-                            className="p-2 bg-gray-100 dark:bg-[#282828] hover:bg-gray-200 dark:hover:bg-[#333] text-on-surface rounded-xl text-xs font-bold transition-colors disabled:opacity-30 cursor-pointer"
+                            className="p-2 bg-surface-container-low hover:bg-surface-container text-on-surface rounded-xl text-xs font-bold transition-colors disabled:opacity-30 cursor-pointer border border-outline-variant"
                             title="전체 출제 활성화 (≫)"
                           >
                             <ChevronsRight size={15} />
@@ -1496,7 +1496,7 @@ export default function AdminQuestionsPage() {
                             type="button"
                             disabled={isTogglingSubject !== null || activeList.length === 0}
                             onClick={() => handleTransferAll(false)}
-                            className="p-2 bg-gray-100 dark:bg-[#282828] hover:bg-gray-200 dark:hover:bg-[#333] text-on-surface rounded-xl text-xs font-bold transition-colors disabled:opacity-30 cursor-pointer"
+                            className="p-2 bg-surface-container-low hover:bg-surface-container text-on-surface rounded-xl text-xs font-bold transition-colors disabled:opacity-30 cursor-pointer border border-outline-variant"
                             title="전체 비활성화 (≪)"
                           >
                             <ChevronsLeft size={15} />
@@ -1504,7 +1504,7 @@ export default function AdminQuestionsPage() {
                         </div>
 
                         {/* 우측: 출제 목록 (활성) */}
-                        <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-emerald-200/90 dark:border-emerald-950/60 p-3.5 space-y-3 flex flex-col h-[380px] shadow-2xs">
+                        <div className="bg-surface-container-lowest rounded-2xl border border-emerald-300 dark:border-emerald-900/60 p-3.5 space-y-3 flex flex-col h-[380px] shadow-2xs">
                           {/* 헤더 */}
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1.5">
@@ -1512,7 +1512,7 @@ export default function AdminQuestionsPage() {
                               <span className="text-xs font-bold text-on-surface">
                                 출제 목록 (활성)
                               </span>
-                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300">
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-secondary/15 text-secondary">
                                 {activeList.length}
                               </span>
                             </div>
@@ -1528,7 +1528,7 @@ export default function AdminQuestionsPage() {
                                   setSelectedActiveItems(filteredActive.map((i) => i.name));
                                 }
                               }}
-                              className="text-[11px] text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 font-semibold cursor-pointer"
+                              className="text-[11px] text-on-surface-variant hover:text-on-surface font-semibold cursor-pointer"
                             >
                               {selectedActiveItems.length === filteredActive.length &&
                               filteredActive.length > 0
@@ -1541,7 +1541,7 @@ export default function AdminQuestionsPage() {
                           <div className="relative">
                             <Search
                               size={13}
-                              className="absolute left-2.5 top-2.5 text-gray-400"
+                              className="absolute left-2.5 top-2.5 text-on-surface-variant"
                             />
                             <input
                               type="text"
@@ -1550,14 +1550,14 @@ export default function AdminQuestionsPage() {
                               placeholder={`${
                                 transferMode === "subject" ? "출제 과목" : "출제 회차"
                               } 검색...`}
-                              className="w-full bg-surface-container-low border border-outline-variant rounded-xl pl-7 pr-3 py-1.5 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-yellow-500"
+                              className="w-full bg-surface-container-low border border-outline-variant rounded-xl pl-7 pr-3 py-1.5 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                             />
                           </div>
 
                           {/* 아이템 목록 */}
                           <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
                             {filteredActive.length === 0 ? (
-                              <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 space-y-1 py-8">
+                              <div className="h-full flex flex-col items-center justify-center text-center text-on-surface-variant space-y-1 py-8">
                                 <Layers size={22} className="opacity-30" />
                                 <p className="text-xs">출제 중인 항목이 없습니다.</p>
                               </div>
@@ -1576,23 +1576,23 @@ export default function AdminQuestionsPage() {
                                     }}
                                     className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 text-xs select-none ${
                                       isSelected
-                                        ? "bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 font-bold"
-                                        : "bg-gray-50 dark:bg-[#222222] border-outline-variant hover:border-gray-300 dark:hover:border-gray-600"
+                                        ? "bg-secondary/15 border-secondary/40 text-on-surface font-bold"
+                                        : "bg-surface-container-low border-outline-variant hover:border-primary/40"
                                     }`}
                                   >
                                     <div className="flex items-center gap-2 min-w-0 flex-1">
                                       {isSelected ? (
                                         <CheckSquare
                                           size={15}
-                                          className="text-emerald-500 shrink-0"
+                                          className="text-secondary shrink-0"
                                         />
                                       ) : (
-                                        <Square size={15} className="text-gray-400 shrink-0" />
+                                        <Square size={15} className="text-on-surface-variant shrink-0" />
                                       )}
                                       <span className="truncate" title={item.name}>
                                         {item.name}
                                       </span>
-                                      <span className="text-[10px] text-gray-400 font-mono shrink-0">
+                                      <span className="text-[10px] text-on-surface-variant font-mono shrink-0">
                                         ({item.total}문제)
                                       </span>
                                     </div>
@@ -1605,7 +1605,7 @@ export default function AdminQuestionsPage() {
                                           e.stopPropagation();
                                           handleTransferItems([item.name], false);
                                         }}
-                                        className="p-1 hover:bg-rose-100 dark:hover:bg-rose-950/60 text-rose-600 dark:text-rose-400 rounded-lg transition-colors cursor-pointer"
+                                        className="p-1 hover:bg-destructive/15 text-destructive rounded-lg transition-colors cursor-pointer"
                                         title="비활성화"
                                       >
                                         <ArrowLeft size={14} />
@@ -1617,7 +1617,7 @@ export default function AdminQuestionsPage() {
                                           e.stopPropagation();
                                           handleDeleteGroup(item.name, item.total);
                                         }}
-                                        className="p-1 hover:bg-red-100 dark:hover:bg-red-950/60 text-gray-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                                        className="p-1 hover:bg-destructive/15 text-on-surface-variant hover:text-destructive rounded-lg transition-colors cursor-pointer"
                                         title="해당 과목/회차 전체 문제 삭제"
                                       >
                                         <Trash2 size={13} />
@@ -1666,8 +1666,8 @@ export default function AdminQuestionsPage() {
                     onClick={handleToggleShowCardButtons}
                     className={`px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 ${
                       showCardActiveButtons
-                        ? "bg-primary text-black shadow-sm"
-                        : "bg-gray-200 dark:bg-gray-700 text-on-surface"
+                        ? "bg-primary text-on-primary shadow-xs"
+                        : "bg-surface-container text-on-surface-variant hover:text-on-surface"
                     }`}
                   >
                     {showCardActiveButtons ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
@@ -1688,8 +1688,8 @@ export default function AdminQuestionsPage() {
                     onClick={() => setShowQuestionId(!showQuestionId)}
                     className={`px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 ${
                       showQuestionId
-                        ? "bg-primary text-black shadow-sm"
-                        : "bg-gray-200 dark:bg-gray-700 text-on-surface"
+                        ? "bg-primary text-on-primary shadow-xs"
+                        : "bg-surface-container text-on-surface-variant hover:text-on-surface"
                     }`}
                   >
                     {showQuestionId ? <Eye size={15} /> : <EyeOff size={15} />}
@@ -1697,10 +1697,10 @@ export default function AdminQuestionsPage() {
                   </button>
                 </div>
 
-                <div className="p-3.5 bg-red-50/70 dark:bg-red-950/20 rounded-xl border border-red-200 dark:border-red-900/40 space-y-2">
-                  <div className="flex items-center gap-1.5 text-red-700 dark:text-red-400">
+                <div className="p-3.5 bg-destructive/10 rounded-xl border border-destructive/30 space-y-2">
+                  <div className="flex items-center gap-1.5 text-destructive font-bold">
                     <AlertTriangle size={14} />
-                    <p className="text-xs sm:text-sm font-bold">
+                    <p className="text-xs sm:text-sm">
                       데이터 초기화
                     </p>
                   </div>
@@ -1762,10 +1762,10 @@ export default function AdminQuestionsPage() {
               <div className="p-6">
                 {message && (
                   <div
-                    className={`p-4 mb-6 rounded-xl ${
+                    className={`p-4 mb-6 rounded-xl border ${
                       message.type === "success"
-                        ? "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400"
-                        : "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400"
+                        ? "bg-secondary/15 text-secondary border-secondary/30"
+                        : "bg-destructive/15 text-destructive border-destructive/30"
                     } flex items-center gap-2 text-xs sm:text-sm font-medium`}
                   >
                     {message.type === "success" && <CheckCircle size={18} />} {message.text}
@@ -1779,7 +1779,7 @@ export default function AdminQuestionsPage() {
                     </div>
 
                     <div className="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant shadow-sm space-y-4">
-                      <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
+                      <div className="flex items-center gap-2 text-xs font-bold text-on-surface-variant font-mono">
                         <span>[{formData.subject || "과목 미입력"}]</span>
                         <span>•</span>
                         <span>{formData.examType || "회차 미입력"}</span>
@@ -1804,9 +1804,9 @@ export default function AdminQuestionsPage() {
                           {formData.options.map((opt, idx) => (
                             <div
                               key={idx}
-                              className="p-3 rounded-xl border border-outline-variant bg-gray-50 dark:bg-[#2d2d2d] text-xs font-medium flex items-center gap-3 text-on-surface"
+                              className="p-3 rounded-xl border border-outline-variant bg-surface-container-low text-xs font-medium flex items-center gap-3 text-on-surface"
                             >
-                              <span className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center font-bold text-xs">
+                              <span className="w-6 h-6 rounded-full bg-surface-container text-on-surface flex items-center justify-center font-bold text-xs">
                                 {idx + 1}
                               </span>
                               <span className="truncate">{opt || `보기 ${idx + 1}`}</span>
@@ -1829,14 +1829,14 @@ export default function AdminQuestionsPage() {
                   </div>
                 ) : (
                   <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="flex gap-2 p-1.5 bg-surface-container-low rounded-xl">
+                    <div className="flex gap-2 p-1.5 bg-surface-container-low rounded-xl border border-outline-variant">
                       <button
                         type="button"
                         onClick={() => handleTypeChange("multiple-choice")}
-                        className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
+                        className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                           formData.questionType === "multiple-choice"
-                            ? "bg-white dark:bg-yellow-600 text-gray-900 dark:text-black shadow"
-                            : "text-on-surface-variant hover:bg-gray-200"
+                            ? "bg-primary text-on-primary shadow-xs"
+                            : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
                         }`}
                       >
                         객관식
@@ -1844,10 +1844,10 @@ export default function AdminQuestionsPage() {
                       <button
                         type="button"
                         onClick={() => handleTypeChange("short-answer")}
-                        className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
+                        className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                           formData.questionType === "short-answer"
-                            ? "bg-white dark:bg-yellow-600 text-gray-900 dark:text-black shadow"
-                            : "text-on-surface-variant hover:bg-gray-200"
+                            ? "bg-primary text-on-primary shadow-xs"
+                            : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
                         }`}
                       >
                         주관식 (단답형)
@@ -1856,7 +1856,7 @@ export default function AdminQuestionsPage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs sm:text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-400">
+                        <label className="block text-xs sm:text-sm font-semibold mb-1.5 text-on-surface">
                           과목명
                         </label>
                         <input
@@ -1866,11 +1866,11 @@ export default function AdminQuestionsPage() {
                           value={formData.subject}
                           onChange={handleChange}
                           placeholder="예: 컴퓨터구조"
-                          className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-outline-variant rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface"
+                          className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface placeholder:text-on-surface-variant/50 transition-colors"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs sm:text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-400">
+                        <label className="block text-xs sm:text-sm font-semibold mb-1.5 text-on-surface">
                           기출 회차
                         </label>
                         <input
@@ -1880,13 +1880,13 @@ export default function AdminQuestionsPage() {
                           value={formData.examType}
                           onChange={handleChange}
                           placeholder="예: 2026년 1회"
-                          className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-outline-variant rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface"
+                          className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface placeholder:text-on-surface-variant/50 transition-colors"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-400">
+                      <label className="block text-xs sm:text-sm font-semibold mb-1.5 text-on-surface">
                         문제 번호
                       </label>
                       <input
@@ -1895,12 +1895,12 @@ export default function AdminQuestionsPage() {
                         name="questionNumber"
                         value={formData.questionNumber}
                         onChange={handleChange}
-                        className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-outline-variant rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface"
+                        className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface placeholder:text-on-surface-variant/50 transition-colors"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-400 flex items-center gap-1.5">
+                      <label className="block text-xs sm:text-sm font-semibold mb-1.5 text-on-surface flex items-center gap-1.5">
                         <HelpCircle size={15} className="text-primary" /> 문제 내용
                       </label>
                       <textarea
@@ -1910,13 +1910,13 @@ export default function AdminQuestionsPage() {
                         onChange={handleChange}
                         rows={3}
                         placeholder="문제를 입력하세요..."
-                        className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-outline-variant rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface"
+                        className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface placeholder:text-on-surface-variant/50 transition-colors"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-400 flex items-center gap-1.5">
-                        <Code size={15} className="text-blue-500" /> 코드 스니펫
+                      <label className="block text-xs sm:text-sm font-semibold mb-1.5 text-on-surface flex items-center gap-1.5">
+                        <Code size={15} className="text-primary" /> 코드 스니펫
                       </label>
                       <textarea
                         name="codeSnippet"
@@ -1924,20 +1924,20 @@ export default function AdminQuestionsPage() {
                         onChange={handleChange}
                         rows={4}
                         placeholder="소스코드 또는 알고리즘 입력..."
-                        className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-outline-variant rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface"
+                        className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface placeholder:text-on-surface-variant/50 font-mono transition-colors"
                       />
                     </div>
 
                     {formData.questionType === "multiple-choice" && (
                       <div className="space-y-3 p-4 sm:p-5 bg-surface-container-low rounded-xl border border-outline-variant">
                         <div className="flex justify-between items-center mb-2">
-                          <h3 className="text-xs sm:text-sm font-medium text-on-surface">
+                          <h3 className="text-xs sm:text-sm font-semibold text-on-surface">
                             객관식 보기 입력 (최소 2개 이상)
                           </h3>
                           <button
                             type="button"
                             onClick={handleAddOption}
-                            className="flex items-center gap-1 text-xs bg-primary hover:opacity-90 text-black font-bold px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
+                            className="flex items-center gap-1 text-xs bg-primary hover:opacity-90 text-on-primary font-bold px-3 py-1.5 rounded-lg cursor-pointer transition-colors shadow-xs"
                           >
                             <Plus size={14} /> 보기 추가
                           </button>
@@ -1945,7 +1945,7 @@ export default function AdminQuestionsPage() {
 
                         {formData.options.map((option, index) => (
                           <div key={index} className="flex items-center gap-3">
-                            <span className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-700 dark:text-white shrink-0">
+                            <span className="w-7 h-7 rounded-full bg-surface-container text-on-surface flex items-center justify-center text-xs font-bold shrink-0">
                               {index + 1}
                             </span>
                             <input
@@ -1954,13 +1954,13 @@ export default function AdminQuestionsPage() {
                               value={option}
                               onChange={(e) => handleOptionChange(index, e.target.value)}
                               placeholder={`${index + 1}번 보기 입력...`}
-                              className="flex-1 bg-surface-container-lowest border border-outline-variant rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface"
+                              className="flex-1 bg-surface-container-lowest border border-outline-variant rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface transition-colors"
                             />
                             {formData.options.length > 2 && (
                               <button
                                 type="button"
                                 onClick={() => handleRemoveOption(index)}
-                                className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg cursor-pointer transition-colors"
+                                className="p-2 text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer transition-colors"
                                 title="보기 삭제"
                               >
                                 <Minus size={16} />
@@ -1972,21 +1972,21 @@ export default function AdminQuestionsPage() {
                     )}
 
                     <div className="space-y-2">
-                      <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-400">
+                      <label className="block text-xs sm:text-sm font-semibold text-on-surface">
                         정답 관리 (입력 후 <strong>Enter</strong> 또는 <strong>쉼표(,)</strong>{" "}
                         입력)
                       </label>
-                      <div className="flex flex-wrap items-center gap-2 bg-gray-50 dark:bg-[#2d2d2d] border border-outline-variant rounded-xl p-3 min-h-[46px]">
+                      <div className="flex flex-wrap items-center gap-2 bg-surface-container-low border border-outline-variant rounded-xl p-3 min-h-[46px]">
                         {formData.correctAnswer.map((tag, idx) => (
                           <span
                             key={idx}
-                            className="flex items-center gap-1.5 bg-primary/15 dark:bg-yellow-600/30 text-yellow-700 dark:text-primary text-xs font-bold px-3 py-1.5 rounded-lg border border-primary/30 animate-fade-in"
+                            className="flex items-center gap-1.5 bg-primary/15 text-primary text-xs font-bold px-3 py-1.5 rounded-lg border border-primary/30 animate-fade-in"
                           >
                             {tag}
                             <button
                               type="button"
                               onClick={() => handleRemoveTag(tag)}
-                              className="hover:text-red-500 transition-colors cursor-pointer"
+                              className="hover:text-destructive transition-colors cursor-pointer"
                               title="삭제"
                             >
                               <X size={13} />
@@ -2004,13 +2004,13 @@ export default function AdminQuestionsPage() {
                               ? "정답을 입력하고 Enter를 누르세요..."
                               : "추가 정답 입력..."
                           }
-                          className="flex-1 bg-transparent border-none outline-none text-xs sm:text-sm min-w-[140px] text-on-surface placeholder:text-gray-400"
+                          className="flex-1 bg-transparent border-none outline-none text-xs sm:text-sm min-w-[140px] text-on-surface placeholder:text-on-surface-variant/50"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-400">
+                      <label className="block text-xs sm:text-sm font-semibold mb-1.5 text-on-surface">
                         해설 (선택)
                       </label>
                       <textarea
@@ -2019,7 +2019,7 @@ export default function AdminQuestionsPage() {
                         onChange={handleChange}
                         rows={4}
                         placeholder="해설을 입력하세요..."
-                        className="w-full bg-gray-50 dark:bg-[#2d2d2d] border border-outline-variant rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface"
+                        className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface placeholder:text-on-surface-variant/50 transition-colors"
                       />
                     </div>
 

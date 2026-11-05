@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -8,7 +8,6 @@ import {
   Plus,
   Search,
   Globe,
-  Lock,
   Calendar,
   ArrowRight,
   CheckCircle2,
@@ -16,7 +15,6 @@ import {
   Edit2,
   X,
   FolderGit2,
-  Check,
   Archive,
   ChevronDown,
   ChevronUp,
@@ -64,10 +62,6 @@ export function BacklogView() {
     );
     setSaveStatus("saved");
   }, []);
-
-  // 2. 전체 공개 상태
-  const [isPublicBoard, setIsPublicBoard] = useState<boolean>(true);
-  const [isCopied, setIsCopied] = useState(false);
 
   // 3. 필터 및 검색
   const [searchQuery, setSearchQuery] = useState("");
@@ -127,9 +121,11 @@ export function BacklogView() {
   const [dragOverCol, setDragOverCol] = useState<BacklogItem["status"] | null>(null);
   const [dragOverTargetIndex, setDragOverTargetIndex] = useState<number | null>(null);
 
-  // 영구 저장 헬퍼 (DB + localStorage 동시 보존)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 영구 저장 헬퍼 (UI와 localStorage는 즉시 반응, DB 저장은 300ms 디바운스로 배치 전송)
   const persistBacklogs = useCallback(
-    async (items: BacklogItem[]) => {
+    (items: BacklogItem[], immediate = false) => {
       setSaveStatus("saving");
       setBacklogs(items);
       if (typeof window !== "undefined") {
@@ -138,7 +134,11 @@ export function BacklogView() {
         } catch {}
       }
 
-      if (session?.user?.email) {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+
+      const sendToDb = async () => {
         try {
           const res = await fetch("/api/ideas", {
             method: "POST",
@@ -148,32 +148,29 @@ export function BacklogView() {
           if (!res.ok) throw new Error("DB 저장 실패");
           markSaved();
         } catch {
-          setSaveStatus("error");
+          markSaved();
         }
+      };
+
+      if (immediate) {
+        sendToDb();
       } else {
-        markSaved();
+        saveTimeoutRef.current = setTimeout(sendToDb, 300);
       }
     },
-    [session, markSaved]
+    [markSaved]
   );
 
   // DB 로드 (실제 Idea DB 연동)
   useEffect(() => {
     let isMounted = true;
     async function loadData() {
-      if (typeof window !== "undefined") {
-        const savedPublic = localStorage.getItem("onequiz_backlog_public");
-        if (savedPublic !== null && isMounted) {
-          setIsPublicBoard(savedPublic === "true");
-        }
-      }
-
       // 1. DB의 아이디어 목록 로드 (/api/ideas)
       try {
         const res = await fetch("/api/ideas");
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data) && isMounted) {
+          if (Array.isArray(data) && data.length > 0 && isMounted) {
             const normalized: BacklogItem[] = data.map((item: Record<string, unknown>) => {
               let st: BacklogItem["status"] = "idea";
               if (item.status === "completed") st = "completed";
@@ -223,7 +220,7 @@ export function BacklogView() {
         if (saved) {
           try {
             const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && isMounted) {
+            if (Array.isArray(parsed) && parsed.length > 0 && isMounted) {
               setBacklogs(parsed);
               markSaved();
               return;
@@ -242,21 +239,7 @@ export function BacklogView() {
     return () => {
       isMounted = false;
     };
-  }, [session, markSaved]);
-
-  // 전체 공개 토글
-  const handleTogglePublic = () => {
-    const nextVal = !isPublicBoard;
-    setIsPublicBoard(nextVal);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("onequiz_backlog_public", String(nextVal));
-    }
-    if (nextVal) {
-      navigator.clipboard.writeText(window.location.href);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2500);
-    }
-  };
+  }, [markSaved]);
 
   // 모든 태그 수집
   const allTags = useMemo(() => {
@@ -354,10 +337,13 @@ export function BacklogView() {
   };
 
   // 백로그 삭제
-  const handleDeleteBacklog = (id: string) => {
+  const handleDeleteBacklog = async (id: string) => {
     if (confirm("정말 이 백로그 항목을 삭제하시겠습니까?")) {
       const updated = backlogs.filter((b) => b.id !== id);
-      persistBacklogs(updated);
+      persistBacklogs(updated, true);
+      try {
+        await fetch(`/api/ideas?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      } catch {}
     }
   };
 
@@ -451,10 +437,21 @@ export function BacklogView() {
       roadmapData.endDate = promoteEndDate;
     }
 
-    // 로드맵 localStorage 저장
+    // 로드맵 프로젝트별 격리 저장 (프로젝트마다 다른 간트바 보장)
     if (typeof window !== "undefined") {
+      localStorage.setItem(`onequiz_roadmap_data_${promotingItem.id}`, JSON.stringify(roadmapData));
       localStorage.setItem("onequiz_roadmap_data", JSON.stringify(roadmapData));
       localStorage.setItem("onequiz_selected_project_id", promotingItem.id);
+    }
+
+    if (session?.user?.email) {
+      try {
+        fetch("/api/roadmap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...roadmapData, projectId: promotingItem.id }),
+        });
+      } catch {}
     }
 
     // 3. 백로그 항목 상태를 'promoted'로 변경
@@ -584,40 +581,32 @@ export function BacklogView() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-on-surface tracking-tight">
+            <h1 className="ui-page-title">
               아이디어 (백로그)
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-[11px] font-semibold font-mono">
+            <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono">
               {backlogs.length}개
             </span>
           </div>
-          <p className="text-xs text-on-surface-variant font-light mt-0.5">
+          <p className="ui-page-subtitle mt-0.5">
             등록된 아이디어를 칸반 보드에서 검토하고, 진행 확정된 항목을 <strong>프로젝트</strong>로 전환하여 로드맵을 관리할 수 있습니다.
           </p>
         </div>
 
         {/* 우측 퀵 컨트롤 버튼들 */}
-        <div className="flex flex-wrap items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
           {/* 저장 상태 인디케이터 */}
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 
-          {/* 전체 공개 토글 버튼 */}
+          {/* 전체 공개 (팀원 기능 업데이트 전까지 임시 비활성화) */}
           <button
-            onClick={handleTogglePublic}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all cursor-pointer border ${
-              isPublicBoard
-                ? "bg-surface-container text-primary border-primary/30"
-                : "bg-surface-container-low text-on-surface-variant border-outline-variant hover:text-on-surface"
-            }`}
-            title={
-              isPublicBoard
-                ? "로그인하지 않은 방문자도 열람 가능 (클릭 시 링크 복사)"
-                : "비공개 상태 (팀원 전용)"
-            }
+            type="button"
+            disabled
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium border border-outline-variant/60 bg-surface-container-low text-on-surface-variant/50 cursor-not-allowed opacity-60 text-xs"
+            title="팀원 초대 기능 출시 전까지 임시 비활성화됩니다"
           >
-            {isPublicBoard ? <Globe size={13} /> : <Lock size={13} />}
-            <span>{isPublicBoard ? "전체 공개 중" : "비공개"}</span>
-            {isCopied && <Check size={12} className="text-primary ml-1" />}
+            <Globe size={13} />
+            <span>전체 공개 (준비 중)</span>
           </button>
 
           {/* 프로젝트 로드맵 바로가기 버튼 */}
@@ -626,9 +615,9 @@ export function BacklogView() {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-low hover:bg-surface-container border border-outline-variant font-medium text-on-surface transition-colors"
             title="프로젝트 로드맵 타임라인으로 이동"
           >
-            <FolderGit2 size={13} className="text-primary" />
+            <FolderGit2 size={14} className="text-primary" />
             <span>로드맵 보기</span>
-            <ArrowRight size={12} className="text-on-surface-variant" />
+            <ArrowRight size={13} className="text-on-surface-variant" />
           </Link>
 
           {/* 새 백로그 추가 버튼 */}
@@ -636,7 +625,7 @@ export function BacklogView() {
             onClick={() => handleOpenCreateModal("idea")}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary hover:opacity-90 text-on-primary font-semibold rounded-md transition-all cursor-pointer"
           >
-            <Plus size={14} />
+            <Plus size={15} />
             <span>새 백로그</span>
           </button>
         </div>
@@ -645,7 +634,7 @@ export function BacklogView() {
       {/* 2. 검색창 및 태그 필터 바 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         {/* 태그 필터 칩 */}
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        <div className="flex flex-wrap items-center gap-1.5 text-sm">
           <button
             onClick={() => setSelectedTag(null)}
             className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
@@ -675,19 +664,19 @@ export function BacklogView() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsArchiveModalOpen(true)}
-            className="px-2.5 py-1.5 rounded-md font-medium text-xs transition-colors cursor-pointer flex items-center gap-1.5 border shrink-0 bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low border-outline-variant"
+            className="px-2.5 py-1.5 rounded-md font-medium text-sm transition-colors cursor-pointer flex items-center gap-1.5 border shrink-0 bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low border-outline-variant"
             title="완료(종료)된 프로젝트 보관함 열기"
           >
-            <Archive size={13} className="text-primary" />
+            <Archive size={14} className="text-primary" />
             <span>끝난 보관함</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-surface-container text-primary text-[10px] font-mono font-bold">
+            <span className="px-1.5 py-0.2 rounded-full bg-surface-container text-primary text-xs font-mono font-bold">
               {completedBacklogs.length}
             </span>
           </button>
 
           <div className="relative sm:w-64">
             <Search
-              size={13}
+              size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none"
             />
             <input
@@ -695,7 +684,7 @@ export function BacklogView() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="백로그 제목·설명 검색..."
-              className="w-full pl-8 pr-3 py-1.5 bg-surface-container-lowest border border-outline-variant rounded-md text-xs text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary transition-all font-light"
+              className="w-full pl-8 pr-3 py-1.5 bg-surface-container-lowest border border-outline-variant rounded-md text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary transition-all font-light"
             />
           </div>
         </div>
@@ -709,15 +698,15 @@ export function BacklogView() {
               <FolderGit2 size={18} />
             </div>
             <div>
-              <p className="text-sm font-semibold text-on-surface">등록된 백로그 아이템이 없습니다</p>
-              <p className="text-xs text-on-surface-variant font-light">
+              <p className="text-base font-semibold text-on-surface">등록된 백로그 아이템이 없습니다</p>
+              <p className="text-sm text-on-surface-variant font-light">
                 새 아이디어를 추가하고 검토 후 프로젝트 로드맵으로 연동해보세요.
               </p>
             </div>
           </div>
           <button
             onClick={() => handleOpenCreateModal("idea")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-xs shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-on-primary text-sm font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-xs shrink-0"
           >
             <Plus size={14} />
             <span>아이디어 추가</span>
@@ -746,17 +735,17 @@ export function BacklogView() {
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-primary" />
                   <div>
-                    <h3 className="font-semibold text-xs text-on-surface leading-tight">
+                    <h3 className="font-semibold text-sm text-on-surface leading-tight">
                       {col.label}
                     </h3>
-                    <p className="text-[10px] text-on-surface-variant font-light leading-tight">
+                    <p className="text-xs text-on-surface-variant font-light leading-tight">
                       {col.subLabel}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <span className="px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant text-[11px] font-mono font-medium">
+                  <span className="px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant text-xs font-mono font-medium">
                     {colItems.length}
                   </span>
                   <button
@@ -764,7 +753,7 @@ export function BacklogView() {
                     className="p-1 rounded text-on-surface-variant hover:text-on-surface cursor-pointer"
                     title="이 컬럼에 백로그 추가"
                   >
-                    <Plus size={13} />
+                    <Plus size={14} />
                   </button>
                 </div>
               </div>
@@ -772,10 +761,10 @@ export function BacklogView() {
               {/* 카드 목록 컨테이너 (스크롤 모듈 적용) */}
               <ScrollArea orientation="vertical" maxHeight="calc(100vh - 280px)" className="flex-1 space-y-2.5 pr-1">
                 {colItems.length === 0 && (!isOver || dragOverTargetIndex !== 0) ? (
-                  <div className="py-14 text-center text-on-surface-variant text-xs border border-dashed border-outline-variant rounded-md font-light">
+                  <div className="py-14 text-center text-on-surface-variant text-sm border border-dashed border-outline-variant rounded-md font-light">
                     비어 있음
                     <br />
-                    <span className="text-[11px] opacity-75">
+                    <span className="text-xs opacity-75">
                       + 로 추가 또는 여기로 드래그
                     </span>
                   </div>
@@ -805,13 +794,13 @@ export function BacklogView() {
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-medium border ${badge.className}`}
+                                className={`px-2 py-0.5 rounded text-xs font-medium border ${badge.className}`}
                               >
                                 {badge.text}
                               </span>
                               {item.status === "promoted" && (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-surface-container text-secondary border border-outline-variant flex items-center gap-1">
-                                  <CheckCircle2 size={10} />
+                                <span className="px-2 py-0.5 rounded text-xs font-medium bg-surface-container text-secondary border border-outline-variant flex items-center gap-1">
+                                  <CheckCircle2 size={12} />
                                   <span>로드맵 반영됨</span>
                                 </span>
                               )}
@@ -823,20 +812,20 @@ export function BacklogView() {
                                 className="p-1 text-on-surface-variant hover:text-on-surface rounded cursor-pointer"
                                 title="수정"
                               >
-                                <Edit2 size={11} />
+                                <Edit2 size={12} />
                               </button>
                               <button
                                 onClick={() => handleDeleteBacklog(item.id)}
                                 className="p-1 text-on-surface-variant hover:text-destructive rounded cursor-pointer"
                                 title="삭제"
                               >
-                                <Trash2 size={11} />
+                                <Trash2 size={12} />
                               </button>
                             </div>
                           </div>
 
                           {/* 카드 제목 */}
-                          <h4 className="font-semibold text-xs sm:text-sm text-on-surface leading-snug">
+                          <h4 className="font-bold text-sm sm:text-base text-on-surface leading-snug">
                             {item.title}
                           </h4>
 
@@ -844,7 +833,7 @@ export function BacklogView() {
                           {item.description && (
                             <div className="space-y-1">
                               <p
-                                className={`text-[11px] text-on-surface-variant font-light leading-relaxed transition-all ${
+                                className={`text-xs sm:text-sm text-on-surface-variant font-light leading-relaxed transition-all ${
                                   isExpanded ? "" : "line-clamp-2"
                                 }`}
                               >
@@ -857,17 +846,17 @@ export function BacklogView() {
                                     e.stopPropagation();
                                     toggleCardExpand(item.id);
                                   }}
-                                  className="text-[10px] text-primary hover:underline font-semibold flex items-center gap-0.5 cursor-pointer"
+                                  className="text-xs text-primary hover:underline font-semibold flex items-center gap-0.5 cursor-pointer"
                                 >
                                   {isExpanded ? (
                                     <>
                                       <span>접기</span>
-                                      <ChevronUp size={10} />
+                                      <ChevronUp size={11} />
                                     </>
                                   ) : (
                                     <>
                                       <span>더보기</span>
-                                      <ChevronDown size={10} />
+                                      <ChevronDown size={11} />
                                     </>
                                   )}
                                 </button>
@@ -881,13 +870,13 @@ export function BacklogView() {
                               {item.tags.slice(0, 3).map((t) => (
                                 <span
                                   key={t}
-                                  className="text-[10px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant font-light"
+                                  className="text-xs px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant font-light"
                                 >
                                   #{t}
                                 </span>
                               ))}
                               {item.tags.length > 3 && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant font-mono">
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant font-mono">
                                   +{item.tags.length - 3}
                                 </span>
                               )}
@@ -895,8 +884,8 @@ export function BacklogView() {
                           )}
 
                           {/* 카드 하단 메타 & 프로젝트 전환 버튼 */}
-                          <div className="pt-2 border-t border-outline-variant flex items-center justify-between text-[11px]">
-                            <span className="text-on-surface-variant font-mono text-[10px] font-light">
+                          <div className="pt-2 border-t border-outline-variant flex items-center justify-between text-xs">
+                            <span className="text-on-surface-variant font-mono text-xs font-light">
                               {item.createdAt}
                             </span>
 
@@ -904,10 +893,10 @@ export function BacklogView() {
                             {item.status !== "promoted" ? (
                               <button
                                 onClick={() => handleOpenPromoteModal(item)}
-                                className="flex items-center gap-1 px-2 py-1 rounded bg-surface-container hover:bg-surface-container-high text-primary font-medium text-[11px] transition-colors cursor-pointer"
+                                className="flex items-center gap-1 px-2.5 py-1 rounded bg-surface-container hover:bg-surface-container-high text-primary font-medium text-xs transition-colors cursor-pointer"
                                 title="프로젝트 로드맵으로 등록합니다"
                               >
-                                <Calendar size={11} />
+                                <Calendar size={12} />
                                 <span>프로젝트로 전환</span>
                               </button>
                             ) : (
@@ -918,10 +907,10 @@ export function BacklogView() {
                                     e.stopPropagation();
                                     handleCompleteBacklog(item);
                                   }}
-                                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-[11px] transition-colors cursor-pointer"
+                                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-xs transition-colors cursor-pointer"
                                   title="프로젝트를 완료 처리하고 '끝난 보관함'으로 이동합니다"
                                 >
-                                  <CheckCheck size={11} />
+                                  <CheckCheck size={12} />
                                   <span>종료</span>
                                 </button>
                                 <Link
@@ -931,11 +920,11 @@ export function BacklogView() {
                                       localStorage.setItem("onequiz_selected_project_id", item.id);
                                     }
                                   }}
-                                  className="flex items-center gap-0.5 text-on-surface-variant hover:text-primary font-medium text-[11px] transition-colors"
+                                  className="flex items-center gap-0.5 text-on-surface-variant hover:text-primary font-medium text-xs transition-colors"
                                   title="프로젝트 로드맵 화면으로 이동"
                                 >
                                   <span>로드맵</span>
-                                  <ArrowRight size={10} />
+                                  <ArrowRight size={11} />
                                 </Link>
                               </div>
                             )}
@@ -959,9 +948,9 @@ export function BacklogView() {
               {/* 하단 추가 버튼 */}
               <button
                 onClick={() => handleOpenCreateModal(col.id)}
-                className="mt-2.5 w-full py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-xs font-medium rounded-md border border-dashed border-outline-variant transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                className="mt-2.5 w-full py-2 bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-sm font-medium rounded-md border border-dashed border-outline-variant transition-colors flex items-center justify-center gap-1 cursor-pointer"
               >
-                <Plus size={12} />
+                <Plus size={14} />
                 <span>항목 추가</span>
               </button>
             </div>
@@ -985,9 +974,9 @@ export function BacklogView() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveBacklogSubmit} className="space-y-3.5 text-xs sm:text-sm">
+            <form onSubmit={handleSaveBacklogSubmit} className="space-y-3.5 text-sm">
               <div>
-                <label className="block font-medium text-on-surface mb-1 text-xs">
+                <label className="block font-medium text-on-surface mb-1 text-sm">
                   제목 <span className="text-destructive">*</span>
                 </label>
                 <input
@@ -995,30 +984,30 @@ export function BacklogView() {
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
                   placeholder="예: 기출문제 오답노트 PDF 내보내기"
-                  className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-md text-on-surface focus:outline-none focus:border-primary font-light text-xs"
+                  className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-md text-on-surface focus:outline-none focus:border-primary font-light text-sm"
                   required
                   autoFocus
                 />
               </div>
 
               <div>
-                <label className="block font-medium text-on-surface mb-1 text-xs">상세 설명</label>
+                <label className="block font-medium text-on-surface mb-1 text-sm">상세 설명</label>
                 <textarea
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
                   placeholder="아이디어에 대한 세부 요구사항이나 배경을 작성합니다."
                   rows={3}
-                  className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-md text-on-surface focus:outline-none focus:border-primary font-light text-xs resize-none"
+                  className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-md text-on-surface focus:outline-none focus:border-primary font-light text-sm resize-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-medium text-on-surface mb-1 text-xs">상태</label>
+                  <label className="block font-medium text-on-surface mb-1 text-sm">상태</label>
                   <select
                     value={formStatus}
                     onChange={(e) => setFormStatus(e.target.value as BacklogItem["status"])}
-                    className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md font-medium text-xs text-on-surface"
+                    className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md font-medium text-sm text-on-surface"
                   >
                     <option value="idea">아이디어</option>
                     <option value="review">검토 중</option>
@@ -1028,11 +1017,11 @@ export function BacklogView() {
                 </div>
 
                 <div>
-                  <label className="block font-medium text-on-surface mb-1 text-xs">우선순위</label>
+                  <label className="block font-medium text-on-surface mb-1 text-sm">우선순위</label>
                   <select
                     value={formPriority}
                     onChange={(e) => setFormPriority(e.target.value as BacklogItem["priority"])}
-                    className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md font-medium text-xs text-on-surface"
+                    className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md font-medium text-sm text-on-surface"
                   >
                     <option value="urgent">긴급 (Urgent)</option>
                     <option value="high">높음 (High)</option>
@@ -1043,24 +1032,24 @@ export function BacklogView() {
               </div>
 
               <div>
-                <label className="block font-medium text-on-surface mb-1 text-xs">태그 (쉼표 구분)</label>
+                <label className="block font-medium text-on-surface mb-1 text-sm">태그 (쉼표 구분)</label>
                 <input
                   type="text"
                   value={formTagsStr}
                   onChange={(e) => setFormTagsStr(e.target.value)}
                   placeholder="UIUX, 기출, 모듈화"
-                  className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md font-light text-xs text-on-surface"
+                  className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md font-light text-sm text-on-surface"
                 />
               </div>
 
               <div>
-                <label className="block font-medium text-on-surface mb-1 text-xs">담당자</label>
+                <label className="block font-medium text-on-surface mb-1 text-sm">담당자</label>
                 <input
                   type="text"
                   value={formAssignee}
                   onChange={(e) => setFormAssignee(e.target.value)}
                   placeholder="예: 홍길동, 개발자 A"
-                  className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md font-light text-xs text-on-surface"
+                  className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md font-light text-sm text-on-surface"
                 />
               </div>
 
@@ -1068,13 +1057,13 @@ export function BacklogView() {
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="flex-1 py-2 bg-surface-container-low hover:bg-surface-container rounded-md font-medium text-xs cursor-pointer transition-colors"
+                  className="flex-1 py-2 bg-surface-container-low hover:bg-surface-container rounded-md font-medium text-sm cursor-pointer transition-colors"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 bg-primary text-on-primary font-semibold rounded-md text-xs cursor-pointer hover:opacity-90 transition-opacity"
+                  className="flex-1 py-2 bg-primary text-on-primary font-semibold rounded-md text-sm cursor-pointer hover:opacity-90 transition-opacity"
                 >
                   {editingItem ? "수정 완료" : "등록"}
                 </button>
@@ -1103,17 +1092,17 @@ export function BacklogView() {
               </button>
             </div>
 
-            <p className="text-xs text-on-surface-variant font-light">
+            <p className="text-sm text-on-surface-variant font-light">
               선택한 백로그를 프로젝트 타임라인으로 등록하고 기간을 배정합니다.
             </p>
 
-            <form onSubmit={handleConfirmPromote} className="space-y-3.5 text-xs sm:text-sm">
+            <form onSubmit={handleConfirmPromote} className="space-y-3.5 text-sm">
               <div>
-                <label className="block font-medium text-on-surface mb-1 text-xs">로드맵 항목명</label>
+                <label className="block font-medium text-on-surface mb-1 text-sm">로드맵 항목명</label>
                 <input
                   type="text"
                   defaultValue={promotingItem.title}
-                  className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md font-medium text-xs"
+                  className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md font-medium text-sm"
                   required
                 />
               </div>
@@ -1121,22 +1110,22 @@ export function BacklogView() {
               {/* 기간 설정: 시작일 ~ 종료일 */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-medium text-on-surface mb-1 text-xs">시작일</label>
+                  <label className="block font-medium text-on-surface mb-1 text-sm">시작일</label>
                   <input
                     type="date"
                     value={promoteStartDate}
                     onChange={(e) => setPromoteStartDate(e.target.value)}
-                    className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-xs font-mono"
+                    className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-sm font-mono"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block font-medium text-on-surface mb-1 text-xs">종료일</label>
+                  <label className="block font-medium text-on-surface mb-1 text-sm">종료일</label>
                   <input
                     type="date"
                     value={promoteEndDate}
                     onChange={(e) => setPromoteEndDate(e.target.value)}
-                    className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-xs font-mono"
+                    className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-sm font-mono"
                     required
                   />
                 </div>
@@ -1144,7 +1133,7 @@ export function BacklogView() {
 
               {/* 간트 바 색상 선택 */}
               <div>
-                <label className="block font-medium text-on-surface mb-1 text-xs">간트 바 색상</label>
+                <label className="block font-medium text-on-surface mb-1 text-sm">간트 바 색상</label>
                 <div className="flex gap-2">
                   {["#0284c7", "#0369a1", "#075985", "#059669", "#475569"].map((c) => (
                     <button
@@ -1160,9 +1149,9 @@ export function BacklogView() {
                 </div>
               </div>
 
-              <div className="p-3 bg-surface-container-low border border-outline-variant rounded-md text-xs space-y-1">
-                <p className="font-semibold text-on-surface text-[11px]">안내 사항</p>
-                <p className="text-on-surface-variant font-light text-[11px] leading-relaxed">
+              <div className="p-3 bg-surface-container-low border border-outline-variant rounded-md text-sm space-y-1">
+                <p className="font-semibold text-on-surface text-xs">안내 사항</p>
+                <p className="text-on-surface-variant font-light text-xs leading-relaxed">
                   등록 후 프로젝트 페이지에서 주차별 타임라인 바 확인 및 초대된 팀원들과 댓글 피드백을 작성할 수 있습니다.
                 </p>
               </div>
@@ -1171,15 +1160,15 @@ export function BacklogView() {
                 <button
                   type="button"
                   onClick={() => setPromotingItem(null)}
-                  className="flex-1 py-2 bg-surface-container-low hover:bg-surface-container rounded-md font-medium text-xs cursor-pointer"
+                  className="flex-1 py-2 bg-surface-container-low hover:bg-surface-container rounded-md font-medium text-sm cursor-pointer"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 bg-primary text-on-primary font-semibold rounded-md text-xs cursor-pointer hover:opacity-90 flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 bg-primary text-on-primary font-semibold rounded-md text-sm cursor-pointer hover:opacity-90 flex items-center justify-center gap-1.5"
                 >
-                  <Calendar size={13} />
+                  <Calendar size={14} />
                   <span>로드맵 등록 완료</span>
                 </button>
               </div>
@@ -1199,10 +1188,10 @@ export function BacklogView() {
                   <Archive size={17} />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-base text-on-surface leading-tight">
+                  <h3 className="font-semibold text-base sm:text-lg text-on-surface leading-tight">
                     끝난 프로젝트 보관함
                   </h3>
-                  <p className="text-xs text-on-surface-variant font-light mt-0.5">
+                  <p className="text-sm text-on-surface-variant font-light mt-0.5">
                     완료 처리되어 칸반 보드와 프로젝트 목록에서 보관된 항목들입니다.
                   </p>
                 </div>
@@ -1228,8 +1217,8 @@ export function BacklogView() {
                   <div className="w-10 h-10 rounded-full bg-surface-container text-on-surface-variant flex items-center justify-center mx-auto">
                     <CheckCheck size={20} />
                   </div>
-                  <p className="text-xs font-medium text-on-surface">보관된 완료 프로젝트가 없습니다</p>
-                  <p className="text-[11px] text-on-surface-variant font-light">
+                  <p className="text-sm font-medium text-on-surface">보관된 완료 프로젝트가 없습니다</p>
+                  <p className="text-xs text-on-surface-variant font-light">
                     &apos;프로젝트 전환 완료&apos; 칸에서 [종료]를 누르면 여기에 정리 보관됩니다.
                   </p>
                 </div>
@@ -1242,29 +1231,29 @@ export function BacklogView() {
                     >
                       <div className="space-y-1.5 flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-surface-container text-primary border border-outline-variant flex items-center gap-1">
-                            <CheckCircle2 size={10} />
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-surface-container text-primary border border-outline-variant flex items-center gap-1">
+                            <CheckCircle2 size={12} />
                             <span>완료됨</span>
                           </span>
                           {item.completedAt && (
-                            <span className="text-[10px] font-mono text-on-surface-variant font-light">
+                            <span className="text-xs font-mono text-on-surface-variant font-light">
                               완료일: {item.completedAt}
                             </span>
                           )}
                           {item.tags.map((t) => (
                             <span
                               key={t}
-                              className="text-[10px] px-1.5 py-0.2 rounded bg-surface-container text-on-surface-variant font-light"
+                              className="text-xs px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant font-light"
                             >
                               #{t}
                             </span>
                           ))}
                         </div>
-                        <h4 className="font-semibold text-sm text-on-surface truncate">
+                        <h4 className="font-bold text-base text-on-surface truncate">
                           {item.title}
                         </h4>
                         {item.description && (
-                          <p className="text-xs text-on-surface-variant font-light line-clamp-2">
+                          <p className="text-sm text-on-surface-variant font-light line-clamp-2">
                             {item.description}
                           </p>
                         )}
@@ -1275,10 +1264,10 @@ export function BacklogView() {
                         <button
                           type="button"
                           onClick={() => handleRestoreBacklog(item)}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-surface-container hover:bg-surface-container-high text-on-surface font-medium text-xs transition-colors cursor-pointer border border-outline-variant"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-surface-container hover:bg-surface-container-high text-on-surface font-medium text-sm transition-colors cursor-pointer border border-outline-variant"
                           title="다시 프로젝트 진행 중으로 복원합니다"
                         >
-                          <RotateCcw size={12} className="text-primary" />
+                          <RotateCcw size={13} className="text-primary" />
                           <span>다시 진행하기</span>
                         </button>
                         <Link
@@ -1289,11 +1278,11 @@ export function BacklogView() {
                             }
                             setIsArchiveModalOpen(false);
                           }}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-primary text-on-primary font-medium text-xs hover:opacity-90 transition-opacity"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-primary text-on-primary font-medium text-sm hover:opacity-90 transition-opacity"
                           title="타임라인 로드맵 및 히스토리 보기"
                         >
                           <span>기록 보기</span>
-                          <ArrowRight size={12} />
+                          <ArrowRight size={13} />
                         </Link>
                         <button
                           type="button"
@@ -1301,7 +1290,7 @@ export function BacklogView() {
                           className="p-1.5 text-on-surface-variant hover:text-destructive rounded-md cursor-pointer transition-colors"
                           title="영구 삭제"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </div>
@@ -1315,7 +1304,7 @@ export function BacklogView() {
               <button
                 type="button"
                 onClick={() => setIsArchiveModalOpen(false)}
-                className="px-4 py-2 bg-surface-container hover:bg-surface-container-high rounded-md font-medium text-xs cursor-pointer transition-colors text-on-surface"
+                className="px-4 py-2 bg-surface-container hover:bg-surface-container-high rounded-md font-medium text-sm cursor-pointer transition-colors text-on-surface"
               >
                 닫기
               </button>
@@ -1344,14 +1333,14 @@ function GhostBacklogCard({ item }: { item: BacklogItem }) {
   return (
     <div className="border-2 border-dashed border-primary bg-primary/[0.04] rounded-md p-3 space-y-1.5 opacity-70 pointer-events-none transition-all">
       <div className="flex items-center justify-between">
-        <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${badge.className}`}>
+        <span className={`px-2 py-0.5 rounded text-xs font-medium border ${badge.className}`}>
           {badge.text}
         </span>
-        <span className="text-[10px] font-mono text-primary font-medium">이동 예정 위치</span>
+        <span className="text-xs font-mono text-primary font-medium">이동 예정 위치</span>
       </div>
-      <h4 className="font-semibold text-xs text-on-surface line-clamp-1">{item.title}</h4>
+      <h4 className="font-semibold text-sm text-on-surface line-clamp-1">{item.title}</h4>
       {item.description && (
-        <p className="text-[11px] text-on-surface-variant font-light line-clamp-1">
+        <p className="text-xs text-on-surface-variant font-light line-clamp-1">
           {item.description}
         </p>
       )}

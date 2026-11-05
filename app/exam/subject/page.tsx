@@ -86,12 +86,12 @@ function SubjectSelectionContent() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-on-surface tracking-tight">과목 선택</h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-primary text-[11px] font-semibold font-mono">
+            <h1 className="ui-page-title">과목 선택</h1>
+            <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-primary font-mono">
               1단계 / 총 2단계
             </span>
           </div>
-          <p className="text-xs text-on-surface-variant font-light mt-0.5">
+          <p className="ui-page-subtitle mt-0.5">
             응시할 과목을 복수로 선택할 수 있습니다.
           </p>
         </div>

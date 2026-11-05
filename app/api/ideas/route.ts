@@ -56,11 +56,22 @@ async function handlePost(req: Request) {
   await dbConnect();
   const body = await req.json();
 
-  // 배열인 경우 (일괄 동기화)
+  // 배열인 경우 (일괄 동기화 - bulkWrite로 단 1회의 DB 요청으로 고속 일괄 처리)
   if (Array.isArray(body)) {
-    const results = [];
-    for (const item of body) {
-      const docData = {
+    if (body.length === 0) {
+      return NextResponse.json({ success: true, count: 0 }, { status: 200 });
+    }
+
+    const defaultAuthor = session?.user?.email || "guest@onequiz.com";
+    const now = new Date();
+
+    const operations = body.map((item) => {
+      const itemId = item.id || (item._id ? String(item._id) : `idea-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+      const isObjectId = item._id && String(item._id).length === 24;
+      const filter = isObjectId ? { _id: item._id } : { id: itemId };
+
+      const updateFields: Record<string, unknown> = {
+        id: itemId,
         title: item.title,
         description: item.description || "",
         status: item.status || "idea",
@@ -73,28 +84,33 @@ async function handlePost(req: Request) {
         endDate: item.endDate,
         color: item.color || "#0284c7",
         completedAt: item.completedAt ? new Date(item.completedAt) : undefined,
-        authorEmail: item.authorEmail || session?.user?.email || "guest@onequiz.com",
-        updatedAt: new Date(),
+        updatedAt: now,
       };
 
-      if (item._id && String(item._id).length === 24) {
-        const updated = await Idea.findByIdAndUpdate(item._id, docData, { new: true, upsert: true });
-        results.push(updated);
-      } else {
-        const created = await Idea.create({
-          ...docData,
-          createdAt: new Date(),
-          historyLogs: [{ message: "✨ 최초 아이디어 생성", changes: [], updatedAt: new Date() }],
-        });
-        results.push(created);
-      }
-    }
-    return NextResponse.json({ success: true, data: results }, { status: 201 });
+      return {
+        updateOne: {
+          filter,
+          update: {
+            $set: updateFields,
+            $setOnInsert: {
+              authorEmail: item.authorEmail || defaultAuthor,
+              createdAt: now,
+              historyLogs: [{ message: "✨ 최초 아이디어 생성", changes: [], updatedAt: now }],
+            },
+          },
+          upsert: true,
+        },
+      };
+    });
+
+    await Idea.bulkWrite(operations);
+    return NextResponse.json({ success: true, count: operations.length }, { status: 201 });
   }
 
   // 단일 아이템 생성
   const newDocData = {
     ...body,
+    id: body.id || `idea-${Date.now()}`,
     authorEmail: body.authorEmail || session?.user?.email || "guest@onequiz.com",
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -119,6 +135,9 @@ async function handlePut(req: Request) {
   let existing = null;
   if (String(targetId).length === 24) {
     existing = await Idea.findById(targetId);
+  }
+  if (!existing) {
+    existing = await Idea.findOne({ id: targetId });
   }
 
   const { status, priority, title, description, commitMessage, tags, isPublic, assignee, promotedToProjectId, startDate, endDate, color } = body;
@@ -174,7 +193,7 @@ async function handlePut(req: Request) {
   let updated = null;
   if (existing) {
     updated = await Idea.findByIdAndUpdate(
-      targetId,
+      existing._id,
       {
         ...updateData,
         $push: { historyLogs: { message: logMsg, changes, updatedAt: new Date() } },

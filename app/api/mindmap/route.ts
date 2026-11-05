@@ -80,7 +80,7 @@ async function handlePut(req: Request) {
   const updated = await Mindmap.findOneAndUpdate(
     { _id: mapId, authorEmail: session.user.email },
     { ...updateFields, lastEdited: new Date().toISOString().slice(0, 10) },
-    { new: true },
+    { returnDocument: "after" },
   );
 
   if (!updated) {

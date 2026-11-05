@@ -108,7 +108,7 @@ export const authOptions = {
           await User.findOneAndUpdate(
             { providerAccountId: token.providerAccountId },
             { $set: { email: session.user.email } },
-            { new: true },
+            { returnDocument: "after" },
           );
         } else if (user?.email) {
           token.email = user.email;

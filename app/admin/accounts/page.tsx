@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Shield, Search, UserCheck } from "lucide-react";
+import { Shield, Search, UserCheck, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useMounted } from "@/lib/hooks/useMounted";
 import { toast } from "@/lib/toast";
@@ -18,6 +18,7 @@ interface UserType {
 export default function AdminAccountsPage() {
   const [users, setUsers] = useState<UserType[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
   const mounted = useMounted();
 
   const fetchUsers = useCallback(async () => {
@@ -29,6 +30,8 @@ export default function AdminAccountsPage() {
       }
     } catch {
       console.error("Failed to fetch users");
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -43,6 +46,10 @@ export default function AdminAccountsPage() {
         }
       } catch {
         console.error("Failed to fetch users");
+      } finally {
+        if (!ignore) {
+          setIsLoading(false);
+        }
       }
     }
     load();
@@ -152,7 +159,23 @@ export default function AdminAccountsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/60 font-light">
-                {filteredUsers.map((u) => (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={5} className="py-16 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Loader2 size={24} className="animate-spin text-primary" />
+                        <span className="text-xs text-on-surface-variant font-medium">회원 목록을 불러오는 중...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-xs text-on-surface-variant font-light">
+                      등록된 회원이 없거나 검색 결과가 없습니다.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((u) => (
                   <tr key={u._id} className="hover:bg-surface-container-low/40 transition-colors">
                     <td className="py-2.5 px-3">
                       <div className="flex items-center gap-2">
@@ -206,7 +229,7 @@ export default function AdminAccountsPage() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                )))}
               </tbody>
             </table>
           </div>

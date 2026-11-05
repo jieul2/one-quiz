@@ -87,8 +87,11 @@ export function CalendarView() {
 
   // ================= 2. 마우스 리사이즈(기간 조절) 상태 =================
   const [resizingEvent, setResizingEvent] = useState<CalendarEvent | null>(null);
+  const [, setResizingEdge] = useState<"start" | "end">("end");
+  const [resizePreviewStartDate, setResizePreviewStartDate] = useState<string | null>(null);
   const [resizePreviewEndDate, setResizePreviewEndDate] = useState<string | null>(null);
   const isResizingRef = useRef(false);
+  const resizingEdgeRef = useRef<"start" | "end">("end");
 
   // 일정 목록 서버 로드
   const fetchEvents = useCallback(async () => {
@@ -197,7 +200,7 @@ export function CalendarView() {
     }
   };
 
-  // ================= 3. 마우스 리사이즈 전역 이벤트 =================
+  // ================= 3. 마우스 리사이즈 전역 이벤트 (시작일/종료일 양방향 지원) =================
   useEffect(() => {
     const handleGlobalMouseMove = (e: MouseEvent) => {
       if (!isResizingRef.current || !resizingEvent) return;
@@ -206,8 +209,18 @@ export function CalendarView() {
       const cellElem = elem?.closest("[data-date-key]");
       if (cellElem) {
         const dateKey = cellElem.getAttribute("data-date-key");
-        if (dateKey && dateKey >= resizingEvent.startDate.slice(0, 10)) {
-          setResizePreviewEndDate(dateKey);
+        if (dateKey) {
+          if (resizingEdgeRef.current === "start") {
+            const currentEnd = resizePreviewEndDate || resizingEvent.endDate.slice(0, 10);
+            if (dateKey <= currentEnd) {
+              setResizePreviewStartDate(dateKey);
+            }
+          } else {
+            const currentStart = resizePreviewStartDate || resizingEvent.startDate.slice(0, 10);
+            if (dateKey >= currentStart) {
+              setResizePreviewEndDate(dateKey);
+            }
+          }
         }
       }
     };
@@ -216,26 +229,40 @@ export function CalendarView() {
       if (!isResizingRef.current || !resizingEvent) return;
       isResizingRef.current = false;
 
-      if (resizePreviewEndDate && resizePreviewEndDate !== resizingEvent.endDate.slice(0, 10)) {
-        const newEndDate = resizingEvent.allDay
-          ? `${resizePreviewEndDate}T23:59:59`
-          : `${resizePreviewEndDate}${resizingEvent.endDate.slice(10)}`;
+      const newStartKey = resizePreviewStartDate || resizingEvent.startDate.slice(0, 10);
+      const newEndKey = resizePreviewEndDate || resizingEvent.endDate.slice(0, 10);
+
+      const hasChanged =
+        newStartKey !== resizingEvent.startDate.slice(0, 10) ||
+        newEndKey !== resizingEvent.endDate.slice(0, 10);
+
+      if (hasChanged && newStartKey <= newEndKey) {
+        const updatedStartDate = resizingEvent.allDay
+          ? `${newStartKey}T00:00:00`
+          : `${newStartKey}${resizingEvent.startDate.slice(10)}`;
+        const updatedEndDate = resizingEvent.allDay
+          ? `${newEndKey}T23:59:59`
+          : `${newEndKey}${resizingEvent.endDate.slice(10)}`;
 
         // 낙관적 업데이트
         setEvents((prev) =>
           prev.map((evt) =>
-            evt._id === resizingEvent._id ? { ...evt, endDate: newEndDate } : evt
+            evt._id === resizingEvent._id
+              ? { ...evt, startDate: updatedStartDate, endDate: updatedEndDate }
+              : evt
           )
         );
 
         // 서버 전송
         await handleSaveEvent({
           _id: resizingEvent._id,
-          endDate: newEndDate,
+          startDate: updatedStartDate,
+          endDate: updatedEndDate,
         });
       }
 
       setResizingEvent(null);
+      setResizePreviewStartDate(null);
       setResizePreviewEndDate(null);
     };
 
@@ -245,13 +272,20 @@ export function CalendarView() {
       window.removeEventListener("mousemove", handleGlobalMouseMove);
       window.removeEventListener("mouseup", handleGlobalMouseUp);
     };
-  }, [resizingEvent, resizePreviewEndDate, handleSaveEvent]);
+  }, [resizingEvent, resizePreviewStartDate, resizePreviewEndDate, handleSaveEvent]);
 
-  const handleResizeStart = (e: React.MouseEvent, event: CalendarEvent) => {
+  const handleResizeStart = (
+    e: React.MouseEvent,
+    event: CalendarEvent,
+    edge: "start" | "end" = "end"
+  ) => {
     e.stopPropagation();
     e.preventDefault();
     isResizingRef.current = true;
+    resizingEdgeRef.current = edge;
+    setResizingEdge(edge);
     setResizingEvent(event);
+    setResizePreviewStartDate(event.startDate.slice(0, 10));
     setResizePreviewEndDate(event.endDate.slice(0, 10));
   };
 
@@ -410,44 +444,68 @@ export function CalendarView() {
     return map;
   }, [filteredEvents]);
 
-  // 단일일(Single-day) 일정만 날짜별로 맵핑
-  const singleDayEventsByDate = useMemo(() => {
-    const map = new Map<string, CalendarEvent[]>();
-    filteredEvents.forEach((evt) => {
-      const startKey = evt.startDate.slice(0, 10);
-      const endKey = evt.endDate.slice(0, 10);
-      if (startKey === endKey) {
-        if (!map.has(startKey)) map.set(startKey, []);
-        map.get(startKey)!.push(evt);
-      }
-    });
-    return map;
-  }, [filteredEvents]);
-
-  // ================= 7. 주(Week) 단위 다중일 연속 바 트랙 배치 알고리즘 (사진 2 핵심) =================
+  // ================= 7. 주(Week) 단위 캘린더 막대 정렬 & 행 할당 알고리즘 =================
+  // [알고리즘 규칙 1. 정렬(Sorting)]
+  // 1순위: 시작 날짜(Start Date)가 가장 빠른(과거인) 순서대로 오름차순 정렬 (맨 위 행 선점)
+  // 2순위: 시작 날짜가 같다면 일정이 차지하는 '기간(Duration)'이 긴 순서대로 내림차순 정렬
+  // [알고리즘 규칙 2. 행 할당(Row Allocation)]
+  // 각 일정이 차지하는 날짜 범위 내에서, 0번 행(Row 0)부터 시작하여
+  // 해당 날짜들에 이미 배치된 다른 일정과 겹치지 않는 '가장 첫 번째 빈 행(Lowest available Row Index)'을 찾아 할당
   const getWeekSpanningTracks = useCallback(
     (days: DayCellData[]) => {
       const weekStartKey = days[0].dateKey;
       const weekEndKey = days[6].dateKey;
 
-      // 이번 주와 겹치는 다중일 일정 선별
-      const multiDayEvents = filteredEvents.filter((evt) => {
+      // 이번 주와 겹치는 모든 일정 (다중일 + 단일일)
+      const weekEvents = filteredEvents.filter((evt) => {
         const sKey = evt.startDate.slice(0, 10);
         const eKey = evt.endDate.slice(0, 10);
-        if (sKey === eKey) return false; // 단일일 제외
         return sKey <= weekEndKey && eKey >= weekStartKey;
       });
 
-      // 긴 일정 우선, 시작일 빠른 순 정렬
-      const sorted = [...multiDayEvents].sort((a, b) => {
-        const spanA = getDaysDiff(a.startDate.slice(0, 10), a.endDate.slice(0, 10));
-        const spanB = getDaysDiff(b.startDate.slice(0, 10), b.endDate.slice(0, 10));
-        if (spanB !== spanA) return spanB - spanA;
-        return a.startDate.localeCompare(b.startDate);
+      // 1. 정렬(Sorting):
+      // 🌟 1순위: '이번 주(Week)에서 시작하는 유효 날짜'가 빠른 순서 (오름차순)
+      //          -> 1주차(11.02~11.08): 11.02 시작인 3이 11.04 시작인 1보다 위(Row 0)에 배치!
+      // 🌟 2순위: 이번 주 시작일이 같다면 (2주차처럼 둘 다 지난주에서 이어져 월요일부터 시작할 때),
+      //          '전체 기간(Duration)'이 길거나 종료일이 더 늦은 일정을 위쪽(Row 0)에 우선 배치!
+      //          -> 2주차(11.09~11.15): 11.18까지 가는 1이 위(Row 0), 11.13에 끝나는 3이 아래(Row 1)에 배치!
+      const sorted = [...weekEvents].sort((a, b) => {
+        const sA = a.startDate.slice(0, 10);
+        const eA = a.endDate.slice(0, 10);
+        const sB = b.startDate.slice(0, 10);
+        const eB = b.endDate.slice(0, 10);
+
+        // 이번 주 내에서 바가 시작하는 유효 날짜 (지난주에서 이어져 왔으면 이번 주 첫날인 weekStartKey)
+        const effectiveStartA = sA < weekStartKey ? weekStartKey : sA;
+        const effectiveStartB = sB < weekStartKey ? weekStartKey : sB;
+
+        // 1순위: 이번 주 기준 시작일이 더 이른 일정 우선
+        if (effectiveStartA !== effectiveStartB) {
+          return effectiveStartA.localeCompare(effectiveStartB);
+        }
+
+        // 2순위: 이번 주 시작일이 같다면 전체 기간(Duration)이 더 긴 일정 우선
+        const durationA = Math.max(1, getDaysDiff(sA, eA) + 1);
+        const durationB = Math.max(1, getDaysDiff(sB, eB) + 1);
+        if (durationB !== durationA) {
+          return durationB - durationA;
+        }
+
+        // 3순위: 전체 종료일이 더 늦은 일정 우선
+        if (eA !== eB) {
+          return eB.localeCompare(eA);
+        }
+
+        // 4순위: 전체 시작일이 더 과거인 일정 우선
+        if (sA !== sB) {
+          return sA.localeCompare(sB);
+        }
+
+        return a.title.localeCompare(b.title);
       });
 
-      // 탐욕적 트랙 할당 (충돌 없는 최소 행 배치)
-      const tracks: number[][] = [];
+      // 2. 행 할당(Row Allocation): 0번 행부터 비어있는 가장 첫 번째 행(Lowest Row Index) 탐색
+      const rowOccupancy: boolean[][] = []; // [rowIdx][col 1..7]
       const segments: SpanningTrackSegment[] = [];
 
       for (const evt of sorted) {
@@ -468,23 +526,31 @@ export function CalendarView() {
         const endCol = Math.max(startCol, (endIdx === -1 ? 6 : endIdx) + 1);
         const colSpan = endCol - startCol + 1;
 
-        // 비어있는 트랙 탐색
-        let assignedTrack = -1;
-        for (let t = 0; t < tracks.length; t++) {
-          const hasCollision = tracks[t].some((c) => c >= startCol && c <= endCol);
+        // 0번 행(Row 0)부터 시작하여 startCol ~ endCol이 비어있는 가장 첫 번째 빈 행 찾기
+        let assignedRow = -1;
+        for (let r = 0; r < rowOccupancy.length; r++) {
+          let hasCollision = false;
+          for (let c = startCol; c <= endCol; c++) {
+            if (rowOccupancy[r][c]) {
+              hasCollision = true;
+              break;
+            }
+          }
           if (!hasCollision) {
-            assignedTrack = t;
+            assignedRow = r;
             break;
           }
         }
 
-        if (assignedTrack === -1) {
-          assignedTrack = tracks.length;
-          tracks.push([]);
+        // 비어있는 행이 없으면 새로운 행 생성
+        if (assignedRow === -1) {
+          assignedRow = rowOccupancy.length;
+          rowOccupancy.push(new Array(8).fill(false));
         }
 
+        // 해당 행에 점유 표시
         for (let c = startCol; c <= endCol; c++) {
-          tracks[assignedTrack].push(c);
+          rowOccupancy[assignedRow][c] = true;
         }
 
         segments.push({
@@ -494,12 +560,12 @@ export function CalendarView() {
           colSpan,
           isContinuationFromPrev,
           isContinuationToNext,
-          trackIndex: assignedTrack,
+          trackIndex: assignedRow,
         });
       }
 
       return {
-        trackCount: Math.max(1, tracks.length),
+        trackCount: Math.max(1, rowOccupancy.length),
         segments,
       };
     },
@@ -535,7 +601,7 @@ export function CalendarView() {
       {/* ================= 1. 최상단 헤더 (플랫 헤더 표준) ================= */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-on-surface tracking-tight">캘린더</h1>
+          <h1 className="ui-page-title">캘린더</h1>
         </div>
 
         <div className="flex items-center gap-2">
@@ -549,30 +615,30 @@ export function CalendarView() {
             className="p-1.5 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer border border-outline-variant"
             title="일정 새로고침"
           >
-            <RefreshCw size={14} className={isLoading ? "animate-spin text-primary" : ""} />
+            <RefreshCw size={15} className={isLoading ? "animate-spin text-primary" : ""} />
           </button>
 
           {/* + 일정 추가 버튼 */}
           <button
             onClick={() => handleOpenCreateModal()}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary hover:opacity-90 text-on-primary font-semibold rounded-md text-xs transition-all shadow-xs cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary hover:opacity-90 text-on-primary font-semibold rounded-md text-sm transition-all shadow-xs cursor-pointer"
           >
-            <Plus size={14} />
+            <Plus size={15} />
             <span>일정 추가</span>
           </button>
         </div>
       </div>
 
       {/* ================= 2. 서브 컨트롤 툴바 (사진1) ================= */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-sm">
         {/* 좌측: 카테고리 필터 + 이전/다음 월 + 오늘 버튼 */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <button
               onClick={() => setIsCategoryFilterOpen(!isCategoryFilterOpen)}
-              className="px-2.5 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-md font-medium transition-colors cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-md font-medium transition-colors cursor-pointer flex items-center gap-1.5 text-sm"
             >
-              <FolderPlus size={13} className="text-primary" />
+              <FolderPlus size={15} className="text-primary" />
               <span>
                 {selectedCategoryFilter === "all"
                   ? "카테고리"
@@ -581,13 +647,13 @@ export function CalendarView() {
             </button>
 
             {isCategoryFilterOpen && (
-              <div className="absolute left-0 top-full mt-1.5 w-36 bg-surface-container-lowest border border-outline-variant rounded-md shadow-lg p-1 z-30 space-y-0.5">
+              <div className="absolute left-0 top-full mt-1.5 w-40 bg-surface-container-lowest border border-outline-variant rounded-md shadow-lg p-1.5 z-30 space-y-0.5 text-sm">
                 <button
                   onClick={() => {
                     setSelectedCategoryFilter("all");
                     setIsCategoryFilterOpen(false);
                   }}
-                  className={`w-full text-left px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                  className={`w-full text-left px-2.5 py-1.5 rounded text-xs sm:text-sm font-medium transition-colors ${
                     selectedCategoryFilter === "all"
                       ? "bg-primary/10 text-primary font-bold"
                       : "hover:bg-surface-container"
@@ -602,13 +668,13 @@ export function CalendarView() {
                       setSelectedCategoryFilter(c.id);
                       setIsCategoryFilterOpen(false);
                     }}
-                    className={`w-full text-left px-2 py-1 rounded text-[11px] font-medium flex items-center gap-1.5 transition-colors ${
+                    className={`w-full text-left px-2.5 py-1.5 rounded text-xs sm:text-sm font-medium flex items-center gap-1.5 transition-colors ${
                       selectedCategoryFilter === c.id
                         ? "bg-primary/10 text-primary font-bold"
                         : "hover:bg-surface-container"
                     }`}
                   >
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.color }} />
                     <span>{c.label}</span>
                   </button>
                 ))}
@@ -622,20 +688,20 @@ export function CalendarView() {
               className="p-1 hover:bg-surface-container rounded transition-colors cursor-pointer text-on-surface"
               title="이전 달"
             >
-              <ChevronLeft size={14} />
+              <ChevronLeft size={16} />
             </button>
             <button
               onClick={goNextMonth}
               className="p-1 hover:bg-surface-container rounded transition-colors cursor-pointer text-on-surface"
               title="다음 달"
             >
-              <ChevronRight size={14} />
+              <ChevronRight size={16} />
             </button>
           </div>
 
           <button
             onClick={goToday}
-            className="px-2.5 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-md font-medium transition-colors cursor-pointer"
+            className="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-md font-medium transition-colors cursor-pointer text-sm"
           >
             오늘
           </button>
@@ -643,7 +709,7 @@ export function CalendarView() {
 
         {/* 중앙: 2026년 10월 / 11월 (사진1 & 사진2) */}
         <div className="text-center">
-          <h2 className="text-base sm:text-lg font-bold text-on-surface tracking-tight font-mono">
+          <h2 className="ui-section-title font-mono">
             {year}년 {month + 1}월
           </h2>
         </div>
@@ -661,7 +727,7 @@ export function CalendarView() {
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
-                className={`px-3 py-1 rounded text-xs transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded text-sm transition-colors cursor-pointer ${
                   viewMode === mode
                     ? "bg-surface-container text-on-surface font-semibold"
                     : "text-on-surface-variant hover:text-on-surface font-light"
@@ -674,11 +740,23 @@ export function CalendarView() {
         </div>
       </div>
 
+      {/* 🌟 캘린더 막대 리사이즈 중 실시간 기간 안내 툴팁 배지 */}
+      {resizingEvent && (resizePreviewStartDate || resizePreviewEndDate) && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-primary text-on-primary rounded-full shadow-2xl text-xs font-bold flex items-center gap-2 pointer-events-none transition-all duration-150 animate-bounce">
+          <span>{resizingEvent.title}</span>
+          <span className="opacity-60">|</span>
+          <span className="font-mono">
+            {resizePreviewStartDate || resizingEvent.startDate.slice(0, 10)} ~{" "}
+            {resizePreviewEndDate || resizingEvent.endDate.slice(0, 10)}
+          </span>
+        </div>
+      )}
+
       {/* ================= 3. 메인 월간 그리드 뷰 (사진2 가로 연속 바 완벽 구현) ================= */}
       {viewMode === "month" && (
         <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden flex flex-col">
           {/* 요일 헤더: 사진2 기준 월, 화, 수, 목, 금, 토, 일 */}
-          <div className="grid grid-cols-7 border-b border-outline-variant bg-surface-container-low text-center text-xs font-medium py-2.5 text-on-surface-variant">
+          <div className="grid grid-cols-7 border-b border-outline-variant bg-surface-container-low text-center text-sm font-semibold py-2.5 text-on-surface-variant">
             <span>월</span>
             <span>화</span>
             <span>수</span>
@@ -796,19 +874,30 @@ export function CalendarView() {
                                     color: styles.textColor,
                                     backdropFilter: "blur(2px)",
                                   }}
-                                  className={`group/bar relative w-full h-full flex items-center justify-between text-[10px] sm:text-[11px] font-medium select-none cursor-grab active:cursor-grabbing hover:brightness-125 transition-all border ${
+                                  className={`group/bar relative w-full h-full flex items-center justify-between text-[10px] sm:text-[11px] font-medium select-none cursor-grab active:cursor-grabbing hover:brightness-110 hover:shadow-xs transition-all duration-200 ease-out border shadow-2xs ${
                                     seg.isContinuationFromPrev
                                       ? "rounded-l-none border-l-0 pl-1"
-                                      : "rounded-l-xs pl-1.5"
+                                      : "rounded-l-sm pl-1.5"
                                   } ${
                                     seg.isContinuationToNext
                                       ? "rounded-r-none border-r-0 pr-1"
-                                      : "rounded-r-xs pr-1.5"
+                                      : "rounded-r-sm pr-1.5"
                                   } ${
-                                    draggingEvent?._id === seg.evt._id ? "opacity-30 border-dashed" : "opacity-100"
+                                    draggingEvent?._id === seg.evt._id
+                                      ? "opacity-30 border-dashed scale-95"
+                                      : "opacity-100"
                                   }`}
-                                  title={`${seg.evt.title} (${seg.evt.startDate.slice(5, 10)} ~ ${seg.evt.endDate.slice(5, 10)}) - 드래그하여 이동 또는 끝을 늘릴 수 있습니다`}
+                                  title={`${seg.evt.title} (${seg.evt.startDate.slice(5, 10)} ~ ${seg.evt.endDate.slice(5, 10)}) - 드래그하여 이동 또는 양 끝을 조절할 수 있습니다`}
                                 >
+                                  {/* 좌측 가장자리 리사이즈 핸들 (시작일 조정) */}
+                                  {!seg.isContinuationFromPrev && (
+                                    <div
+                                      onMouseDown={(e) => handleResizeStart(e, seg.evt, "start")}
+                                      className="absolute left-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-white/40 rounded-l-xs opacity-0 group-hover/bar:opacity-100 transition-opacity z-10"
+                                      title="시작일 드래그 조절"
+                                    />
+                                  )}
+
                                   {/* 좌측 타이틀 (이전 주에서 넘어왔으면 ◀ 화살표) */}
                                   <div className="flex items-center gap-1 min-w-0 truncate">
                                     {seg.isContinuationFromPrev && (
@@ -822,12 +911,12 @@ export function CalendarView() {
                                     <span className="text-[9px] font-bold opacity-80 shrink-0 ml-1">▶</span>
                                   )}
 
-                                  {/* 우측 가장자리 리사이즈 핸들 (이번 주에 끝나는 일정에만 활성화) */}
+                                  {/* 우측 가장자리 리사이즈 핸들 (종료일 조정) */}
                                   {!seg.isContinuationToNext && (
                                     <div
-                                      onMouseDown={(e) => handleResizeStart(e, seg.evt)}
-                                      className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-white/40 rounded-r-xs opacity-0 group-hover/bar:opacity-100 transition-opacity"
-                                      title="마우스로 드래그하여 일정 종료일 늘리기/줄이기"
+                                      onMouseDown={(e) => handleResizeStart(e, seg.evt, "end")}
+                                      className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-white/40 rounded-r-xs opacity-0 group-hover/bar:opacity-100 transition-opacity z-10"
+                                      title="종료일 드래그 조절"
                                     />
                                   )}
                                 </div>
@@ -837,70 +926,6 @@ export function CalendarView() {
                         </div>
                       );
                     })}
-
-                    {/* B. 단일일(Single-day) 일정 불릿 리스트 (사진 2: • ㅁㄴㅇ, • ㅇ, • ㄹ) */}
-                    <div className="grid grid-cols-7 gap-0 w-full pointer-events-none mt-0.5">
-                      {weekDays.map((day) => {
-                        const singles = singleDayEventsByDate.get(day.dateKey) || [];
-                        const maxVisible = 2;
-                        const visibleSingles = singles.slice(0, maxVisible);
-                        const extraCount = singles.length - maxVisible;
-
-                        return (
-                          <div
-                            key={day.dateKey}
-                            className="px-1.5 space-y-0.5 pointer-events-auto min-h-[20px]"
-                          >
-                            {visibleSingles.map((evt) => {
-                              const styles = getEventColorStyles(evt.color, isDark);
-                              const timeStr =
-                                !evt.allDay && evt.startDate.includes("T")
-                                  ? evt.startDate.slice(11, 16)
-                                  : null;
-
-                              return (
-                                <div
-                                  key={evt._id || evt.title}
-                                  draggable
-                                  onDragStart={(e) => handleDragStart(e, evt)}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpenEditModal(evt);
-                                  }}
-                                  className="flex items-center gap-1 text-[11px] text-on-surface hover:text-primary cursor-pointer truncate py-0.5 group/item transition-colors"
-                                  title={`${timeStr ? `${timeStr} ` : ""}${evt.title}`}
-                                >
-                                  {/* 사진 2 스타일의 깔끔한 불릿 도트 */}
-                                  <span
-                                    className="w-1.5 h-1.5 rounded-full shrink-0"
-                                    style={{ backgroundColor: styles.dotColor }}
-                                  />
-                                  {timeStr && (
-                                    <span className="font-mono text-[10px] text-on-surface-variant shrink-0 font-light">
-                                      {timeStr}
-                                    </span>
-                                  )}
-                                  <span className="truncate leading-none">{evt.title}</span>
-                                </div>
-                              );
-                            })}
-
-                            {/* 초과분 카운트 (+N개 클릭 시 사진 3 팝오버 오픈) */}
-                            {extraCount > 0 && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSelectDayCell(day, e.currentTarget);
-                                }}
-                                className="text-[10px] font-mono text-on-surface-variant hover:text-primary pl-2 transition-colors cursor-pointer"
-                              >
-                                +{extraCount}개
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
                   </div>
                 </div>
               );
