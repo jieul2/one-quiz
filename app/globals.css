@@ -1,10 +1,52 @@
-@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
-
 @import "tailwindcss";
 @import "./themes.css";
 
+/* 🌟 Pretendard Variable 로컬 폰트 정의 (가변 가중치 45~920) */
+@font-face {
+  font-family: "Pretendard Variable";
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/PretendardVariable.woff2") format("woff2-variations");
+}
+
+:root {
+  /* 1. Base Font Scale (90% 축소 밸런스) */
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13.5px;
+  --text-base: 14.5px;
+  --text-lg: 16px;
+  --text-xl: 19px;
+  --text-2xl: 23px;
+  --text-3xl: 27px;
+  --text-4xl: 32px;
+
+  /* 🌟 2. 전역 통일 타이포그래피 모듈 토큰 (이곳의 값만 수정하면 모든 페이지 폰트 크기가 일괄 변경됩니다) */
+  --font-page-title: 23px;       /* 모든 페이지 최상단 대제목 (h1) */
+  --font-page-subtitle: 13px;    /* 최상단 부제목 / 설명 / 날짜 */
+  --font-section-title: 16px;    /* 섹션 타이틀 / 팝업 모달 제목 (h2) */
+  --font-card-title: 14px;       /* 카드 / 위젯 헤더 타이틀 (h3) */
+  --font-body: 13.5px;           /* 기본 본문 / 일반 텍스트 */
+  --font-caption: 12px;          /* 보조 설명 / 서브 메타 / 타임스탬프 */
+  --font-badge: 11px;            /* 카운터 뱃지 / 상태 태그 */
+  --font-button: 13px;           /* 버튼 텍스트 크기 */
+  --font-empty: 13px;            /* 빈 상태 안내 문구 */
+}
+
 @theme {
-  --font-sans: "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  --font-sans: "Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+
+  /* Font Sizes (Tailwind utilities mapping & var(--text-sm) support - scaled to 90%) */
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13.5px;
+  --text-base: 14.5px;
+  --text-lg: 16px;
+  --text-xl: 19px;
+  --text-2xl: 23px;
+  --text-3xl: 27px;
+  --text-4xl: 32px;
 
   --color-background: var(--background);
   --color-on-background: var(--on-background);
@@ -71,18 +113,82 @@
   --font-caption: "Pretendard", sans-serif;
 }
 
-/* Typography Scale Utilities */
-.text-display-lg { font-size: 32px; line-height: 40px; font-weight: 700; }
-.text-display-time { font-size: 28px; line-height: 32px; font-weight: 800; }
-.text-headline-lg { font-size: 22px; line-height: 30px; font-weight: 700; }
-.text-headline-md { font-size: 18px; line-height: 26px; font-weight: 700; }
-.text-headline-sm { font-size: 15px; line-height: 22px; font-weight: 600; }
-.text-body-lg { font-size: 15px; line-height: 24px; font-weight: 400; }
-.text-body-md { font-size: 13px; line-height: 20px; font-weight: 400; }
+/* Typography Scale Utilities (90% Scaled) */
+.text-display-lg { font-size: 30px; line-height: 38px; font-weight: 700; }
+.text-display-time { font-size: 27px; line-height: 33px; font-weight: 800; }
+.text-headline-lg { font-size: 21.5px; line-height: 28px; font-weight: 700; }
+.text-headline-md { font-size: 18px; line-height: 25px; font-weight: 700; }
+.text-headline-sm { font-size: 14.5px; line-height: 21px; font-weight: 600; }
+.text-body-lg { font-size: 14.5px; line-height: 22px; font-weight: 400; }
+.text-body-md { font-size: 13.5px; line-height: 20px; font-weight: 400; }
 .text-body-sm { font-size: 12px; line-height: 18px; font-weight: 400; }
-.text-label-md { font-size: 13px; line-height: 18px; font-weight: 600; }
-.text-label-sm { font-size: 11px; line-height: 16px; font-weight: 500; }
-.text-caption { font-size: 10px; line-height: 14px; font-weight: 400; }
+.text-label-md { font-size: 13.5px; line-height: 18px; font-weight: 600; }
+.text-label-sm { font-size: 12px; line-height: 16px; font-weight: 500; }
+.text-caption { font-size: 11px; line-height: 15px; font-weight: 400; }
+
+/* 🌟 전역 통일 타이포그래피 모듈 클래스 (모든 페이지 공통 적용) */
+.ui-page-title {
+  font-size: var(--font-page-title);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  color: var(--on-surface);
+}
+
+.ui-page-subtitle {
+  font-size: var(--font-page-subtitle);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--on-surface-variant);
+}
+
+.ui-section-title {
+  font-size: var(--font-section-title);
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--on-surface);
+}
+
+.ui-card-title {
+  font-size: var(--font-card-title);
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--on-surface);
+}
+
+.ui-body {
+  font-size: var(--font-body);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--on-surface);
+}
+
+.ui-caption {
+  font-size: var(--font-caption);
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--on-surface-variant);
+}
+
+.ui-badge {
+  font-size: var(--font-badge);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.ui-button {
+  font-size: var(--font-button);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.ui-empty-state {
+  font-size: var(--font-empty);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+  text-align: center;
+}
 
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
@@ -131,6 +237,8 @@
 
 body {
   font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.5;
   background-color: var(--background);
   color: var(--on-surface);
   transition: background-color 0.25s ease, color 0.25s ease;

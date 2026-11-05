@@ -178,7 +178,7 @@ export function UserSettingsView() {
     <div className="w-full space-y-4 text-on-surface">
       {/* 상단 헤더 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-outline-variant pb-3">
-        <h1 className="text-xl sm:text-2xl font-semibold text-on-surface tracking-tight">
+        <h1 className="ui-page-title">
           설정
         </h1>
 

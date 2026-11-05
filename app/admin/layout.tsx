@@ -14,8 +14,8 @@ import {
   User,
   ChevronRight,
   Lock,
+  Loader2,
 } from "lucide-react";
-import { useMounted } from "@/lib/hooks/useMounted";
 
 
 interface AdminNavItem {
@@ -28,7 +28,6 @@ interface AdminNavItem {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { data: session, status } = useSession();
-  const mounted = useMounted();
 
   const adminNav: AdminNavItem[] = [
     { label: "콘솔 개요", href: "/admin", icon: ShieldAlert },
@@ -38,13 +37,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: "운영 설정", href: "/admin/settings", icon: Settings },
   ];
 
-  if (!mounted) return null;
-
   if (status === "loading") {
     return (
       <AppShell>
-        <div className="min-h-[60vh] flex items-center justify-center text-on-surface-variant text-xs font-medium">
-          관리자 권한 확인 중...
+        <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-center">
+          <Loader2 size={28} className="animate-spin text-primary" />
+          <span className="text-xs font-semibold text-on-surface-variant">관리자 권한 확인 중...</span>
+        </div>
+        <div className="hidden" aria-hidden="true">
+          {children}
         </div>
       </AppShell>
     );
@@ -131,14 +132,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-outline-variant pb-3">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-semibold text-on-surface tracking-tight">
+              <h1 className="ui-page-title">
                 관리자 콘솔
               </h1>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+              <span className="ui-badge px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
                 Admin
               </span>
             </div>
-            <p className="text-xs text-on-surface-variant font-light mt-0.5">
+            <p className="ui-page-subtitle mt-0.5">
               원퀴즈 시스템 및 데이터 관리 허브
             </p>
           </div>

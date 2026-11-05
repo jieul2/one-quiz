@@ -162,8 +162,8 @@ export function MindmapView() {
       {/* 1. 최상단 헤더 (플랫 헤더 표준) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl sm:text-2xl font-bold text-on-surface tracking-tight">마인드맵</h1>
-          <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-[11px] font-semibold font-mono">
+          <h1 className="ui-page-title">마인드맵</h1>
+          <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono">
             {mindmaps.length}개
           </span>
         </div>
@@ -194,8 +194,8 @@ export function MindmapView() {
             <Network className="w-6 h-6" />
           </div>
           <div className="space-y-1">
-            <h3 className="text-sm font-bold text-on-surface">생성된 마인드맵이 없습니다</h3>
-            <p className="text-xs text-on-surface-variant font-light max-w-sm">
+            <h3 className="ui-card-title">생성된 마인드맵이 없습니다</h3>
+            <p className="ui-caption max-w-sm">
               우측 상단의 &apos;+ 새 마인드맵&apos; 버튼을 눌러 첫 번째 생각과 핵심 개념 구조도를 그려보세요.
             </p>
           </div>

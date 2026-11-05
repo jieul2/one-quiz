@@ -10,6 +10,7 @@ import {
   Settings as SettingsIcon,
   Database,
   Mail,
+  Loader2,
 } from "lucide-react";
 import { useMounted } from "@/lib/hooks/useMounted";
 
@@ -134,8 +135,9 @@ export default function AdminSettingsPage() {
 
   if (!mounted || loading) {
     return (
-      <div className="py-12 text-center text-xs text-on-surface-variant font-light">
-        설정 정보를 불러오는 중...
+      <div className="py-20 flex flex-col items-center justify-center gap-3 text-center">
+        <Loader2 size={32} className="animate-spin text-primary" />
+        <span className="text-xs font-semibold text-on-surface-variant">설정 정보를 불러오는 중...</span>
       </div>
     );
   }

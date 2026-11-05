@@ -98,10 +98,10 @@ export function ProjectsView() {
       {/* Top Action Bar (라운딩 박스 없이 플랫 헤더) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl sm:text-2xl font-bold text-on-surface tracking-tight">
+          <h1 className="ui-page-title">
             프로젝트
           </h1>
-          <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-[11px] font-semibold">
+          <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono">
             {projects.length}개
           </span>
         </div>
@@ -148,8 +148,8 @@ export function ProjectsView() {
           <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant">
             <LayoutGrid className="w-5 h-5 text-on-surface-variant" />
           </div>
-          <p className="text-sm font-semibold text-on-surface">등록된 프로젝트가 없습니다</p>
-          <p className="text-xs text-on-surface-variant font-light">
+          <p className="ui-card-title">등록된 프로젝트가 없습니다</p>
+          <p className="ui-caption">
             새 프로젝트를 생성하여 목표와 진행 상황을 체계적으로 관리해보세요.
           </p>
           <button

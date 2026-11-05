@@ -6,7 +6,7 @@ import ProjectRoadmap from "@/models/ProjectRoadmap";
 import { withAudit } from "@/lib/withAudit";
 
 // 1. 로드맵 조회
-async function handleGet() {
+async function handleGet(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session || !session.user?.email) {
     return NextResponse.json(
@@ -16,10 +16,15 @@ async function handleGet() {
   }
 
   await dbConnect();
-  const roadmap = await ProjectRoadmap.findOne({
-    authorEmail: session.user.email,
-  });
+  const url = new URL(req.url);
+  const projectId = url.searchParams.get("projectId");
 
+  const query: Record<string, unknown> = { authorEmail: session.user.email };
+  if (projectId) {
+    query.projectId = projectId;
+  }
+
+  const roadmap = await ProjectRoadmap.findOne(query);
   return NextResponse.json(roadmap || null, { status: 200 });
 }
 
@@ -35,9 +40,11 @@ async function handlePost(req: Request) {
 
   await dbConnect();
   const body = await req.json();
+  const projectId = body.projectId || body.id || "proj-1";
 
   const roadmapData = {
     authorEmail: session.user.email,
+    projectId,
     name: body.name || "프로젝트 로드맵",
     description: body.description || "",
     startDate: body.startDate || "2026-10-15",
@@ -48,9 +55,9 @@ async function handlePost(req: Request) {
   };
 
   const updated = await ProjectRoadmap.findOneAndUpdate(
-    { authorEmail: session.user.email },
+    { authorEmail: session.user.email, projectId },
     roadmapData,
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
   );
 
   return NextResponse.json({ success: true, data: updated }, { status: 200 });

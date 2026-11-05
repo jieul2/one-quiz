@@ -90,7 +90,7 @@ async function handlePut(req: Request) {
   const updated = await Task.findOneAndUpdate(
     { _id: taskId, authorEmail: session.user.email },
     { ...updateFields },
-    { new: true },
+    { returnDocument: "after" },
   );
 
   if (!updated) {

@@ -90,14 +90,17 @@ export function CalendarDayModal({
       <div
         ref={popoverRef}
         style={popoverStyle}
-        className="w-[90vw] max-w-[320px] bg-[#1a2221] dark:bg-[#1a2221] border border-neutral-700/70 rounded-2xl p-4 shadow-2xl text-neutral-100 space-y-3 animate-in fade-in zoom-in-95 duration-150 select-none"
+        className="w-[90vw] max-w-[320px] bg-surface-container-lowest border border-outline-variant hover:border-primary/40 ring-1 ring-primary/15 rounded-2xl p-4 shadow-xl text-on-surface space-y-3 animate-in fade-in zoom-in-95 duration-150 select-none"
       >
-        {/* 상단 헤더: 날짜 + X 닫기 버튼 (사진3) */}
-        <div className="flex items-center justify-between pb-1">
-          <h3 className="font-bold text-sm tracking-tight text-white">{titleStr}</h3>
+        {/* 상단 헤더: 날짜 + X 닫기 버튼 (테마 색상 Primary 반영) */}
+        <div className="flex items-center justify-between pb-2 border-b border-outline-variant/60">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-primary shrink-0 animate-pulse" />
+            <h3 className="font-bold text-sm tracking-tight text-primary">{titleStr}</h3>
+          </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-md text-neutral-400 hover:text-white hover:bg-white/10 cursor-pointer transition-colors"
+            className="p-1 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container cursor-pointer transition-colors"
             title="닫기"
           >
             <X size={16} />
@@ -107,12 +110,12 @@ export function CalendarDayModal({
         {/* 메인 리스트 컨테이너 */}
         <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1 scrollbar-thin">
           {events.length === 0 ? (
-            <div className="py-8 text-center text-xs text-neutral-400 font-light">
+            <div className="py-8 text-center text-sm text-on-surface-variant font-light">
               등록된 일정이 없습니다.
             </div>
           ) : (
             <>
-              {/* 1. 상단 다중일 기간 바 (사진3: [ ㅁㄴㅇ              ~ 10/17 ]) */}
+              {/* 1. 상단 다중일 기간 바 */}
               {multiDayEvents.map((evt) => {
                 const styles = getEventColorStyles(evt.color, true);
                 const endFormatted = evt.endDate ? evt.endDate.slice(5, 10).replace("-", "/") : "";
@@ -126,18 +129,18 @@ export function CalendarDayModal({
                       borderColor: styles.borderRgba,
                       color: styles.textColor,
                     }}
-                    className="flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-semibold cursor-pointer hover:brightness-115 transition-all shadow-xs"
+                    className="flex items-center justify-between px-3 py-2 rounded-lg border text-sm font-semibold cursor-pointer hover:brightness-115 transition-all shadow-xs"
                     title={`${evt.title} 편집`}
                   >
                     <span className="truncate flex-1 leading-none">{evt.title}</span>
-                    <span className="text-[11px] font-mono opacity-80 shrink-0 ml-2">
+                    <span className="text-xs font-mono opacity-80 shrink-0 ml-2">
                       ~ {endFormatted}
                     </span>
                   </div>
                 );
               })}
 
-              {/* 2. 단일 / 시간별 일정 목록 (사진3: • 09:00 제목) */}
+              {/* 2. 단일 / 시간별 일정 목록 */}
               <div className="space-y-1 pt-1">
                 {singleDayEvents.map((evt) => {
                   const styles = getEventColorStyles(evt.color, true);
@@ -150,26 +153,26 @@ export function CalendarDayModal({
                     <div
                       key={evt._id || evt.title}
                       onClick={() => onSelectEvent(evt)}
-                      className="group flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 cursor-pointer text-xs transition-colors"
+                      className="group flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-surface-container-low cursor-pointer text-sm transition-colors"
                       title={`${evt.title} 편집`}
                     >
-                      {/* 불릿 도트 (사진3의 •) */}
+                      {/* 불릿 도트 */}
                       <span
-                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        className="w-2 h-2 rounded-full shrink-0"
                         style={{ backgroundColor: styles.dotColor }}
                       />
 
-                      {/* 시간 (사진3의 09:00) */}
+                      {/* 시간 */}
                       {timeStr && (
-                        <span className="font-mono text-[11px] text-neutral-400 shrink-0 font-light">
+                        <span className="font-mono text-xs text-on-surface-variant shrink-0 font-light">
                           {timeStr}
                         </span>
                       )}
 
                       {/* 제목 */}
                       <span
-                        className={`truncate text-neutral-200 group-hover:text-white leading-none ${
-                          evt.isCompleted ? "line-through text-neutral-500" : ""
+                        className={`truncate text-on-surface group-hover:text-primary leading-none ${
+                          evt.isCompleted ? "line-through opacity-50" : ""
                         }`}
                       >
                         {evt.title}
@@ -182,13 +185,13 @@ export function CalendarDayModal({
           )}
         </div>
 
-        {/* 하단 새 일정 추가 버튼 */}
-        <div className="pt-2 border-t border-neutral-700/50">
+        {/* 하단 새 일정 추가 버튼 (테마 색상 Primary 반영) */}
+        <div className="pt-2 border-t border-outline-variant">
           <button
             onClick={() => onAddNewEvent(date)}
-            className="w-full py-1.5 bg-white/5 hover:bg-white/10 text-neutral-200 hover:text-white font-medium rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-neutral-700/50"
+            className="w-full py-2 bg-primary hover:opacity-90 text-on-primary font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-[0.98]"
           >
-            <Plus size={13} />
+            <Plus size={15} />
             <span>이 날짜에 새 일정 추가</span>
           </button>
         </div>

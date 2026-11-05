@@ -13,6 +13,7 @@ export interface IHistoryLog {
 }
 
 export interface IIdea extends Document {
+  id?: string;
   title: string;
   description?: string;
   status: string;
@@ -44,6 +45,7 @@ const HistoryLogSchema = new mongoose.Schema({
 });
 
 const IdeaSchema = new mongoose.Schema({
+  id: { type: String, index: true },
   title: { type: String, required: true },
   description: { type: String, default: "" },
   status: { type: String, default: "idea" },

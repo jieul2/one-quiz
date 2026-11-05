@@ -27,8 +27,11 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
+
+export type SidebarMode = "hidden" | "icon" | "full";
 
 interface StoredTask {
   id: string;
@@ -75,24 +78,42 @@ interface NavItem {
   badge?: string;
 }
 
-interface SidebarProps {
+export interface SidebarProps {
   onOpenThemeModal: () => void;
-  isCollapsed: boolean;
-  onToggleCollapse: () => void;
+  mode?: SidebarMode;
+  onChangeMode?: (mode: SidebarMode) => void;
+  onCycleMode?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
   isMobileOpen: boolean;
   onCloseMobile: () => void;
 }
 
 export function Sidebar({
   onOpenThemeModal,
-  isCollapsed,
-  onToggleCollapse,
+  mode,
+  onChangeMode,
+  isCollapsed: legacyCollapsed,
+  onToggleCollapse: legacyToggle,
   isMobileOpen,
   onCloseMobile,
 }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [searchQuery, setSearchQuery] = useState("");
+
+  // 3단계 모드 ("hidden": 아예 없음, "icon": 아이콘만, "full": 아이콘+글씨)
+  const currentMode: SidebarMode = mode || (legacyCollapsed ? "icon" : "full");
+  const isIconOnly = currentMode === "icon";
+  const isHidden = currentMode === "hidden";
+
+  const handleModeSelect = (newMode: SidebarMode) => {
+    if (onChangeMode) {
+      onChangeMode(newMode);
+    } else if (legacyToggle) {
+      legacyToggle();
+    }
+  };
 
   // 🌟 오늘의 할일 개수 동기화 (useSyncExternalStore로 하이드레이션 오류 및 setState-in-effect 방지)
   const todayTaskCount = useSyncExternalStore(
@@ -143,76 +164,115 @@ export function Sidebar({
 
       {/* 사이드바 본체 */}
       <aside
-        className={`fixed left-0 top-0 h-screen bg-surface-container-lowest z-50 flex flex-col justify-between overflow-y-auto overflow-x-hidden border-r border-outline-variant shadow-xs transition-all duration-300 ${
+        className={`fixed left-0 top-0 h-screen bg-surface-container-lowest z-50 flex flex-col justify-between overflow-y-auto md:overflow-visible border-r border-outline-variant shadow-xs transition-all duration-300 ${
           /* 모바일: 서랍식 슬라이드 */
           isMobileOpen
-            ? "translate-x-0 w-64"
-            : "-translate-x-full md:translate-x-0"
+            ? "translate-x-0 w-64 pointer-events-auto"
+            : isHidden
+            ? "-translate-x-full md:-translate-x-full w-0 pointer-events-none opacity-0"
+            : "-translate-x-full md:translate-x-0 opacity-100"
         } ${
-          /* 태블릿 & 데스크톱: isCollapsed 여부에 따라 너비 전환 (68px ↔ 240px) */
-          isCollapsed ? "md:w-[72px]" : "md:w-60"
+          /* 태블릿 & 데스크톱: 3단계 너비 (0px ↔ 72px ↔ 240px) */
+          isIconOnly ? "md:w-[72px]" : currentMode === "full" ? "md:w-60" : "md:w-0"
         }`}
       >
         <div className="p-3 flex flex-col gap-3">
-          {/* 상단 브랜드 로고 & 접기/열기 버튼 */}
-          <div className="flex items-center justify-between pt-1">
-            <Link
-              href="/"
-              onClick={onCloseMobile}
-              className={`flex items-center gap-2.5 group overflow-hidden ${
-                isCollapsed ? "md:justify-center md:w-full" : ""
-              }`}
-              title="원퀴즈 홈으로 이동"
-            >
-              <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-xs shrink-0 group-hover:scale-105 transition-transform">
-                <Sparkles className="w-5 h-5 text-on-primary" />
-              </div>
-
-              {/* 텍스트는 접힌 상태(isCollapsed)일 때 숨김 */}
-              <div
-                className={`flex flex-col transition-opacity duration-200 overflow-hidden ${
-                  isCollapsed ? "md:hidden" : "block"
-                }`}
+          {/* 상단 브랜드 로고 & 3단계 모드 토글 버튼 */}
+          {isIconOnly ? (
+            /* 🌟 1. 아이콘 모드일 때: 홈 로고와 펼치기 버튼을 수직으로 깔끔하게 배치하여 겹침 방지 */
+            <div className="hidden md:flex flex-col items-center gap-2 pt-1 w-full">
+              <Link
+                href="/"
+                className="p-1 rounded-xl group relative"
+                title="원퀴즈 홈으로 이동"
               >
-                <span className="text-[17px] font-black tracking-tight text-on-surface leading-tight whitespace-nowrap">
-                  원퀴즈
-                </span>
-                <span className="text-[10px] text-on-surface-variant font-medium tracking-wide whitespace-nowrap">
-                  OneQuiz Workspace
-                </span>
+                <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-xs shrink-0 group-hover:scale-105 transition-transform">
+                  <Sparkles className="w-4 h-4 text-on-primary" />
+                </div>
+                {/* 호버 말풍선 툴팁 (테마 색상 반영) */}
+                <div className="hidden md:group-hover:flex items-center absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-primary text-on-primary border border-primary/30 rounded-md text-xs font-bold whitespace-nowrap shadow-lg shadow-primary/20 z-[9999] pointer-events-none animate-in fade-in zoom-in-95 duration-100">
+                  <span className="absolute -left-1 top-1/2 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-primary" />
+                  원퀴즈 홈
+                </div>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => handleModeSelect("full")}
+                className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer group relative"
+                title="사이드바 전체 펼치기 (아이콘+글씨)"
+              >
+                <ChevronRight size={16} />
+                {/* 호버 말풍선 툴팁 (테마 색상 반영) */}
+                <div className="hidden md:group-hover:flex items-center absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-primary text-on-primary border border-primary/30 rounded-md text-xs font-bold whitespace-nowrap shadow-lg shadow-primary/20 z-[9999] pointer-events-none animate-in fade-in zoom-in-95 duration-100">
+                  <span className="absolute -left-1 top-1/2 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-primary" />
+                  사이드바 펼치기
+                </div>
+              </button>
+            </div>
+          ) : (
+            /* 🌟 2. 펼쳐진 상태일 때: 로고와 숨기기/접기 버튼 깔끔하게 정돈 (기능 중복 제거) */
+            <div className="flex items-center justify-between pt-1">
+              <Link
+                href="/"
+                onClick={onCloseMobile}
+                className="flex items-center gap-2.5 group overflow-hidden"
+                title="원퀴즈 홈으로 이동"
+              >
+                <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-xs shrink-0 group-hover:scale-105 transition-transform">
+                  <Sparkles className="w-5 h-5 text-on-primary" />
+                </div>
+
+                <div className="flex flex-col transition-opacity duration-200 overflow-hidden">
+                  <span className="text-[17px] font-black tracking-tight text-on-surface leading-tight whitespace-nowrap">
+                    원퀴즈
+                  </span>
+                  <span className="text-[10px] text-on-surface-variant font-medium tracking-wide whitespace-nowrap">
+                    OneQuiz Workspace
+                  </span>
+                </div>
+              </Link>
+
+              {/* 모바일 닫기 버튼 */}
+              <button
+                onClick={onCloseMobile}
+                className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container md:hidden"
+              >
+                <X size={18} />
+              </button>
+
+              {/* PC 데스크톱 컨트롤: 완전히 숨기기(EyeOff) + 사이드바 접기(ChevronLeft) */}
+              <div className="hidden md:flex items-center gap-0.5 bg-surface-container-low p-0.5 rounded-lg border border-outline-variant/60">
+                <button
+                  type="button"
+                  onClick={() => handleModeSelect("hidden")}
+                  className="p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+                  title="사이드바 완전히 숨기기 (0px)"
+                >
+                  <EyeOff size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleModeSelect("icon")}
+                  className="p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+                  title="사이드바 접기 (아이콘 모드)"
+                >
+                  <ChevronLeft size={13} />
+                </button>
               </div>
-            </Link>
-
-            {/* 모바일 닫기 버튼 */}
-            <button
-              onClick={onCloseMobile}
-              className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container md:hidden"
-            >
-              <X size={18} />
-            </button>
-
-            {/* PC/데스크톱 메뉴 펴기/접기 버튼 */}
-            <button
-              onClick={onToggleCollapse}
-              className={`hidden md:flex p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer ${
-                isCollapsed ? "mx-auto mt-2" : ""
-              }`}
-              title={isCollapsed ? "메뉴 펼치기" : "메뉴 접기"}
-            >
-              {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-            </button>
-          </div>
+            </div>
+          )}
 
           {/* 검색창: 펼쳐진 상태에서만 노출 */}
-          {!isCollapsed && (
+          {!isIconOnly && (
             <div className="relative flex items-center mt-1">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 text-on-surface-variant pointer-events-none" />
+              <Search className="w-4 h-4 absolute left-2.5 text-on-surface-variant pointer-events-none" />
               <input
                 type="text"
                 placeholder="메뉴 검색..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-surface-container-low pl-8 pr-3 py-1.5 rounded-xl text-xs text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary transition-all border border-transparent font-medium"
+                className="w-full bg-surface-container-low pl-8 pr-3 py-2 rounded-xl text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary transition-all border border-transparent font-medium"
               />
             </div>
           )}
@@ -227,26 +287,26 @@ export function Sidebar({
                   key={item.href}
                   href={item.href}
                   onClick={onCloseMobile}
-                  className={`group relative flex items-center rounded-xl transition-all font-medium text-xs ${
-                    isCollapsed
+                  className={`group relative flex items-center rounded-xl transition-all font-semibold text-sm ${
+                    isIconOnly
                       ? "md:justify-center p-2.5"
-                      : "justify-between px-3 py-2"
+                      : "justify-between px-3 py-2.5"
                   } ${
                     active
                       ? "bg-surface-container text-on-surface font-bold shadow-xs border border-outline-variant/60"
                       : "text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
                   }`}
-                  title={isCollapsed ? item.label : undefined}
+                  title={isIconOnly ? item.label : undefined}
                 >
-                  <div className="flex items-center gap-2.5 overflow-hidden">
+                  <div className="flex items-center gap-3 overflow-hidden">
                     <Icon
-                      className={`w-4 h-4 shrink-0 ${
+                      className={`w-[18px] h-[18px] shrink-0 ${
                         active ? "text-primary" : "text-on-surface-variant"
                       }`}
                     />
                     <span
                       className={`truncate whitespace-nowrap ${
-                        isCollapsed ? "md:hidden" : "inline"
+                        isIconOnly ? "md:hidden" : "inline"
                       }`}
                     >
                       {item.label}
@@ -255,27 +315,33 @@ export function Sidebar({
 
                   {/* 할일 뱃지: 미완료 '오늘의 할일'이 존재하면 사진처럼 (1) 원형 뱃지 노출 */}
                   {item.href === "/tasks" && todayTaskCount > 0 ? (
-                    !isCollapsed ? (
-                      <span className="w-5 h-5 rounded-full bg-primary text-on-primary text-[11px] font-bold flex items-center justify-center shrink-0 font-mono shadow-xs ml-auto leading-none">
+                    !isIconOnly ? (
+                      <span className="w-5 h-5 rounded-full bg-primary text-on-primary text-xs font-bold flex items-center justify-center shrink-0 font-mono shadow-xs ml-auto leading-none">
                         {todayTaskCount}
                       </span>
                     ) : (
-                      <span className="absolute top-1.5 right-1.5 min-w-[14px] h-3.5 px-0.5 rounded-full bg-primary text-on-primary text-[9px] font-bold flex items-center justify-center shadow-xs leading-none">
+                      <span className="absolute top-1.5 right-1.5 min-w-[15px] h-4 px-0.5 rounded-full bg-primary text-on-primary text-[10px] font-bold flex items-center justify-center shadow-xs leading-none">
                         {todayTaskCount}
                       </span>
                     )
                   ) : (
-                    item.badge && !isCollapsed && (
-                      <span className="px-1.5 py-0.2 rounded-full bg-primary/10 text-primary text-[10px] font-bold tracking-wider shrink-0">
+                    item.badge && !isIconOnly && (
+                      <span className="px-1.5 py-0.2 rounded-full bg-primary/10 text-primary text-xs font-bold tracking-wider shrink-0">
                         {item.badge}
                       </span>
                     )
                   )}
 
-                  {/* 축소 상태일 때 호버 툴팁 */}
-                  {isCollapsed && (
-                    <div className="hidden md:group-hover:flex absolute left-full ml-2 px-2.5 py-1 bg-surface-container-lowest border border-outline-variant rounded-lg text-xs font-bold text-on-surface whitespace-nowrap shadow-md z-50 pointer-events-none">
-                      {item.label}
+                  {/* 축소 상태일 때 호버 말풍선 툴팁 (테마 색상 반영) */}
+                  {isIconOnly && (
+                    <div className="hidden md:group-hover:flex items-center absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-primary text-on-primary border border-primary/30 rounded-md text-xs font-bold whitespace-nowrap shadow-lg shadow-primary/20 z-[9999] pointer-events-none animate-in fade-in zoom-in-95 duration-100">
+                      <span className="absolute -left-1 top-1/2 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-primary" />
+                      <span>{item.label}</span>
+                      {item.href === "/tasks" && todayTaskCount > 0 && (
+                        <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-surface-container-lowest text-primary text-[10px] font-bold font-mono leading-none">
+                          {todayTaskCount}
+                        </span>
+                      )}
                     </div>
                   )}
                 </Link>
@@ -292,36 +358,42 @@ export function Sidebar({
                   key={item.href}
                   href={item.href}
                   onClick={onCloseMobile}
-                  className={`group relative flex items-center rounded-xl transition-all font-medium text-xs ${
-                    isCollapsed
+                  className={`group relative flex items-center rounded-xl transition-all font-semibold text-sm ${
+                    isIconOnly
                       ? "md:justify-center p-2.5"
-                      : "px-3 py-2"
+                      : "px-3 py-2.5"
                   } ${
                     active
                       ? "bg-surface-container text-on-surface font-bold shadow-xs border border-outline-variant/60"
                       : "text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
                   }`}
-                  title={isCollapsed ? item.label : undefined}
+                  title={isIconOnly ? item.label : undefined}
                 >
-                  <div className="flex items-center gap-2.5 overflow-hidden">
+                  <div className="flex items-center gap-3 overflow-hidden">
                     <Icon
-                      className={`w-4 h-4 shrink-0 ${
+                      className={`w-[18px] h-[18px] shrink-0 ${
                         active ? "text-primary" : "text-on-surface-variant"
                       }`}
                     />
                     <span
                       className={`truncate whitespace-nowrap ${
-                        isCollapsed ? "md:hidden" : "inline"
+                        isIconOnly ? "md:hidden" : "inline"
                       }`}
                     >
                       {item.label}
                     </span>
                   </div>
 
-                  {/* 축소 상태일 때 호버 툴팁 */}
-                  {isCollapsed && (
-                    <div className="hidden md:group-hover:flex absolute left-full ml-2 px-2.5 py-1 bg-surface-container-lowest border border-outline-variant rounded-lg text-xs font-bold text-on-surface whitespace-nowrap shadow-md z-50 pointer-events-none">
-                      {item.label}
+                  {/* 축소 상태일 때 호버 말풍선 툴팁 (테마 색상 반영) */}
+                  {isIconOnly && (
+                    <div className="hidden md:group-hover:flex items-center absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-primary text-on-primary border border-primary/30 rounded-md text-xs font-bold whitespace-nowrap shadow-lg shadow-primary/20 z-[9999] pointer-events-none animate-in fade-in zoom-in-95 duration-100">
+                      <span className="absolute -left-1 top-1/2 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-primary" />
+                      <span>{item.label}</span>
+                      {item.href === "/tasks" && todayTaskCount > 0 && (
+                        <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-surface-container-lowest text-primary text-[10px] font-bold font-mono leading-none">
+                          {todayTaskCount}
+                        </span>
+                      )}
                     </div>
                   )}
                 </Link>
@@ -332,66 +404,90 @@ export function Sidebar({
 
         {/* 사이드바 하단 제어 영역 */}
         <div className="p-3 flex flex-col gap-2.5 bg-surface-container-lowest border-t border-outline-variant">
-          {/* 퀵 툴바: 24개 테마 변경, 우측 위젯 토글, 설정 */}
+          {/* 퀵 툴바: 24개 테마 변경, 설정, 알림 */}
           <div
             className={`flex items-center py-1 text-on-surface-variant border-b border-outline-variant/60 pb-2 ${
-              isCollapsed ? "flex-col gap-2" : "justify-around"
+              isIconOnly ? "flex-col gap-2" : "justify-around"
             }`}
           >
             {/* 테마 변경 버튼 */}
             <button
               type="button"
               onClick={onOpenThemeModal}
-              className="p-1.5 rounded-lg hover:bg-surface-container-low text-primary transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg hover:bg-surface-container-low text-primary transition-colors cursor-pointer group relative"
               title="24개 다중 테마 선택"
             >
               <Palette className="w-4 h-4" />
+              {isIconOnly && (
+                <div className="hidden md:group-hover:flex items-center absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-primary text-on-primary border border-primary/30 rounded-md text-xs font-bold whitespace-nowrap shadow-lg shadow-primary/20 z-[9999] pointer-events-none animate-in fade-in zoom-in-95 duration-100">
+                  <span className="absolute -left-1 top-1/2 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-primary" />
+                  <span>테마 설정</span>
+                </div>
+              )}
             </button>
 
             {/* 환경 설정 (개인 설정) */}
             <Link
               href="/settings"
               onClick={onCloseMobile}
-              className="p-1.5 rounded-lg hover:bg-surface-container-low text-on-surface-variant hover:text-on-surface transition-colors"
+              className="p-1.5 rounded-lg hover:bg-surface-container-low text-on-surface-variant hover:text-on-surface transition-colors group relative"
               title="설정"
             >
               <Settings className="w-4 h-4" />
+              {isIconOnly && (
+                <div className="hidden md:group-hover:flex items-center absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-primary text-on-primary border border-primary/30 rounded-md text-xs font-bold whitespace-nowrap shadow-lg shadow-primary/20 z-[9999] pointer-events-none animate-in fade-in zoom-in-95 duration-100">
+                  <span className="absolute -left-1 top-1/2 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-primary" />
+                  <span>개인 설정</span>
+                </div>
+              )}
             </Link>
 
             {/* 알림 */}
             <button
               type="button"
               onClick={() => toast.info("현재 새로운 알림이 없습니다.")}
-              className="p-1.5 rounded-lg hover:bg-surface-container-low text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg hover:bg-surface-container-low text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer group relative"
               title="알림"
             >
               <Bell className="w-4 h-4" />
+              {isIconOnly && (
+                <div className="hidden md:group-hover:flex items-center absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-primary text-on-primary border border-primary/30 rounded-md text-xs font-bold whitespace-nowrap shadow-lg shadow-primary/20 z-[9999] pointer-events-none animate-in fade-in zoom-in-95 duration-100">
+                  <span className="absolute -left-1 top-1/2 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-primary" />
+                  <span>알림</span>
+                </div>
+              )}
             </button>
           </div>
 
           {/* 유저 세션 프로필 */}
           {session?.user ? (
             <div
-              className={`flex items-center justify-between py-1 ${
-                isCollapsed ? "justify-center" : "px-1"
+              className={`flex items-center justify-between py-1 group relative ${
+                isIconOnly ? "justify-center" : "px-1"
               }`}
             >
               <div className="flex items-center gap-2 min-w-0">
                 <div className="w-7 h-7 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-bold shrink-0">
                   {session.user.name ? session.user.name[0].toUpperCase() : "U"}
                 </div>
-                {!isCollapsed && (
+                {isIconOnly && (
+                  <div className="hidden md:group-hover:flex items-center absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-primary text-on-primary border border-primary/30 rounded-md text-xs font-bold whitespace-nowrap shadow-lg shadow-primary/20 z-[9999] pointer-events-none animate-in fade-in zoom-in-95 duration-100">
+                    <span className="absolute -left-1 top-1/2 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-primary" />
+                    <span>{session.user.name || "학습자"}</span>
+                  </div>
+                )}
+                {!isIconOnly && (
                   <div className="flex flex-col min-w-0">
-                    <span className="text-xs text-on-surface truncate font-bold">
+                    <span className="text-sm text-on-surface truncate font-bold">
                       {session.user.name || "학습자"}
                     </span>
-                    <span className="text-[10px] text-on-surface-variant truncate">
+                    <span className="text-xs text-on-surface-variant truncate">
                       {session.user.email}
                     </span>
                   </div>
                 )}
               </div>
-              {!isCollapsed && (
+              {!isIconOnly && (
                 <button
                   onClick={() => signOut()}
                   className="p-1 text-on-surface-variant hover:text-destructive transition-colors shrink-0 cursor-pointer"
@@ -404,13 +500,20 @@ export function Sidebar({
           ) : (
             <button
               onClick={() => signIn()}
-              className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-primary text-on-primary font-bold text-xs hover:opacity-90 transition-opacity cursor-pointer ${
-                isCollapsed ? "w-10 h-10 p-0 mx-auto" : "w-full"
+              className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-primary text-on-primary font-bold text-xs hover:opacity-90 transition-opacity cursor-pointer group relative ${
+                isIconOnly ? "w-10 h-10 p-0 mx-auto" : "w-full"
               }`}
               title="로그인"
             >
               <LogIn className="w-4 h-4" />
-              {!isCollapsed && <span>로그인</span>}
+              {!isIconOnly ? (
+                <span>로그인</span>
+              ) : (
+                <div className="hidden md:group-hover:flex items-center absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-primary text-on-primary border border-primary/30 rounded-md text-xs font-bold whitespace-nowrap shadow-lg shadow-primary/20 z-[9999] pointer-events-none animate-in fade-in zoom-in-95 duration-100">
+                  <span className="absolute -left-1 top-1/2 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-primary" />
+                  <span>로그인</span>
+                </div>
+              )}
             </button>
           )}
         </div>

@@ -165,28 +165,28 @@ export function ContactsView() {
       {/* 상단 헤더 (플랫 헤더 표준) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl sm:text-2xl font-bold text-on-surface tracking-tight">연락처</h1>
-          <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono text-[11px] font-semibold">
+          <h1 className="ui-page-title">연락처</h1>
+          <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono">
             {contacts.length}명
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 text-sm">
           <div className="relative flex items-center">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 text-on-surface-variant pointer-events-none" />
+            <Search className="w-4 h-4 absolute left-2.5 text-on-surface-variant pointer-events-none" />
             <input
               type="text"
               placeholder="이름·이메일 검색..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-surface-container-lowest pl-8 pr-3 py-1.5 rounded-md border border-outline-variant text-xs text-on-surface w-40 sm:w-48 font-light focus:outline-hidden focus:border-primary"
+              className="bg-surface-container-lowest pl-8 pr-3 py-2 rounded-md border border-outline-variant text-sm text-on-surface w-44 sm:w-52 font-normal focus:outline-hidden focus:border-primary"
             />
           </div>
 
           {session?.user ? (
             <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
           ) : (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-container-low text-on-surface-variant text-xs font-mono border border-outline-variant">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-low text-on-surface-variant text-xs font-mono border border-outline-variant">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
               <span>게스트 모드</span>
             </div>
@@ -194,9 +194,9 @@ export function ContactsView() {
 
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-xs shrink-0"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-on-primary text-sm font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-xs shrink-0"
           >
-            <UserPlus className="w-3.5 h-3.5" />
+            <UserPlus className="w-4 h-4" />
             <span>연락처 추가</span>
           </button>
         </div>
@@ -204,13 +204,13 @@ export function ContactsView() {
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
         {/* Label Sidebar */}
-        <div className="md:col-span-3 p-3 bg-surface-container-lowest rounded-lg border border-outline-variant shadow-xs flex flex-col gap-1">
-          <span className="text-[11px] text-on-surface-variant font-bold px-1 mb-1">라벨 필터</span>
+        <div className="md:col-span-3 p-3 bg-surface-container-lowest rounded-lg border border-outline-variant shadow-xs flex flex-col gap-1 text-sm">
+          <span className="text-xs text-on-surface-variant font-bold px-1 mb-1">라벨 필터</span>
           {["전체", "팀원", "멘토", "기타"].map((lbl) => (
             <button
               key={lbl}
               onClick={() => setSelectedLabel(lbl)}
-              className={`w-full text-left px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+              className={`w-full text-left px-3 py-1.5 rounded-md text-sm font-semibold transition-all cursor-pointer ${
                 selectedLabel === lbl
                   ? "bg-primary text-on-primary shadow-xs"
                   : "hover:bg-surface-container text-on-surface-variant"
@@ -228,16 +228,16 @@ export function ContactsView() {
               <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant mb-3">
                 <Mail className="w-5 h-5 text-on-surface-variant" />
               </div>
-              <p className="text-sm font-semibold text-on-surface">등록된 연락처가 없습니다</p>
-              <p className="text-xs text-on-surface-variant mt-1 mb-4">
+              <p className="ui-card-title">등록된 연락처가 없습니다</p>
+              <p className="ui-caption mt-1 mb-4">
                 {searchQuery ? "검색 조건과 일치하는 연락처가 없습니다." : "팀원이나 멘토를 추가하여 소통해보세요."}
               </p>
               {!searchQuery && (
                 <button
                   onClick={() => setShowAddModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-on-primary text-sm font-semibold hover:opacity-90 transition-opacity cursor-pointer"
                 >
-                  <UserPlus className="w-3.5 h-3.5" />
+                  <UserPlus className="w-4 h-4" />
                   <span>연락처 추가</span>
                 </button>
               )}

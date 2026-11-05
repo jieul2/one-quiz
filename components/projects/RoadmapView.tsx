@@ -2,13 +2,12 @@
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   Calendar as CalendarIcon,
   UserPlus,
   Globe,
-  Lock,
   Plus,
   MoreVertical,
   MessageSquare,
@@ -19,7 +18,6 @@ import {
   Trash2,
   ZoomIn,
   ZoomOut,
-  Check,
   ListTodo,
   FolderGit2,
   ArrowRight,
@@ -27,6 +25,7 @@ import {
   RotateCcw,
   CheckCheck,
   CheckCircle2,
+  Search,
 } from "lucide-react";
 import { ProjectRoadmap, RoadmapItem, RoadmapComment, BacklogItem } from "@/lib/roadmapTypes";
 import { toast } from "@/lib/toast";
@@ -90,9 +89,6 @@ export function RoadmapView() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [activeCommentItemId, setActiveCommentItemId] = useState<string | null>(null);
 
-  // 3. 복사 상태
-  const [isCopied, setIsCopied] = useState(false);
-
   // 4. 입력 폼 상태들
   const [editStartDate, setEditStartDate] = useState(roadmap.startDate);
   const [editEndDate, setEditEndDate] = useState(roadmap.endDate);
@@ -108,18 +104,35 @@ export function RoadmapView() {
   const [newCommentText, setNewCommentText] = useState("");
 
   // 4-1. 백로그에서 가져오기 탭 지원 및 확정된 프로젝트 목록 로드
+  const router = useRouter();
   const searchParams = useSearchParams();
   const queryId = searchParams.get("id");
 
+  // 🔍 검색 상태 (프로젝트 목록 검색, 마일스톤 항목 검색, 모달 내 백로그 검색)
+  const [projectSearchQuery, setProjectSearchQuery] = useState("");
+  const [itemSearchQuery, setItemSearchQuery] = useState("");
+  const [backlogModalSearch, setBacklogModalSearch] = useState("");
+
   const [itemInputTab, setItemInputTab] = useState<"direct" | "backlog">("direct");
-  const [backlogList, setBacklogList] = useState<BacklogItem[]>([]);
+  const [backlogList, setBacklogList] = useState<BacklogItem[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("onequiz_backlog_items");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch {}
+      }
+    }
+    return [];
+  });
 
   const refreshBacklogs = useCallback(async () => {
     try {
       const res = await fetch("/api/ideas");
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data)) {
+        if (Array.isArray(data) && data.length > 0) {
           const normalized: BacklogItem[] = data.map((item: Record<string, unknown>) => {
             let st: BacklogItem["status"] = "idea";
             if (item.status === "completed") st = "completed";
@@ -160,11 +173,21 @@ export function RoadmapView() {
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setTimeout(() => setBacklogList(parsed), 0);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setTimeout(() => setBacklogList(parsed), 0);
+          }
         } catch {}
       }
     }
   }, []);
+
+  // 🌟 마운트 시 백로그 데이터 즉시 로드 (백로그에서 지정한 프로젝트가 즉각 나타나도록 보장)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      refreshBacklogs();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [refreshBacklogs]);
 
   // 🌟 백로그 페이지에서 프로젝트로 확정된 아이템 중 진행 중인 항목만 필터링 (완료된 프로젝트는 제외)
   const confirmedProjects = useMemo(() => {
@@ -180,6 +203,48 @@ export function RoadmapView() {
     return backlogList.filter((b) => b.status === "completed");
   }, [backlogList]);
 
+  // 🔍 프로젝트 검색 필터링 (제목, 설명, 태그)
+  const filteredConfirmedProjects = useMemo(() => {
+    if (!projectSearchQuery.trim()) return confirmedProjects;
+    const q = projectSearchQuery.toLowerCase().trim();
+    return confirmedProjects.filter(
+      (b) =>
+        b.title.toLowerCase().includes(q) ||
+        b.description.toLowerCase().includes(q) ||
+        b.tags.some((t) => t.toLowerCase().includes(q))
+    );
+  }, [confirmedProjects, projectSearchQuery]);
+
+  const filteredCompletedProjects = useMemo(() => {
+    if (!projectSearchQuery.trim()) return completedProjects;
+    const q = projectSearchQuery.toLowerCase().trim();
+    return completedProjects.filter(
+      (b) =>
+        b.title.toLowerCase().includes(q) ||
+        b.description.toLowerCase().includes(q) ||
+        b.tags.some((t) => t.toLowerCase().includes(q))
+    );
+  }, [completedProjects, projectSearchQuery]);
+
+  // 🔍 로드맵 마일스톤 항목 검색 필터링
+  const filteredRoadmapItems = useMemo(() => {
+    if (!itemSearchQuery.trim()) return roadmap.items;
+    const q = itemSearchQuery.toLowerCase().trim();
+    return roadmap.items.filter((it) => it.title.toLowerCase().includes(q));
+  }, [roadmap.items, itemSearchQuery]);
+
+  // 🔍 모달 내 백로그 검색 필터링
+  const filteredModalBacklogs = useMemo(() => {
+    if (!backlogModalSearch.trim()) return backlogList;
+    const q = backlogModalSearch.toLowerCase().trim();
+    return backlogList.filter(
+      (b) =>
+        b.title.toLowerCase().includes(q) ||
+        b.description.toLowerCase().includes(q) ||
+        b.tags.some((t) => t.toLowerCase().includes(q))
+    );
+  }, [backlogList, backlogModalSearch]);
+
   // 세로 목록 탭 상태 ("active": 진행 중 프로젝트, "completed": 끝난 보관함)
   const [projectListTab, setProjectListTab] = useState<"active" | "completed">("active");
 
@@ -189,40 +254,21 @@ export function RoadmapView() {
     return current ? current.type === "dark" : false;
   }, [theme]);
 
-  // 🌟 프로젝트 진입 시 세로 목록을 보여주고, 카드 클릭 시 로드맵 마일스톤 화면을 엽니다 (사용자 요구사항)
-  const [isMilestonesViewOpen, setIsMilestonesViewOpen] = useState<boolean>(() => {
-    return !!queryId;
-  });
-
-  useEffect(() => {
-    if (queryId) {
-      const timer = setTimeout(() => {
-        setIsMilestonesViewOpen(true);
-      }, 0);
-      return () => clearTimeout(timer);
-    }
-  }, [queryId]);
-
-  // 현재 선택된 프로젝트 ID 상태
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (queryId) {
-        setSelectedProjectId(queryId);
-      } else if (typeof window !== "undefined") {
-        const savedId = localStorage.getItem("onequiz_selected_project_id");
-        if (savedId) setSelectedProjectId(savedId);
-      }
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [queryId]);
+  // 🌟 프로젝트 진입 시 URL 파라미터(?id=...)를 기준으로 프로젝트 화면을 엽니다 (단일 진실 공급원)
+  const isMilestonesViewOpen = !!queryId;
+  const selectedProjectId = queryId;
 
   // 현재 활성 프로젝트 (선택된 백로그 항목 - 진행 중 및 보관함 전체 대상)
   const activeProject = useMemo(() => {
     if (backlogList.length === 0) return null;
     if (selectedProjectId) {
-      const found = backlogList.find((p) => p.id === selectedProjectId);
+      const found = backlogList.find(
+        (p) =>
+          p.id === selectedProjectId ||
+          p._id === selectedProjectId ||
+          p.promotedToProjectId === selectedProjectId ||
+          (p.title && p.title === selectedProjectId)
+      );
       if (found) return found;
     }
     return confirmedProjects[0] || completedProjects[0] || null;
@@ -310,14 +356,16 @@ export function RoadmapView() {
   const resizingItemRef = useRef<RoadmapItem | null>(null);
   const resizingEdgeRef = useRef<"start" | "end" | null>(null);
 
-  // 영구 저장 헬퍼 (DB + localStorage 동시 보존)
+  // 영구 저장 헬퍼 (프로젝트별 격리 저장: DB + localStorage)
   const persistRoadmap = useCallback(
     async (updated: ProjectRoadmap) => {
+      const projId = activeProject?.id || updated.id || "proj-1";
+      const payload = { ...updated, id: projId, projectId: projId };
       setSaveStatus("saving");
-      setRoadmap(updated);
+      setRoadmap(payload);
       if (typeof window !== "undefined") {
         try {
-          localStorage.setItem("onequiz_roadmap_data", JSON.stringify(updated));
+          localStorage.setItem(`onequiz_roadmap_data_${projId}`, JSON.stringify(payload));
         } catch {}
       }
 
@@ -326,7 +374,7 @@ export function RoadmapView() {
           const res = await fetch("/api/roadmap", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(updated),
+            body: JSON.stringify(payload),
           });
           if (!res.ok) throw new Error("DB 저장 실패");
           markSaved();
@@ -337,32 +385,77 @@ export function RoadmapView() {
         markSaved();
       }
     },
-    [session, markSaved]
+    [activeProject?.id, session, markSaved]
   );
 
-  // DB 로드
+  // 🌟 프로젝트(백로그)별 독립 로드맵 로드 (사용자 요구사항: 프로젝트마다 간트 바 분리)
   useEffect(() => {
+    if (!activeProject?.id) return;
+    const projId = activeProject.id;
+    const currentProj = activeProject;
     let isMounted = true;
-    async function loadData() {
+
+    // 1. 해당 프로젝트 전용 localStorage 확인 (비동기 스케줄링으로 렌더 캐스케이드 방지)
+    const localTimer = setTimeout(() => {
+      if (typeof window !== "undefined" && isMounted) {
+        const saved = localStorage.getItem(`onequiz_roadmap_data_${projId}`);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed) {
+              setRoadmap(parsed);
+            }
+          } catch {}
+        } else {
+          setRoadmap({
+            id: projId,
+            name: currentProj.title,
+            description: currentProj.description || "",
+            startDate: currentProj.startDate || "2026-10-15",
+            endDate: currentProj.endDate || "2026-11-04",
+            createdAt: currentProj.createdAt || "2026-11-04",
+            isPublic: true,
+            members: [],
+            items: currentProj.startDate && currentProj.endDate ? [
+              {
+                id: `item-${projId}-main`,
+                title: currentProj.title,
+                startDate: currentProj.startDate,
+                endDate: currentProj.endDate,
+                color: currentProj.color || "#0284c7",
+                comments: [],
+              }
+            ] : [],
+          });
+        }
+      }
+    }, 0);
+
+    // 2. 서버 DB에서 해당 프로젝트의 로드맵 조회 (/api/roadmap?projectId=...)
+    async function loadProjectRoadmap() {
       if (session?.user?.email) {
         try {
-          const res = await fetch("/api/roadmap");
+          const res = await fetch(`/api/roadmap?projectId=${projId}`);
           if (res.ok) {
             const data = await res.json();
             if (data && isMounted) {
-              setRoadmap({
-                id: data._id || data.id || "proj-1",
-                name: data.name,
-                description: data.description || "",
-                startDate: data.startDate,
-                endDate: data.endDate,
+              const loaded: ProjectRoadmap = {
+                id: projId,
+                name: data.name || currentProj.title,
+                description: data.description || currentProj.description || "",
+                startDate: data.startDate || currentProj.startDate || "2026-10-15",
+                endDate: data.endDate || currentProj.endDate || "2026-11-04",
                 createdAt: data.createdAt ? String(data.createdAt).slice(0, 10) : "2026-11-04",
                 isPublic: data.isPublic !== undefined ? data.isPublic : true,
                 members: data.members || [],
                 items: data.items || [],
-              });
-              setEditStartDate(data.startDate);
-              setEditEndDate(data.endDate);
+              };
+              setRoadmap(loaded);
+              setEditStartDate(loaded.startDate);
+              setEditEndDate(loaded.endDate);
+              if (typeof window !== "undefined") {
+                localStorage.setItem(`onequiz_roadmap_data_${projId}`, JSON.stringify(loaded));
+              }
               markSaved();
               return;
             }
@@ -372,14 +465,14 @@ export function RoadmapView() {
         }
       }
       if (isMounted) markSaved();
-      await refreshBacklogs();
     }
 
-    loadData();
+    loadProjectRoadmap();
     return () => {
       isMounted = false;
+      clearTimeout(localTimer);
     };
-  }, [session, markSaved, refreshBacklogs]);
+  }, [activeProject, session?.user?.email, markSaved]);
 
   // 타임라인 일자 목록 생성 (2026-10-15 ~ 2026-11-04 등)
   const timelineDays = useMemo(() => {
@@ -506,18 +599,6 @@ export function RoadmapView() {
     setResizePreviewEndDate(item.endDate);
   };
 
-  // 전체 공개 토글 핸들러
-  const handleTogglePublic = () => {
-    const updated = { ...roadmap, isPublic: !roadmap.isPublic };
-    persistRoadmap(updated);
-    if (!roadmap.isPublic) {
-      // 공개로 전환 시 링크 복사
-      navigator.clipboard.writeText(window.location.href);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2500);
-    }
-  };
-
   // 프로젝트 기간 수정 저장
   const handleSaveProjectPeriod = (e: React.FormEvent) => {
     e.preventDefault();
@@ -557,6 +638,7 @@ export function RoadmapView() {
     setItemEndDate("2026-10-23");
     setItemColor("#0284c7");
     setItemInputTab("direct");
+    setBacklogModalSearch("");
     setIsItemModalOpen(true);
   };
 
@@ -639,23 +721,54 @@ export function RoadmapView() {
     setNewCommentText("");
   };
 
-  // 주차별 그룹핑 계산
+  // 현재 보고 있는 타임라인의 기준 년월 (예: "2026년 10월")
+  const currentMonthStr = useMemo(() => {
+    if (timelineDays.length > 0) {
+      const midDay = timelineDays[Math.floor(timelineDays.length / 2)];
+      const parts = midDay.dateStr.split("-");
+      return `${parts[0]}년 ${parseInt(parts[1], 10)}월`;
+    }
+    return "2026년 10월";
+  }, [timelineDays]);
+
+  // 주차별 그룹핑 계산 (사진1 형태: "42주차 10월 11 - 17")
   const weeksGroup = useMemo(() => {
     if (timelineDays.length === 0) return [];
     const groups: { label: string; count: number }[] = [];
     let currentWeekNum = 42;
     let currentCount = 0;
+    let weekStartDay: { month: number; day: number } | null = null;
+    let weekEndDay: { month: number; day: number } | null = null;
 
     timelineDays.forEach((day, idx) => {
+      const parts = day.dateStr.split("-");
+      const m = parseInt(parts[1], 10);
+      const d = parseInt(parts[2], 10);
+
+      if (!weekStartDay) {
+        weekStartDay = { month: m, day: d };
+      }
+      weekEndDay = { month: m, day: d };
       currentCount++;
-      // 일요일이거나 마지막 날이면 한 주 마감
+
+      // 토요일이거나 마지막 날이면 한 주 마감
       if (day.dayOfWeek === "토" || idx === timelineDays.length - 1) {
+        let dateRangeStr = "";
+        if (weekStartDay && weekEndDay) {
+          if (weekStartDay.month === weekEndDay.month) {
+            dateRangeStr = ` ${weekStartDay.month}월 ${weekStartDay.day} - ${weekEndDay.day}`;
+          } else {
+            dateRangeStr = ` ${weekStartDay.month}월 ${weekStartDay.day} - ${weekEndDay.month}월 ${weekEndDay.day}`;
+          }
+        }
         groups.push({
-          label: `${currentWeekNum}주차`,
+          label: `${currentWeekNum}주차${dateRangeStr}`,
           count: currentCount,
         });
         currentWeekNum++;
         currentCount = 0;
+        weekStartDay = null;
+        weekEndDay = null;
       }
     });
 
@@ -693,14 +806,14 @@ export function RoadmapView() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-bold text-on-surface tracking-tight">
+              <h1 className="ui-page-title">
                 프로젝트
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-[11px] font-semibold font-mono">
+              <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono">
                 {projectListTab === "active" ? confirmedProjects.length : completedProjects.length}개
               </span>
             </div>
-            <p className="text-xs text-on-surface-variant font-light mt-0.5">
+            <p className="ui-page-subtitle mt-0.5">
               백로그(아이디어)에서 진행 확정된 프로젝트 목록입니다. 카드를 클릭하면 상세 로드맵 마일스톤과 간트 타임라인을 확인할 수 있습니다.
             </p>
           </div>
@@ -708,47 +821,75 @@ export function RoadmapView() {
           <div className="flex items-center gap-2">
             <Link
               href="/ideas"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant text-xs font-medium transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant text-sm font-medium transition-colors"
             >
               <span>+ 아이디어에서 추가 확정</span>
-              <ArrowRight size={12} />
+              <ArrowRight size={13} />
             </Link>
           </div>
         </div>
 
-        {/* 🌟 진행 중인 프로젝트 vs 끝난 보관함 탭 스위처 */}
-        <div className="flex items-center gap-2 border-b border-outline-variant pb-1">
-          <button
-            type="button"
-            onClick={() => setProjectListTab("active")}
-            className={`flex items-center gap-2 px-3 py-2 rounded-t-lg text-xs font-semibold border-b-2 transition-all cursor-pointer ${
-              projectListTab === "active"
-                ? "border-primary text-primary bg-primary/[0.04]"
-                : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
-            }`}
-          >
-            <FolderGit2 size={14} />
-            <span>진행 중인 프로젝트</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-surface-container text-on-surface-variant font-mono text-[10px]">
-              {confirmedProjects.length}
-            </span>
-          </button>
+        {/* 🌟 탭 스위처 & 🔍 프로젝트 실시간 검색창 */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-outline-variant pb-2">
+          {/* 진행 중인 프로젝트 vs 끝난 보관함 탭 */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setProjectListTab("active")}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-t-lg text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+                projectListTab === "active"
+                  ? "border-primary text-primary bg-primary/[0.04]"
+                  : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+              }`}
+            >
+              <FolderGit2 size={15} />
+              <span>진행 중인 프로젝트</span>
+              <span className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono text-xs">
+                {filteredConfirmedProjects.length}
+              </span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setProjectListTab("completed")}
-            className={`flex items-center gap-2 px-3 py-2 rounded-t-lg text-xs font-semibold border-b-2 transition-all cursor-pointer ${
-              projectListTab === "completed"
-                ? "border-primary text-primary bg-primary/[0.04]"
-                : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
-            }`}
-          >
-            <Archive size={14} />
-            <span>끝난 보관함</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-surface-container text-on-surface-variant font-mono text-[10px]">
-              {completedProjects.length}
-            </span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setProjectListTab("completed")}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-t-lg text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+                projectListTab === "completed"
+                  ? "border-primary text-primary bg-primary/[0.04]"
+                  : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+              }`}
+            >
+              <Archive size={15} />
+              <span>끝난 보관함</span>
+              <span className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono text-xs">
+                {filteredCompletedProjects.length}
+              </span>
+            </button>
+          </div>
+
+          {/* 🔍 프로젝트 실시간 검색창 */}
+          <div className="relative w-full sm:w-72">
+            <Search
+              size={15}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none"
+            />
+            <input
+              type="text"
+              value={projectSearchQuery}
+              onChange={(e) => setProjectSearchQuery(e.target.value)}
+              placeholder="프로젝트 제목, 설명, 태그 검색..."
+              className="w-full pl-8 pr-8 py-2 bg-surface-container-lowest border border-outline-variant rounded-lg text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary transition-all font-normal"
+            />
+            {projectSearchQuery && (
+              <button
+                type="button"
+                onClick={() => setProjectSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-1 rounded cursor-pointer"
+                title="검색어 지우기"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* [진행 중인 프로젝트] 탭 내용 */}
@@ -760,77 +901,92 @@ export function RoadmapView() {
               </div>
               <div>
                 <h3 className="font-bold text-base text-on-surface">진행 중인 프로젝트가 없습니다</h3>
-                <p className="text-xs text-on-surface-variant font-light mt-1 leading-relaxed">
+                <p className="text-sm text-on-surface-variant font-normal mt-1 leading-relaxed">
                   아이디어(백로그) 페이지에서 아이디어를 검토하고 &apos;프로젝트로 전환&apos;을 완료하면 이곳에 프로젝트 카드가 생성됩니다.
                 </p>
               </div>
               <Link
                 href="/ideas"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-on-primary font-bold text-xs hover:opacity-90 transition-opacity"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-on-primary font-bold text-sm hover:opacity-90 transition-opacity"
               >
                 <span>아이디어(백로그) 페이지로 이동</span>
-                <ArrowRight size={13} />
+                <ArrowRight size={14} />
               </Link>
+            </div>
+          ) : filteredConfirmedProjects.length === 0 ? (
+            <div className="py-16 px-6 rounded-2xl bg-surface-container-lowest border border-dashed border-outline-variant text-center space-y-3 max-w-md mx-auto">
+              <div className="w-10 h-10 rounded-xl bg-surface-container text-on-surface-variant flex items-center justify-center mx-auto">
+                <Search size={18} />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-on-surface">&apos;{projectSearchQuery}&apos; 검색 결과가 없습니다</h3>
+                <p className="text-sm text-on-surface-variant font-normal mt-1">
+                  다른 검색어로 검색해보거나 검색어를 초기화해보세요.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProjectSearchQuery("")}
+                className="px-3.5 py-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface text-sm font-semibold transition-colors cursor-pointer"
+              >
+                검색어 초기화
+              </button>
             </div>
           ) : (
             <div className="flex flex-col gap-3.5">
-              {confirmedProjects.map((proj) => {
+              {filteredConfirmedProjects.map((proj) => {
                 const isSelected = activeProject?.id === proj.id;
                 return (
                   <div
                     key={proj.id}
                     onClick={() => {
-                      setSelectedProjectId(proj.id);
-                      setIsMilestonesViewOpen(true);
-                      if (typeof window !== "undefined") {
-                        localStorage.setItem("onequiz_selected_project_id", proj.id);
-                      }
+                      router.push(`/projects?id=${encodeURIComponent(proj.id)}`);
                     }}
                     className={`bg-surface-container-lowest hover:bg-surface-container-low border rounded-xl p-4 sm:p-5 cursor-pointer transition-all shadow-xs group flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
                       isSelected ? "border-primary ring-1 ring-primary/20" : "border-outline-variant hover:border-primary/50"
                     }`}
                   >
-                    <div className="space-y-1.5 min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-bold text-sm sm:text-base text-on-surface group-hover:text-primary transition-colors">
+                    <div className="space-y-2 min-w-0 flex-1">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <h3 className="font-bold text-base sm:text-lg text-on-surface group-hover:text-primary transition-colors">
                           {proj.title}
                         </h3>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
                           {proj.status === "promoted" ? "프로젝트 전환 완료" : "진행 확정"}
                         </span>
                       </div>
 
                       {proj.description && (
-                        <p className="text-xs text-on-surface-variant font-light line-clamp-2 leading-relaxed">
+                        <p className="ui-caption leading-relaxed whitespace-pre-wrap">
                           {proj.description}
                         </p>
                       )}
 
-                      <div className="flex items-center gap-3 text-[11px] text-on-surface-variant font-mono pt-1">
-                        <span className="flex items-center gap-1">
-                          <CalendarIcon size={12} className="text-primary" />
+                      <div className="flex items-center gap-3 text-xs text-on-surface-variant font-mono pt-1">
+                        <span className="flex items-center gap-1.5">
+                          <CalendarIcon size={14} className="text-primary" />
                           <span>{proj.startDate || "2026-10-15"} ~ {proj.endDate || "2026-11-04"}</span>
                         </span>
                         <span>생성: {proj.createdAt}</span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleCompleteProject(proj);
                         }}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-medium text-xs transition-colors cursor-pointer border border-outline-variant"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-semibold text-sm transition-colors cursor-pointer border border-outline-variant"
                         title="이 프로젝트를 완료 처리하고 끝난 보관함으로 보냅니다"
                       >
-                        <CheckCheck size={12} className="text-primary" />
+                        <CheckCheck size={14} className="text-primary" />
                         <span>완료 처리</span>
                       </button>
-                      <span className="text-xs font-semibold text-primary group-hover:underline flex items-center gap-1">
+                      <span className="text-sm font-semibold text-primary group-hover:underline flex items-center gap-1">
                         <span>마일스톤 열기</span>
-                        <ArrowRight size={13} className="group-hover:translate-x-1 transition-transform" />
+                        <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
                       </span>
                     </div>
                   </div>
@@ -849,45 +1005,60 @@ export function RoadmapView() {
               </div>
               <div>
                 <h3 className="font-bold text-base text-on-surface">보관된 완료 프로젝트가 없습니다</h3>
-                <p className="text-xs text-on-surface-variant font-light mt-1 leading-relaxed">
+                <p className="text-sm text-on-surface-variant font-normal mt-1 leading-relaxed">
                   진행이 끝난 프로젝트를 &apos;완료 처리&apos;하면 이곳에 안전하게 보관되며 언제든지 다시 진행 중으로 복구할 수 있습니다.
                 </p>
               </div>
             </div>
+          ) : filteredCompletedProjects.length === 0 ? (
+            <div className="py-16 px-6 rounded-2xl bg-surface-container-lowest border border-dashed border-outline-variant text-center space-y-3 max-w-md mx-auto">
+              <div className="w-10 h-10 rounded-xl bg-surface-container text-on-surface-variant flex items-center justify-center mx-auto">
+                <Search size={18} />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-on-surface">&apos;{projectSearchQuery}&apos; 검색 결과가 없습니다</h3>
+                <p className="text-sm text-on-surface-variant font-normal mt-1">
+                  다른 검색어로 검색해보거나 검색어를 초기화해보세요.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProjectSearchQuery("")}
+                className="px-3.5 py-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface text-sm font-semibold transition-colors cursor-pointer"
+              >
+                검색어 초기화
+              </button>
+            </div>
           ) : (
             <div className="flex flex-col gap-3.5">
-              {completedProjects.map((proj) => (
+              {filteredCompletedProjects.map((proj) => (
                 <div
                   key={proj.id}
                   onClick={() => {
-                    setSelectedProjectId(proj.id);
-                    setIsMilestonesViewOpen(true);
-                    if (typeof window !== "undefined") {
-                      localStorage.setItem("onequiz_selected_project_id", proj.id);
-                    }
+                    router.push(`/projects?id=${encodeURIComponent(proj.id)}`);
                   }}
                   className="bg-surface-container-lowest hover:bg-surface-container-low border border-outline-variant hover:border-primary/40 rounded-xl p-4 sm:p-5 cursor-pointer transition-all shadow-xs group flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
-                  <div className="space-y-1.5 min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-bold text-sm sm:text-base text-on-surface group-hover:text-primary transition-colors">
+                  <div className="space-y-2 min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <h3 className="font-bold text-base sm:text-lg text-on-surface group-hover:text-primary transition-colors">
                         {proj.title}
                       </h3>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-secondary/15 text-secondary border border-secondary/30 flex items-center gap-1">
-                        <CheckCircle2 size={10} />
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-secondary/15 text-secondary border border-secondary/30 flex items-center gap-1">
+                        <CheckCircle2 size={12} />
                         <span>완료됨</span>
                       </span>
                     </div>
 
                     {proj.description && (
-                      <p className="text-xs text-on-surface-variant font-light line-clamp-2 leading-relaxed">
+                      <p className="ui-caption leading-relaxed whitespace-pre-wrap">
                         {proj.description}
                       </p>
                     )}
 
-                    <div className="flex items-center gap-3 text-[11px] text-on-surface-variant font-mono pt-1">
-                      <span className="flex items-center gap-1">
-                        <CalendarIcon size={12} className="text-primary" />
+                    <div className="flex items-center gap-3 text-xs text-on-surface-variant font-mono pt-1">
+                      <span className="flex items-center gap-1.5">
+                        <CalendarIcon size={14} className="text-primary" />
                         <span>기간: {proj.startDate || "2026-10-15"} ~ {proj.endDate || "2026-11-04"}</span>
                       </span>
                       {proj.completedAt && (
@@ -896,22 +1067,22 @@ export function RoadmapView() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                  <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleRestoreProject(proj);
                       }}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-medium text-xs transition-colors cursor-pointer border border-outline-variant"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-semibold text-sm transition-colors cursor-pointer border border-outline-variant"
                       title="다시 진행 중인 프로젝트로 복구합니다"
                     >
-                      <RotateCcw size={12} className="text-primary" />
+                      <RotateCcw size={14} className="text-primary" />
                       <span>다시 진행하기</span>
                     </button>
-                    <span className="text-xs font-semibold text-primary group-hover:underline flex items-center gap-1">
+                    <span className="text-sm font-semibold text-primary group-hover:underline flex items-center gap-1">
                       <span>기록 보기</span>
-                      <ArrowRight size={13} className="group-hover:translate-x-1 transition-transform" />
+                      <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
                     </span>
                   </div>
                 </div>
@@ -931,7 +1102,9 @@ export function RoadmapView() {
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
-            onClick={() => setIsMilestonesViewOpen(false)}
+            onClick={() => {
+              router.push("/projects");
+            }}
             className="p-1.5 hover:bg-surface-container rounded-md text-on-surface-variant hover:text-on-surface transition-colors shrink-0 cursor-pointer"
             title="프로젝트 목록으로 돌아가기"
           >
@@ -942,33 +1115,35 @@ export function RoadmapView() {
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
-                onClick={() => setIsMilestonesViewOpen(false)}
-                className="text-xs text-primary hover:underline font-semibold flex items-center gap-1 cursor-pointer mr-1"
+                onClick={() => {
+                  router.push("/projects");
+                }}
+                className="text-sm text-primary hover:underline font-semibold flex items-center gap-1 cursor-pointer mr-1"
               >
                 <span>프로젝트 목록</span>
-                <ChevronRight size={12} />
+                <ChevronRight size={13} />
               </button>
-              <h1 className="text-xl sm:text-2xl font-bold text-on-surface tracking-tight truncate max-w-xl">
+              <h1 className="ui-page-title truncate max-w-xl">
                 {activeProject ? activeProject.title : (roadmap.name === "1" ? "프로젝트 로드맵" : roadmap.name)}
               </h1>
               {activeProject ? (
                 activeProject.status === "completed" ? (
-                  <span className="px-2.5 py-0.5 rounded-full bg-secondary/15 text-secondary border border-secondary/30 text-[11px] font-semibold flex items-center gap-1">
-                    <CheckCircle2 size={11} />
+                  <span className="px-2.5 py-0.5 rounded-full bg-secondary/15 text-secondary border border-secondary/30 text-xs font-semibold flex items-center gap-1">
+                    <CheckCircle2 size={12} />
                     <span>완료 보관됨</span>
                   </span>
                 ) : (
-                  <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[11px] font-semibold">
+                  <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-xs font-semibold">
                     {activeProject.status === "promoted" ? "프로젝트 전환 완료" : "진행 확정"}
                   </span>
                 )
               ) : (
-                <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-[11px] font-semibold font-mono">
+                <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-xs font-semibold font-mono">
                   프로젝트
                 </span>
               )}
             </div>
-            <p className="text-xs text-on-surface-variant font-light mt-0.5 truncate">
+            <p className="text-sm text-on-surface-variant font-normal mt-0.5 truncate">
               {activeProject?.description
                 ? `${activeProject.description} · `
                 : ""}
@@ -978,7 +1153,7 @@ export function RoadmapView() {
         </div>
 
         {/* 우측 도구 버튼들 (기간 수정, 초대, 전체공개, 완료처리, 항목 추가) */}
-        <div className="flex flex-wrap items-center gap-2 text-xs shrink-0">
+        <div className="flex flex-wrap items-center gap-2 text-sm shrink-0">
           {/* 저장 상태 인디케이터 */}
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 
@@ -988,20 +1163,20 @@ export function RoadmapView() {
               <button
                 type="button"
                 onClick={() => handleRestoreProject(activeProject)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface border border-outline-variant rounded-md font-medium transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface border border-outline-variant rounded-md font-semibold transition-colors cursor-pointer"
                 title="다시 진행 중인 프로젝트로 복원합니다"
               >
-                <RotateCcw size={12} className="text-primary" />
+                <RotateCcw size={14} className="text-primary" />
                 <span>다시 진행하기</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => handleCompleteProject(activeProject)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-md font-semibold transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-md font-bold transition-colors cursor-pointer"
                 title="이 프로젝트를 완료 처리하고 끝난 보관함으로 이동합니다"
               >
-                <CheckCheck size={13} />
+                <CheckCheck size={14} />
                 <span>프로젝트 완료</span>
               </button>
             )
@@ -1010,131 +1185,146 @@ export function RoadmapView() {
           {/* 기간 수정 버튼 */}
           <button
             onClick={() => setIsDateModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-md font-medium transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-md font-semibold transition-colors cursor-pointer"
           >
-            <CalendarIcon size={13} className="text-primary" />
+            <CalendarIcon size={14} className="text-primary" />
             <span>기간 수정</span>
           </button>
 
           {/* 초대 버튼 */}
           <button
             onClick={() => setIsInviteModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-md font-medium transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-md font-semibold transition-colors cursor-pointer"
           >
-            <UserPlus size={13} className="text-primary" />
+            <UserPlus size={14} className="text-primary" />
             <span>초대 ({roadmap.members.length})</span>
           </button>
 
-          {/* 전체 공개 토글 버튼 */}
+          {/* 전체 공개 (팀원 기능 업데이트 전까지 임시 비활성화) */}
           <button
-            onClick={handleTogglePublic}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all cursor-pointer border ${
-              roadmap.isPublic
-                ? "bg-surface-container text-primary border-primary/30"
-                : "bg-surface-container-low text-on-surface-variant border-outline-variant hover:text-on-surface"
-            }`}
-            title={
-              roadmap.isPublic
-                ? "누구나 열람 가능한 공개 상태입니다 (클릭 시 링크 복사)"
-                : "비공개 상태 (팀원만 열람 가능)"
-            }
+            type="button"
+            disabled
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium border border-outline-variant/60 bg-surface-container-low text-on-surface-variant/50 cursor-not-allowed opacity-60 text-xs"
+            title="팀원 초대 기능 출시 전까지 임시 비활성화됩니다"
           >
-            {roadmap.isPublic ? <Globe size={13} /> : <Lock size={13} />}
-            <span>{roadmap.isPublic ? "전체 공개 중" : "비공개"}</span>
-            {isCopied && <Check size={12} className="text-primary ml-1" />}
+            <Globe size={13} />
+            <span>전체 공개 (준비 중)</span>
           </button>
 
           {/* + 항목 추가 버튼 */}
           <button
             onClick={handleOpenCreateItem}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary hover:opacity-90 text-on-primary font-semibold rounded-md transition-all cursor-pointer shadow-xs"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary hover:opacity-90 text-on-primary font-bold rounded-md transition-all cursor-pointer shadow-xs"
           >
-            <Plus size={14} />
+            <Plus size={15} />
             <span>항목 추가</span>
           </button>
         </div>
       </div>
 
-      {/* 🌟 2. 백로그에서 확정된 프로젝트 탭 바 (사용자 요구사항: 여기서 선택해서 그 백로그의 프로젝트를 나타나게 함) */}
-      {(confirmedProjects.length > 0 || (activeProject && activeProject.status === "completed")) ? (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-          <span className="text-xs font-semibold text-on-surface-variant shrink-0 mr-1 flex items-center gap-1.5">
-            <FolderGit2 size={14} className="text-primary" />
-            <span>확정된 프로젝트 ({confirmedProjects.length}):</span>
-          </span>
-          {activeProject && activeProject.status === "completed" && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold shrink-0 border bg-secondary/15 text-secondary border-secondary/30">
-              <Archive size={12} />
-              <span className="truncate max-w-[180px]">{activeProject.title} (완료됨)</span>
+      {/* 🌟 2. 선택된 프로젝트 상세 정보 및 부가설명 섹션 (내용이 길어도 잘리지 않고 확인 가능) */}
+      {activeProject && (
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 sm:p-5 space-y-3 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-outline-variant/60 pb-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="ui-card-title text-base sm:text-lg">
+                {activeProject.title}
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                {activeProject.status === "completed"
+                  ? "완료 보관됨"
+                  : activeProject.status === "promoted"
+                  ? "프로젝트 전환 완료"
+                  : "진행 확정"}
+              </span>
+              {activeProject.priority && (
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-surface-container text-on-surface-variant uppercase">
+                  우선순위: {activeProject.priority}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 text-xs text-on-surface-variant font-mono">
+              <span className="flex items-center gap-1">
+                <CalendarIcon size={13} className="text-primary" />
+                <span>기간: {activeProject.startDate || roadmap.startDate} ~ {activeProject.endDate || roadmap.endDate}</span>
+              </span>
+            </div>
+          </div>
+
+          {/* 상세 설명 (길더라도 잘리지 않고 전체 개행 유지 표시) */}
+          <div className="space-y-1">
+            <div className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+              상세 설명 및 부가 메모
+            </div>
+            {activeProject.description ? (
+              <p className="text-xs sm:text-sm text-on-surface leading-relaxed whitespace-pre-wrap bg-surface-container-low p-3.5 rounded-lg border border-outline-variant/60">
+                {activeProject.description}
+              </p>
+            ) : (
+              <p className="text-xs text-on-surface-variant/70 italic">
+                등록된 추가 상세 설명이 없습니다.
+              </p>
+            )}
+          </div>
+
+          {/* 부가 태그 및 담당자 */}
+          {activeProject.tags && activeProject.tags.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+              <span className="text-xs text-on-surface-variant font-medium mr-1">태그:</span>
+              {activeProject.tags.map((tag, idx) => (
+                <span
+                  key={idx}
+                  className="px-2 py-0.5 rounded-md bg-surface-container text-on-surface-variant text-[11px] font-medium"
+                >
+                  #{tag}
+                </span>
+              ))}
             </div>
           )}
-          {confirmedProjects.map((proj) => {
-            const isSelected = activeProject?.id === proj.id;
-            return (
-              <button
-                key={proj.id}
-                onClick={() => {
-                  setSelectedProjectId(proj.id);
-                  if (typeof window !== "undefined") {
-                    localStorage.setItem("onequiz_selected_project_id", proj.id);
-                  }
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 cursor-pointer border ${
-                  isSelected
-                    ? "bg-primary text-on-primary border-primary shadow-xs font-semibold"
-                    : "bg-surface-container-lowest text-on-surface-variant hover:text-on-surface border-outline-variant hover:bg-surface-container-low"
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
-                <span className="truncate max-w-[180px]">{proj.title}</span>
-              </button>
-            );
-          })}
-          <Link
-            href="/ideas"
-            className="flex items-center gap-1 text-[11px] text-primary hover:underline shrink-0 ml-auto font-medium"
-          >
-            <span>+ 아이디어에서 추가 확정</span>
-            <ArrowRight size={11} />
-          </Link>
-        </div>
-      ) : (
-        /* 확정된 프로젝트가 없을 때의 Empty State */
-        <div className="py-16 px-4 flex flex-col items-center justify-center text-center gap-3 rounded-lg bg-surface-container-lowest border border-dashed border-outline-variant">
-          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-            <FolderGit2 size={24} />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-sm font-bold text-on-surface">프로젝트로 확정된 아이디어가 없습니다</h3>
-            <p className="text-xs text-on-surface-variant font-light max-w-md">
-              아이디어(백로그) 페이지에서 아이디어를 검토하고 &apos;진행 확정&apos; 또는 &apos;프로젝트로 전환&apos;하면 이곳에 프로젝트로 나타나 기간과 로드맵을 관리할 수 있습니다.
-            </p>
-          </div>
-          <Link
-            href="/ideas"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-on-primary text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-xs mt-1"
-          >
-            <span>아이디어 (백로그) 페이지로 이동</span>
-            <ArrowRight size={13} />
-          </Link>
         </div>
       )}
 
       {/* 3. 메인 타임라인 간트 차트 (확정된 프로젝트가 있을 때만 렌더링) */}
-      {confirmedProjects.length > 0 && (
+      {(confirmedProjects.length > 0 || activeProject) && (
       <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-xs overflow-hidden flex flex-col">
-        {/* 상단 월 표시 및 퀵 액션 */}
-        <div className="px-5 py-3.5 bg-surface-container-low border-b border-outline-variant flex items-center justify-between">
+        {/* 상단 월 표시 및 퀵 액션 (실시간 검색창 + 줌 컨트롤) */}
+        <div className="px-5 py-3.5 bg-surface-container-low border-b border-outline-variant flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <h2 className="text-sm sm:text-base font-black text-on-surface font-mono">
-              2026년 10월
+              {currentMonthStr}
             </h2>
             <span className="text-xs text-on-surface-variant font-mono">
-              ({roadmap.items.length}개 로드맵 마일스톤)
+              ({filteredRoadmapItems.length}{itemSearchQuery ? ` / ${roadmap.items.length}` : ""}개 로드맵 마일스톤)
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
+            {/* 🔍 로드맵 마일스톤 실시간 검색창 */}
+            <div className="relative w-44 sm:w-56">
+              <Search
+                size={13}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none"
+              />
+              <input
+                type="text"
+                value={itemSearchQuery}
+                onChange={(e) => setItemSearchQuery(e.target.value)}
+                placeholder="마일스톤 항목 검색..."
+                className="w-full pl-7 pr-7 py-1.5 bg-surface-container-lowest border border-outline-variant rounded-lg text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary transition-all font-normal"
+              />
+              {itemSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setItemSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-0.5 cursor-pointer"
+                  title="검색어 지우기"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
             {/* 줌 컨트롤 (+ / -) */}
             <div className="flex items-center bg-surface-container-lowest p-1 rounded-xl border border-outline-variant">
               <button
@@ -1144,7 +1334,7 @@ export function RoadmapView() {
               >
                 <ZoomOut size={14} />
               </button>
-              <span className="text-[10px] font-mono font-bold px-1.5 text-on-surface-variant">
+              <span className="text-xs font-mono font-bold px-1.5 text-on-surface-variant">
                 {dayWidth}px
               </span>
               <button
@@ -1166,17 +1356,17 @@ export function RoadmapView() {
         >
           <div className="min-w-max flex flex-col">
             {/* 2-1. 헤더: 좌측 '항목' + 우측 주차/날짜 타임라인 헤더 */}
-            <div className="flex border-b border-outline-variant bg-surface-container-low text-xs sticky top-0 z-20">
+            <div className="flex border-b border-outline-variant bg-surface-container-low text-sm sticky top-0 z-20">
               {/* 좌측 고정 항목 열 헤더 */}
               <div className="w-56 sm:w-64 px-4 py-3 font-bold text-on-surface border-r border-outline-variant bg-surface-container-low shrink-0 flex items-center justify-between">
-                <span>항목</span>
-                <span className="text-[10px] text-on-surface-variant font-mono">댓글 수</span>
+                <span className="text-sm font-bold text-on-surface">항목</span>
+                <span className="text-xs text-on-surface-variant font-mono">댓글 수</span>
               </div>
 
               {/* 우측 날짜 타임라인 헤더 (상단: 주차 / 하단: 일자) */}
               <div className="flex flex-col flex-1">
                 {/* 상단 행: 주차별 구간 헤더 */}
-                <div className="flex border-b border-outline-variant/60 font-mono text-[11px] font-bold text-on-surface-variant">
+                <div className="flex border-b border-outline-variant/60 font-mono text-xs font-bold text-on-surface-variant">
                   {weeksGroup.map((w, wIdx) => (
                     <div
                       key={wIdx}
@@ -1189,7 +1379,7 @@ export function RoadmapView() {
                 </div>
 
                 {/* 하단 행: 일자별 날짜 (목 15, 금 16 ...) */}
-                <div className="flex font-mono text-[11px]">
+                <div className="flex font-mono text-xs">
                   {timelineDays.map((day) => (
                     <div
                       key={day.dateStr}
@@ -1202,8 +1392,8 @@ export function RoadmapView() {
                             : "text-on-surface-variant font-medium"
                       }`}
                     >
-                      <span className="text-[10px] opacity-75">{day.dayOfWeek}</span>
-                      <span className="text-xs">{day.dayNum}</span>
+                      <span className="text-[11px] font-medium opacity-80">{day.dayOfWeek}</span>
+                      <span className="text-sm font-bold">{day.dayNum}</span>
                     </div>
                   ))}
                 </div>
@@ -1229,7 +1419,7 @@ export function RoadmapView() {
               )}
 
               {/* 항목이 없을 때의 빈 상태 안내 */}
-              {roadmap.items.length === 0 && (
+              {roadmap.items.length === 0 ? (
                 <div className="py-14 flex flex-col items-center justify-center text-center gap-2 text-on-surface-variant bg-surface-container-lowest/50">
                   <CalendarIcon className="w-8 h-8 text-on-surface-variant/40" />
                   <p className="text-sm font-semibold text-on-surface">등록된 프로젝트 일정이 없습니다</p>
@@ -1237,9 +1427,21 @@ export function RoadmapView() {
                     좌측 하단이나 우측 상단의 &apos;+ 항목 추가&apos; 버튼을 눌러 일정을 등록해보세요.
                   </p>
                 </div>
-              )}
+              ) : filteredRoadmapItems.length === 0 ? (
+                <div className="py-14 flex flex-col items-center justify-center text-center gap-2 text-on-surface-variant bg-surface-container-lowest/50">
+                  <Search className="w-8 h-8 text-on-surface-variant/40" />
+                  <p className="text-sm font-semibold text-on-surface">&apos;{itemSearchQuery}&apos; 검색 결과가 없습니다</p>
+                  <button
+                    type="button"
+                    onClick={() => setItemSearchQuery("")}
+                    className="text-xs text-primary font-bold hover:underline cursor-pointer"
+                  >
+                    검색어 초기화
+                  </button>
+                </div>
+              ) : null}
 
-              {roadmap.items.map((item) => {
+              {filteredRoadmapItems.map((item) => {
                 const effectiveStartDate =
                   resizingItemId === item.id && resizePreviewStartDate
                     ? resizePreviewStartDate
@@ -1261,7 +1463,7 @@ export function RoadmapView() {
                     <div className="w-56 sm:w-64 px-4 h-full flex items-center justify-between border-r border-outline-variant bg-surface-container-lowest shrink-0 z-10">
                       <button
                         onClick={() => setActiveCommentItemId(item.id)}
-                        className="font-bold text-xs sm:text-sm text-on-surface hover:text-primary transition-colors truncate text-left cursor-pointer flex-1"
+                        className="font-bold text-sm text-on-surface hover:text-primary transition-colors truncate text-left cursor-pointer flex-1"
                         title="클릭 시 댓글 및 상세 확인"
                       >
                         {item.title}
@@ -1271,10 +1473,10 @@ export function RoadmapView() {
                         {/* 댓글 뱃지 (아이콘 + 숫자) */}
                         <button
                           onClick={() => setActiveCommentItemId(item.id)}
-                          className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors text-[11px] font-bold cursor-pointer"
+                          className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors text-xs font-semibold cursor-pointer"
                           title="댓글 확인"
                         >
-                          <MessageSquare size={12} />
+                          <MessageSquare size={13} />
                           <span>{item.comments.length}</span>
                         </button>
 
@@ -1285,7 +1487,7 @@ export function RoadmapView() {
                             className="p-1 text-on-surface-variant hover:text-on-surface rounded cursor-pointer"
                             title="항목 편집"
                           >
-                            <MoreVertical size={14} />
+                            <MoreVertical size={15} />
                           </button>
                         </div>
                       </div>
@@ -1302,7 +1504,7 @@ export function RoadmapView() {
                             style={{ width: dayWidth }}
                             className={`h-full border-r border-outline-variant/20 shrink-0 pointer-events-auto ${
                               day.dayOfWeek === "일" || day.dayOfWeek === "토"
-                                ? "bg-black/[0.02] dark:bg-white/[0.01]"
+                                ? "bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(255,255,255,0.03)_4px,rgba(255,255,255,0.03)_8px)] bg-surface-container-high/20"
                                 : ""
                             }`}
                           />
@@ -1322,7 +1524,7 @@ export function RoadmapView() {
                             backdropFilter: "blur(2px)",
                           }}
                           onClick={() => setActiveCommentItemId(item.id)}
-                          className={`group/bar absolute h-[23px] rounded-xs shadow-xs px-1.5 flex items-center justify-between text-xs truncate cursor-pointer hover:brightness-110 transition-all z-0 select-none ${
+                          className={`group/bar absolute h-[26px] rounded-xs shadow-xs px-2 flex items-center justify-between text-xs truncate cursor-pointer hover:brightness-110 transition-all z-0 select-none ${
                             isDark ? "text-white font-medium" : "text-slate-900 font-bold"
                           }`}
                           title={`${item.title} (${effectiveStartDate} ~ ${effectiveEndDate}) - 양쪽 핸들을 드래그하여 기간을 늘리거나 줄일 수 있습니다`}
@@ -1338,7 +1540,7 @@ export function RoadmapView() {
 
                           {/* 바 타이틀 텍스트 (라이트 모드에서 검정 슬레이트 글씨, 다크 모드에서 흰색 글씨로 시인성 100% 보장) */}
                           <span
-                            className={`truncate text-[11px] leading-none drop-shadow-xs ${
+                            className={`truncate text-xs font-semibold leading-none drop-shadow-xs ${
                               isDark ? "text-white font-medium" : "text-slate-900 font-bold"
                             } ${isSingleDay ? "w-full text-center" : ""}`}
                           >
@@ -1348,7 +1550,7 @@ export function RoadmapView() {
                           {/* 2일 이상 넓은 바에서만 내부 댓글 말풍선 표시 */}
                           {!isSingleDay && barPos.width > 90 && item.comments.length > 0 && (
                             <span
-                              className={`text-[10px] shrink-0 ml-1 font-mono ${
+                              className={`text-xs shrink-0 ml-1.5 font-mono ${
                                 isDark ? "text-white/80" : "text-slate-800 font-bold"
                               }`}
                             >
@@ -1376,9 +1578,9 @@ export function RoadmapView() {
                 <div className="w-56 sm:w-64 px-4 h-full flex items-center border-r border-outline-variant bg-surface-container-lowest shrink-0">
                   <button
                     onClick={handleOpenCreateItem}
-                    className="flex items-center gap-1.5 text-xs text-primary font-bold hover:underline cursor-pointer"
+                    className="flex items-center gap-1.5 text-sm text-primary font-bold hover:underline cursor-pointer"
                   >
-                    <Plus size={14} />
+                    <Plus size={15} />
                     <span>항목 추가</span>
                   </button>
                 </div>
@@ -1407,14 +1609,14 @@ export function RoadmapView() {
                       {activeCommentItem.title}
                     </h3>
                   </div>
-                  <p className="text-xs text-on-surface-variant font-mono">
+                  <p className="text-sm text-on-surface-variant font-mono">
                     기간: {activeCommentItem.startDate} ~ {activeCommentItem.endDate}
                   </p>
                 </div>
 
                 <button
                   onClick={() => setActiveCommentItemId(null)}
-                  className="p-1.5 text-on-surface-variant hover:text-on-surface rounded-lg hover:bg-surface-container"
+                  className="p-1.5 text-on-surface-variant hover:text-on-surface rounded-lg hover:bg-surface-container cursor-pointer"
                 >
                   <X size={18} />
                 </button>
@@ -1422,13 +1624,13 @@ export function RoadmapView() {
 
               {/* 댓글 목록 */}
               <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1 scrollbar-thin">
-                <div className="flex items-center justify-between text-xs font-bold text-on-surface-variant mb-2">
+                <div className="flex items-center justify-between text-sm font-bold text-on-surface-variant mb-2">
                   <span>참여자 댓글 및 피드백</span>
                   <span className="font-mono">총 {activeCommentItem.comments.length}개</span>
                 </div>
 
                 {activeCommentItem.comments.length === 0 ? (
-                  <div className="py-16 text-center text-on-surface-variant text-xs">
+                  <div className="py-16 text-center text-on-surface-variant text-sm">
                     아직 등록된 댓글이 없습니다.
                     <br />
                     첫 번째 의견을 남겨보세요!
@@ -1437,15 +1639,15 @@ export function RoadmapView() {
                   activeCommentItem.comments.map((comm) => (
                     <div
                       key={comm.id}
-                      className="p-3 bg-surface-container-low border border-outline-variant rounded-xl space-y-1 text-xs"
+                      className="p-3 bg-surface-container-low border border-outline-variant rounded-xl space-y-1 text-sm"
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-on-surface">{comm.authorName}</span>
-                        <span className="text-[10px] text-on-surface-variant font-mono">
+                        <span className="text-xs text-on-surface-variant font-mono">
                           {comm.createdAt}
                         </span>
                       </div>
-                      <p className="text-on-surface leading-relaxed">{comm.content}</p>
+                      <p className="text-on-surface leading-relaxed text-sm">{comm.content}</p>
                     </div>
                   ))
                 )}
@@ -1459,14 +1661,14 @@ export function RoadmapView() {
                 value={newCommentText}
                 onChange={(e) => setNewCommentText(e.target.value)}
                 placeholder="댓글과 피드백을 입력하세요..."
-                className="flex-1 px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-xl text-xs text-on-surface focus:outline-none focus:border-primary font-medium"
+                className="flex-1 px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:border-primary font-medium"
                 required
               />
               <button
                 type="submit"
-                className="px-4 py-2.5 bg-primary hover:opacity-90 text-on-primary font-bold text-xs rounded-xl shadow-xs transition-colors shrink-0 cursor-pointer flex items-center gap-1"
+                className="px-4 py-2.5 bg-primary hover:opacity-90 text-on-primary font-bold text-sm rounded-xl shadow-xs transition-colors shrink-0 cursor-pointer flex items-center gap-1.5"
               >
-                <Send size={13} />
+                <Send size={14} />
                 <span>등록</span>
               </button>
             </form>
@@ -1488,25 +1690,25 @@ export function RoadmapView() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveProjectPeriod} className="space-y-3 text-xs">
+            <form onSubmit={handleSaveProjectPeriod} className="space-y-3.5 text-sm">
               <div>
-                <label className="block font-bold text-on-surface mb-1">시작일</label>
+                <label className="block font-bold text-on-surface mb-1 text-sm">시작일</label>
                 <input
                   type="date"
                   value={editStartDate}
                   onChange={(e) => setEditStartDate(e.target.value)}
-                  className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-xl"
+                  className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-xl text-sm"
                   required
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-on-surface mb-1">종료일</label>
+                <label className="block font-bold text-on-surface mb-1 text-sm">종료일</label>
                 <input
                   type="date"
                   value={editEndDate}
                   onChange={(e) => setEditEndDate(e.target.value)}
-                  className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-xl"
+                  className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-xl text-sm"
                   required
                 />
               </div>
@@ -1515,13 +1717,13 @@ export function RoadmapView() {
                 <button
                   type="button"
                   onClick={() => setIsDateModalOpen(false)}
-                  className="flex-1 py-2.5 bg-surface-container-low hover:bg-surface-container rounded-xl font-bold"
+                  className="flex-1 py-2.5 bg-surface-container-low hover:bg-surface-container rounded-xl font-bold text-sm"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-primary text-on-primary font-bold rounded-xl shadow-xs"
+                  className="flex-1 py-2.5 bg-primary text-on-primary font-bold rounded-xl shadow-xs text-sm"
                 >
                   저장하기
                 </button>
@@ -1548,20 +1750,20 @@ export function RoadmapView() {
               </button>
             </div>
 
-            <form onSubmit={handleInviteSubmit} className="space-y-3 text-xs">
+            <form onSubmit={handleInviteSubmit} className="space-y-3.5 text-sm">
               <div className="flex gap-2">
                 <input
                   type="email"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="초대할 팀원 이메일"
-                  className="flex-1 p-2.5 bg-surface-container-low border border-outline-variant rounded-xl"
+                  className="flex-1 p-2.5 bg-surface-container-low border border-outline-variant rounded-xl text-sm"
                   required
                 />
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value as "admin" | "editor" | "viewer")}
-                  className="p-2.5 bg-surface-container-low border border-outline-variant rounded-xl font-medium"
+                  className="p-2.5 bg-surface-container-low border border-outline-variant rounded-xl font-medium text-sm"
                 >
                   <option value="editor">편집자</option>
                   <option value="viewer">뷰어 (댓글)</option>
@@ -1571,25 +1773,25 @@ export function RoadmapView() {
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-primary text-on-primary font-bold rounded-xl shadow-xs"
+                className="w-full py-2.5 bg-primary text-on-primary font-bold rounded-xl shadow-xs text-sm"
               >
                 초대장 발송
               </button>
             </form>
 
             <div className="pt-2 border-t border-outline-variant space-y-2">
-              <span className="text-xs font-bold text-on-surface-variant">초대된 팀원 목록</span>
+              <span className="text-sm font-bold text-on-surface-variant">초대된 팀원 목록</span>
               <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                 {roadmap.members.map((m, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between p-2 rounded-xl bg-surface-container-low border border-outline-variant text-xs"
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low border border-outline-variant text-sm"
                   >
                     <div>
                       <p className="font-bold text-on-surface">{m.name}</p>
-                      <p className="text-[10px] text-on-surface-variant">{m.email}</p>
+                      <p className="text-xs text-on-surface-variant">{m.email}</p>
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-surface-container-high font-mono font-bold text-on-surface-variant">
+                    <span className="text-xs px-2 py-0.5 rounded-md bg-surface-container-high font-mono font-bold text-on-surface-variant">
                       {m.role}
                     </span>
                   </div>
@@ -1618,7 +1820,7 @@ export function RoadmapView() {
 
             {/* 신규 등록일 때 탭 전환: 직접 입력 vs 백로그에서 불러오기 */}
             {!editingItemId && (
-              <div className="flex bg-surface-container-low p-1 rounded-xl border border-outline-variant text-xs">
+              <div className="flex bg-surface-container-low p-1 rounded-xl border border-outline-variant text-sm">
                 <button
                   type="button"
                   onClick={() => setItemInputTab("direct")}
@@ -1639,7 +1841,7 @@ export function RoadmapView() {
                       : "text-on-surface-variant hover:text-on-surface"
                   }`}
                 >
-                  <ListTodo size={13} />
+                  <ListTodo size={14} />
                   <span>백로그에서 불러오기</span>
                 </button>
               </div>
@@ -1647,77 +1849,119 @@ export function RoadmapView() {
 
             {/* 백로그에서 불러오기 리스트 */}
             {!editingItemId && itemInputTab === "backlog" && (
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                <p className="text-[11px] text-on-surface-variant">
-                  로드맵으로 전환할 백로그를 선택하세요:
-                </p>
-                {backlogList.length === 0 ? (
-                  <p className="text-xs text-center py-4 text-on-surface-variant">
-                    등록된 백로그 항목이 없습니다.
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-on-surface-variant font-medium">
+                    로드맵으로 전환할 백로그를 선택하세요:
                   </p>
-                ) : (
-                  backlogList.map((bg) => (
-                    <div
-                      key={bg.id}
-                      onClick={() => {
-                        setItemTitle(bg.title);
-                        setItemInputTab("direct");
-                      }}
-                      className="p-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container border border-outline-variant cursor-pointer text-xs space-y-1 transition-colors"
+                  <span className="text-xs text-on-surface-variant font-mono">
+                    {filteredModalBacklogs.length}개
+                  </span>
+                </div>
+
+                {/* 🔍 모달 내 백로그 실시간 검색 */}
+                <div className="relative">
+                  <Search
+                    size={13}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none"
+                  />
+                  <input
+                    type="text"
+                    value={backlogModalSearch}
+                    onChange={(e) => setBacklogModalSearch(e.target.value)}
+                    placeholder="백로그 제목·설명 검색..."
+                    className="w-full pl-7 pr-7 py-1.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary transition-all font-normal"
+                  />
+                  {backlogModalSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setBacklogModalSearch("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-0.5 cursor-pointer"
+                      title="검색어 지우기"
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-on-surface">{bg.title}</span>
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-surface-container-high text-on-surface-variant font-mono">
-                          {bg.status}
-                        </span>
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                  {backlogList.length === 0 ? (
+                    <p className="text-sm text-center py-4 text-on-surface-variant">
+                      등록된 백로그 항목이 없습니다.
+                    </p>
+                  ) : filteredModalBacklogs.length === 0 ? (
+                    <p className="text-sm text-center py-4 text-on-surface-variant">
+                      &apos;{backlogModalSearch}&apos; 검색 결과가 없습니다.
+                    </p>
+                  ) : (
+                    filteredModalBacklogs.map((bg) => (
+                      <div
+                        key={bg.id}
+                        onClick={() => {
+                          setItemTitle(bg.title);
+                          if (bg.startDate) setItemStartDate(bg.startDate);
+                          if (bg.endDate) setItemEndDate(bg.endDate);
+                          if (bg.color) setItemColor(bg.color);
+                          setItemInputTab("direct");
+                        }}
+                        className="p-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container border border-outline-variant cursor-pointer text-sm space-y-1 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-on-surface">{bg.title}</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-mono">
+                            {bg.status}
+                          </span>
+                        </div>
+                        {bg.description && (
+                          <p className="text-xs text-on-surface-variant line-clamp-1">
+                            {bg.description}
+                          </p>
+                        )}
                       </div>
-                      <p className="text-[11px] text-on-surface-variant line-clamp-1">
-                        {bg.description}
-                      </p>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             )}
 
-            <form onSubmit={handleSaveItemSubmit} className="space-y-3 text-xs">
+            <form onSubmit={handleSaveItemSubmit} className="space-y-3.5 text-sm">
               <div>
-                <label className="block font-bold text-on-surface mb-1">항목명</label>
+                <label className="block font-bold text-on-surface mb-1 text-sm">항목명</label>
                 <input
                   type="text"
                   value={itemTitle}
                   onChange={(e) => setItemTitle(e.target.value)}
                   placeholder="예: 제품 회의, 기능 테스트"
-                  className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-xl font-medium"
+                  className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-xl font-medium text-sm"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block font-bold text-on-surface mb-1">시작일</label>
+                  <label className="block font-bold text-on-surface mb-1 text-sm">시작일</label>
                   <input
                     type="date"
                     value={itemStartDate}
                     onChange={(e) => setItemStartDate(e.target.value)}
-                    className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-xl"
+                    className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-xl text-sm"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface mb-1">종료일</label>
+                  <label className="block font-bold text-on-surface mb-1 text-sm">종료일</label>
                   <input
                     type="date"
                     value={itemEndDate}
                     onChange={(e) => setItemEndDate(e.target.value)}
-                    className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-xl"
+                    className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-xl text-sm"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-on-surface mb-1">간트 바 색상</label>
+                <label className="block font-bold text-on-surface mb-1 text-sm">간트 바 색상</label>
                 <div className="flex gap-2">
                   {["#0284c7", "#0369a1", "#075985", "#059669", "#7c3aed", "#e11d48"].map((c) => (
                     <button
@@ -1741,21 +1985,21 @@ export function RoadmapView() {
                       handleDeleteItem(editingItemId);
                       setIsItemModalOpen(false);
                     }}
-                    className="py-2.5 px-3 bg-destructive/10 text-destructive rounded-xl font-bold flex items-center gap-1"
+                    className="py-2.5 px-3 bg-destructive/10 text-destructive rounded-xl font-bold text-sm flex items-center gap-1.5 cursor-pointer"
                   >
-                    <Trash2 size={13} /> 삭제
+                    <Trash2 size={14} /> 삭제
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setIsItemModalOpen(false)}
-                  className="flex-1 py-2.5 bg-surface-container-low hover:bg-surface-container rounded-xl font-bold"
+                  className="flex-1 py-2.5 bg-surface-container-low hover:bg-surface-container rounded-xl font-bold text-sm cursor-pointer"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-primary text-on-primary font-bold rounded-xl shadow-xs"
+                  className="flex-1 py-2.5 bg-primary text-on-primary font-bold rounded-xl shadow-xs text-sm cursor-pointer"
                 >
                   저장
                 </button>

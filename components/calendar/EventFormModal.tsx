@@ -93,8 +93,8 @@ export function EventFormModal({
         {/* 모달 상단 헤더 */}
         <div className="flex items-center justify-between border-b border-outline-variant pb-3">
           <div className="flex items-center gap-2">
-            <CalendarIcon size={16} className="text-primary" />
-            <h3 className="font-semibold text-sm text-on-surface">
+            <CalendarIcon size={18} className="text-primary" />
+            <h3 className="font-semibold text-base text-on-surface">
               {event ? "일정 수정" : "새 일정 추가"}
             </h3>
           </div>
@@ -102,14 +102,14 @@ export function EventFormModal({
             onClick={onClose}
             className="p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container cursor-pointer transition-colors"
           >
-            <X size={16} />
+            <X size={17} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+        <form onSubmit={handleSubmit} className="space-y-3.5 text-sm">
           {/* 일정 제목 */}
           <div>
-            <label className="block font-medium text-on-surface mb-1">
+            <label className="block font-medium text-on-surface mb-1 text-sm">
               일정 제목 <span className="text-destructive">*</span>
             </label>
             <input
@@ -117,7 +117,7 @@ export function EventFormModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="예: 정보처리기사 실기 원서접수"
-              className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-xs text-on-surface focus:outline-none focus:border-primary font-normal"
+              className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-md text-sm text-on-surface focus:outline-none focus:border-primary font-normal"
               required
               autoFocus
             />
@@ -125,12 +125,12 @@ export function EventFormModal({
 
           {/* 종일 여부 체크박스 */}
           <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 cursor-pointer text-on-surface">
+            <label className="flex items-center gap-2 cursor-pointer text-on-surface text-sm">
               <input
                 type="checkbox"
                 checked={allDay}
                 onChange={(e) => setAllDay(e.target.checked)}
-                className="accent-primary w-3.5 h-3.5 cursor-pointer"
+                className="accent-primary w-4 h-4 cursor-pointer"
               />
               <span className="font-medium">종일 일정 (다중 일 기간 선택 가능)</span>
             </label>
@@ -139,12 +139,12 @@ export function EventFormModal({
           {/* 시작일 ~ 종료일 */}
           <div className="grid grid-cols-2 gap-2.5">
             <div>
-              <label className="block font-medium text-on-surface mb-1 text-[11px]">시작일</label>
+              <label className="block font-medium text-on-surface mb-1 text-xs">시작일</label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full p-1.5 bg-surface-container-low border border-outline-variant rounded-md text-xs font-mono"
+                className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-sm font-mono"
                 required
               />
               {!allDay && (
@@ -152,19 +152,19 @@ export function EventFormModal({
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full mt-1.5 p-1.5 bg-surface-container-low border border-outline-variant rounded-md text-xs font-mono"
+                  className="w-full mt-1.5 p-2 bg-surface-container-low border border-outline-variant rounded-md text-sm font-mono"
                   required
                 />
               )}
             </div>
 
             <div>
-              <label className="block font-medium text-on-surface mb-1 text-[11px]">종료일</label>
+              <label className="block font-medium text-on-surface mb-1 text-xs">종료일</label>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full p-1.5 bg-surface-container-low border border-outline-variant rounded-md text-xs font-mono"
+                className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-sm font-mono"
                 required
               />
               {!allDay && (
@@ -172,7 +172,7 @@ export function EventFormModal({
                   type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full mt-1.5 p-1.5 bg-surface-container-low border border-outline-variant rounded-md text-xs font-mono"
+                  className="w-full mt-1.5 p-2 bg-surface-container-low border border-outline-variant rounded-md text-sm font-mono"
                   required
                 />
               )}
@@ -181,7 +181,7 @@ export function EventFormModal({
 
           {/* 카테고리 및 색상 칩 (연한 파스텔 톤) */}
           <div>
-            <label className="block font-medium text-on-surface mb-1.5">카테고리 색상</label>
+            <label className="block font-medium text-on-surface mb-1.5 text-sm">카테고리 색상</label>
             <div className="flex flex-wrap gap-1.5">
               {DEFAULT_CATEGORIES.map((cat) => {
                 const isSelected = color === cat.color;
@@ -193,7 +193,7 @@ export function EventFormModal({
                       setCategory(cat.id);
                       setColor(cat.color);
                     }}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-all cursor-pointer ${
                       isSelected
                         ? "border-primary bg-primary/15 text-primary"
                         : "border-outline-variant bg-surface-container-low text-on-surface-variant hover:text-on-surface"
@@ -212,13 +212,13 @@ export function EventFormModal({
 
           {/* 상세 메모 */}
           <div>
-            <label className="block font-medium text-on-surface mb-1">상세 내용 (선택)</label>
+            <label className="block font-medium text-on-surface mb-1 text-sm">상세 내용 (선택)</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="장소, 준비물, 메모 등을 입력하세요."
               rows={2}
-              className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-xs text-on-surface focus:outline-none focus:border-primary font-light resize-none"
+              className="w-full p-2.5 bg-surface-container-low border border-outline-variant rounded-md text-sm text-on-surface focus:outline-none focus:border-primary font-light resize-none"
             />
           </div>
 
@@ -229,10 +229,10 @@ export function EventFormModal({
                 type="button"
                 onClick={handleDelete}
                 disabled={isSubmitting}
-                className="p-2 text-destructive hover:bg-destructive/10 rounded-md transition-colors cursor-pointer"
+                className="p-2.5 text-destructive hover:bg-destructive/10 rounded-md transition-colors cursor-pointer"
                 title="일정 삭제"
               >
-                <Trash2 size={14} />
+                <Trash2 size={15} />
               </button>
             )}
 
@@ -240,14 +240,14 @@ export function EventFormModal({
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="flex-1 py-2 bg-surface-container-low hover:bg-surface-container rounded-md font-medium text-xs cursor-pointer transition-colors"
+              className="flex-1 py-2 bg-surface-container-low hover:bg-surface-container rounded-md font-medium text-sm cursor-pointer transition-colors"
             >
               취소
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 py-2 bg-primary hover:opacity-90 text-on-primary font-semibold rounded-md text-xs cursor-pointer transition-opacity"
+              className="flex-1 py-2 bg-primary hover:opacity-90 text-on-primary font-semibold rounded-md text-sm cursor-pointer transition-opacity"
             >
               {isSubmitting ? "저장 중..." : event ? "수정 완료" : "일정 등록"}
             </button>

@@ -21,6 +21,7 @@ export interface IRoadmapItem {
 
 export interface IProjectRoadmap extends Document {
   authorEmail: string;
+  projectId?: string;
   name: string;
   description?: string;
   startDate: string;
@@ -60,6 +61,7 @@ const RoadmapItemSchema = new Schema<IRoadmapItem>(
 const ProjectRoadmapSchema = new Schema<IProjectRoadmap>(
   {
     authorEmail: { type: String, required: true, index: true },
+    projectId: { type: String, index: true },
     name: { type: String, required: true },
     description: { type: String, default: "" },
     startDate: { type: String, required: true },

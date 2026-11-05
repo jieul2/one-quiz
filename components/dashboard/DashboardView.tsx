@@ -41,18 +41,18 @@ export interface WidgetItem {
 }
 
 const DEFAULT_WIDGETS: WidgetItem[] = [
+  { id: "weather", title: "날씨", visible: true },
+  { id: "chat", title: "채팅", visible: true },
+  { id: "projects", title: "프로젝트", visible: true },
+  { id: "favorite_contacts", title: "즐겨찾는 연락처", visible: true },
+  { id: "favorite_notes", title: "즐겨찾기 노트", visible: true },
+  { id: "recent_files", title: "최근 파일", visible: true },
+  { id: "bookmarks", title: "북마크", visible: true },
+  { id: "dday", title: "D-day", visible: true },
   { id: "today_schedule", title: "오늘 일정", visible: true },
-  { id: "mini_calendar", title: "미니 캘린더", visible: true },
-  { id: "upcoming_schedule", title: "다가오는 일정", visible: true },
-  { id: "today_tasks", title: "오늘 할일", visible: true },
-  { id: "dday", title: "D-day", visible: false },
-  { id: "bookmarks", title: "북마크", visible: false },
-  { id: "weather", title: "날씨", visible: false },
-  { id: "favorite_notes", title: "즐겨찾기 노트", visible: false },
-  { id: "recent_files", title: "최근 파일", visible: false },
-  { id: "favorite_contacts", title: "즐겨찾는 연락처", visible: false },
-  { id: "projects", title: "프로젝트", visible: false },
-  { id: "chat", title: "채팅", visible: false },
+  { id: "today_tasks", title: "오늘 할일", visible: false },
+  { id: "mini_calendar", title: "미니 캘린더", visible: false },
+  { id: "upcoming_schedule", title: "다가오는 일정", visible: false },
   { id: "quick_exam", title: "기출문제 풀이", visible: false },
 ];
 
@@ -146,30 +146,39 @@ export function DashboardView() {
   const [newTaskInput, setNewTaskInput] = useState("");
 
   const persistTasks = useCallback((newTasks: { id: string; text: string; done: boolean }[]) => {
-    setTasks(newTasks);
+    // 중복 ID 방어 제거
+    const uniqueTasks = Array.from(
+      new Map(newTasks.map((t) => [t.id, t])).values()
+    );
+    setTasks(uniqueTasks);
+
     if (typeof window !== "undefined") {
-      localStorage.setItem("onequiz_dashboard_tasks", JSON.stringify(newTasks));
+      localStorage.setItem("onequiz_dashboard_tasks", JSON.stringify(uniqueTasks));
       try {
         const savedTasks = localStorage.getItem("onequiz_tasks_items_v2");
         const allTasks: StoredTaskItem[] = savedTasks ? JSON.parse(savedTasks) : [];
-        newTasks.forEach((nt) => {
-          const found = allTasks.find((at: StoredTaskItem) => at.id === nt.id);
-          if (found) {
-            found.completed = nt.done;
-            found.title = nt.text;
-          } else {
-            allTasks.push({
-              id: nt.id,
-              categoryId: "cat-today",
-              title: nt.text,
-              memo: "",
-              dueDate: null,
-              completed: nt.done,
-              createdAt: new Date().toISOString().slice(0, 10),
-            });
-          }
+
+        // 오늘 카테고리가 아닌 다른 할일 보존
+        const otherCategoryTasks = allTasks.filter(
+          (at) => at.categoryId && at.categoryId !== "cat-today"
+        );
+
+        // uniqueTasks를 StoredTaskItem으로 정규화
+        const todayStoredItems: StoredTaskItem[] = uniqueTasks.map((nt) => {
+          const existing = allTasks.find((at) => at.id === nt.id);
+          return {
+            id: nt.id,
+            categoryId: "cat-today",
+            title: nt.text,
+            memo: existing?.memo || "",
+            dueDate: existing?.dueDate || null,
+            completed: nt.done,
+            createdAt: existing?.createdAt || new Date().toISOString().slice(0, 10),
+          };
         });
-        localStorage.setItem("onequiz_tasks_items_v2", JSON.stringify(allTasks));
+
+        const combined = [...otherCategoryTasks, ...todayStoredItems];
+        localStorage.setItem("onequiz_tasks_items_v2", JSON.stringify(combined));
       } catch {}
       window.dispatchEvent(new Event("onequiz_tasks_updated"));
     }
@@ -191,7 +200,10 @@ export function DashboardView() {
                   text: t.title || t.text || "",
                   done: !!t.completed,
                 }));
-              setTasks(todayItems);
+              const unique = Array.from(
+                new Map(todayItems.map((t) => [t.id, t])).values()
+              );
+              setTasks(unique);
             }
           } catch {}
         }
@@ -224,7 +236,10 @@ export function DashboardView() {
                   text: t.title || t.text || "",
                   done: !!t.completed,
                 }));
-              setTasks(todayItems);
+              const unique = Array.from(
+                new Map(todayItems.map((t) => [t.id, t])).values()
+              );
+              setTasks(unique);
             }
           } catch {}
         } else {
@@ -232,7 +247,12 @@ export function DashboardView() {
           if (savedDash) {
             try {
               const parsed = JSON.parse(savedDash);
-              if (Array.isArray(parsed) && !ignore) setTasks(parsed);
+              if (Array.isArray(parsed) && !ignore) {
+                const unique = Array.from(
+                  new Map(parsed.map((t: { id: string; text: string; done: boolean }) => [t.id, t])).values()
+                );
+                setTasks(unique);
+              }
             } catch {}
           }
         }
@@ -258,7 +278,10 @@ export function DashboardView() {
                 text: String(t.title || ""),
                 done: Boolean(t.completed),
               }));
-            setTasks(todayItems);
+            const unique = Array.from(
+              new Map(todayItems.map((t) => [t.id, t])).values()
+            );
+            setTasks(unique);
           }
         }
       } catch {}
@@ -297,10 +320,32 @@ export function DashboardView() {
         const createdTask = result.data || result;
         const realId = createdTask._id || createdTask.id;
         if (realId) {
-          const updatedWithRealId = optimisticTasks.map((t) =>
-            t.id === tempId ? { ...t, id: String(realId) } : t
+          const realIdStr = String(realId);
+          // tempId를 realId로 안전하게 1:1 교체
+          setTasks((prev) =>
+            prev.map((t) => (t.id === tempId ? { ...t, id: realIdStr } : t))
           );
-          persistTasks(updatedWithRealId);
+          if (typeof window !== "undefined") {
+            try {
+              const saved = localStorage.getItem("onequiz_tasks_items_v2");
+              if (saved) {
+                const parsed: StoredTaskItem[] = JSON.parse(saved);
+                const updatedAll = parsed.map((item) =>
+                  item.id === tempId ? { ...item, id: realIdStr } : item
+                );
+                localStorage.setItem("onequiz_tasks_items_v2", JSON.stringify(updatedAll));
+              }
+              const savedDash = localStorage.getItem("onequiz_dashboard_tasks");
+              if (savedDash) {
+                const parsedDash = JSON.parse(savedDash);
+                const updatedDash = parsedDash.map((t: { id: string }) =>
+                  t.id === tempId ? { ...t, id: realIdStr } : t
+                );
+                localStorage.setItem("onequiz_dashboard_tasks", JSON.stringify(updatedDash));
+              }
+            } catch {}
+            window.dispatchEvent(new Event("onequiz_tasks_updated"));
+          }
         }
         toast.success("할일이 DB에 저장되었습니다.");
       }
@@ -442,14 +487,14 @@ export function DashboardView() {
         </div>
       )}
 
-      {/* ================= 1. 최상단 대시보드 헤더 (사진 1 구조 100% 동일) ================= */}
+      {/* ================= 1. 최상단 대시보드 헤더 (전역 타이포그래피 모듈 통일) ================= */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2">
         {/* 좌측 인사말 */}
         <div>
-          <div className="text-xs font-medium text-on-surface-variant font-mono">
+          <div className="ui-page-subtitle font-mono">
             {currentDateStr}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-on-surface tracking-tight mt-0.5">
+          <h1 className="ui-page-title mt-1">
             {greeting}, <span className="text-primary">{userName}</span>님
           </h1>
         </div>
@@ -462,12 +507,12 @@ export function DashboardView() {
             className="flex flex-col items-center justify-center px-4 py-2 bg-surface-container-low hover:bg-surface-container border border-outline-variant/70 rounded-xl min-w-[72px] transition-colors"
           >
             <span
-              className="text-base font-black text-on-surface font-mono leading-none"
+              className="text-lg sm:text-xl font-black text-on-surface font-mono leading-none"
               suppressHydrationWarning
             >
               {mounted ? todayEventCount : 0}
             </span>
-            <span className="text-[10px] text-on-surface-variant font-medium mt-1">오늘 일정</span>
+            <span className="text-xs text-on-surface-variant font-medium mt-1">오늘 일정</span>
           </Link>
 
           {/* 할일 */}
@@ -476,30 +521,30 @@ export function DashboardView() {
             className="flex flex-col items-center justify-center px-4 py-2 bg-surface-container-low hover:bg-surface-container border border-outline-variant/70 rounded-xl min-w-[72px] transition-colors"
           >
             <span
-              className="text-base font-black text-on-surface font-mono leading-none"
+              className="text-lg sm:text-xl font-black text-on-surface font-mono leading-none"
               suppressHydrationWarning
             >
               {mounted ? taskCount : 0}
             </span>
-            <span className="text-[10px] text-on-surface-variant font-medium mt-1">할일</span>
+            <span className="text-xs text-on-surface-variant font-medium mt-1">할일</span>
           </Link>
 
           {/* 완료율 */}
           <div className="flex flex-col items-center justify-center px-4 py-2 bg-surface-container-low border border-outline-variant/70 rounded-xl min-w-[72px]">
             <span
-              className="text-base font-black text-on-surface font-mono leading-none"
+              className="text-lg sm:text-xl font-black text-on-surface font-mono leading-none"
               suppressHydrationWarning
             >
               {mounted ? `${completionRate}%` : "0%"}
             </span>
-            <span className="text-[10px] text-on-surface-variant font-medium mt-1">완료</span>
+            <span className="text-xs text-on-surface-variant font-medium mt-1">완료</span>
           </div>
 
           {/* 🌟 '위젯' 버튼 (대시보드의 유일한 컨트롤 버튼) */}
           <div className="relative" ref={widgetMenuRef}>
             <button
               onClick={() => setIsWidgetMenuOpen(!isWidgetMenuOpen)}
-              className="flex items-center gap-1.5 px-3.5 py-3.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant/70 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-xs active:scale-98"
+              className="flex items-center gap-2 px-3.5 py-2.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant/70 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer shadow-xs active:scale-98"
             >
               <LayoutGrid size={15} />
               <span>위젯</span>
@@ -507,21 +552,21 @@ export function DashboardView() {
 
             {/* 🌟 홈 위젯 구성 드롭다운 메뉴 (테마 색상 준수) */}
             {isWidgetMenuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-52 bg-surface-container-lowest border border-outline-variant rounded-lg p-2 shadow-xl z-50 space-y-1 text-on-surface animate-in fade-in zoom-in-95 duration-150">
-                <div className="px-2.5 py-1.5 text-xs font-bold text-on-surface-variant border-b border-outline-variant mb-1">
+              <div className="absolute right-0 top-full mt-2 w-56 bg-surface-container-lowest border border-outline-variant rounded-xl p-2 shadow-xl z-50 space-y-1 text-on-surface animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-3 py-1.5 text-xs font-bold text-on-surface-variant border-b border-outline-variant mb-1">
                   홈 위젯 구성
                 </div>
-                <div className="max-h-[360px] overflow-y-auto space-y-0.5 scrollbar-thin pr-1">
+                <div className="max-h-[380px] overflow-y-auto space-y-0.5 scrollbar-thin pr-1">
                   {widgets.map((w) => (
                     <button
                       key={w.id}
                       onClick={() => handleToggleWidget(w.id)}
-                      className="w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium text-left hover:bg-surface-container-low transition-colors cursor-pointer"
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-left hover:bg-surface-container-low transition-colors cursor-pointer"
                     >
                       <span className={w.visible ? "text-on-surface font-semibold" : "text-on-surface-variant font-light"}>
                         {w.title}
                       </span>
-                      {w.visible && <Check size={14} className="text-primary shrink-0 ml-2" />}
+                      {w.visible && <Check size={15} className="text-primary shrink-0 ml-2" />}
                     </button>
                   ))}
                 </div>
@@ -532,7 +577,7 @@ export function DashboardView() {
       </div>
 
       {/* ================= 2. 반응형 Flat 3열 그리드 (모바일 1열, 태블릿 2열, PC 최대 3열) ================= */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 items-stretch">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
         {visibleWidgets.map((widget) => {
           const isDragging = draggingWidgetId === widget.id;
           const isOver = dragOverWidgetId === widget.id && draggingWidgetId !== widget.id;
@@ -546,34 +591,34 @@ export function DashboardView() {
               onDragOver={(e) => handleDragOver(e, widget.id)}
               onDragEnd={handleDragEnd}
               onDrop={(e) => handleDrop(e, widget.id)}
-              className={`relative h-[240px] bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden flex flex-col justify-between shadow-xs transition-all duration-150 select-none group ${
+              className={`relative h-[340px] min-h-[340px] bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col justify-between shadow-xs transition-all duration-150 select-none group ${
                 isDragging ? "opacity-30 border-dashed border-primary scale-[0.98]" : "opacity-100 hover:border-primary/40"
               }`}
             >
               {/* 🌟 드래그 오버 시 카드형식 그대로 반투명 이동 예상위치 표시 (요청사항 반영) */}
               {isOver && draggedWidget && (
-                <div className="absolute inset-0 z-30 rounded-lg border-2 border-dashed border-primary bg-surface-container/90 backdrop-blur-xs flex flex-col items-center justify-center gap-2 p-4 pointer-events-none text-primary animate-in fade-in duration-150">
-                  <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                <div className="absolute inset-0 z-30 rounded-xl border-2 border-dashed border-primary bg-surface-container/90 backdrop-blur-xs flex flex-col items-center justify-center gap-2 p-4 pointer-events-none text-primary animate-in fade-in duration-150">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
                     <WidgetIcon id={draggedWidget.id} />
                   </div>
                   <div className="text-center">
-                    <p className="text-xs font-bold text-on-surface">{draggedWidget.title}</p>
-                    <p className="text-[10px] text-primary font-medium mt-0.5">여기로 이동 예정</p>
+                    <p className="text-sm font-bold text-on-surface">{draggedWidget.title}</p>
+                    <p className="text-xs text-primary font-medium mt-0.5">여기로 이동 예정</p>
                   </div>
                 </div>
               )}
 
               {/* 2-1. 위젯 카드 헤더 (테마 색상 준수) */}
-              <div className="px-3.5 py-2.5 border-b border-outline-variant flex items-center justify-between text-xs cursor-grab active:cursor-grabbing bg-surface-container-low/40">
+              <div className="px-3.5 py-2.5 border-b border-outline-variant flex items-center justify-between text-sm cursor-grab active:cursor-grabbing bg-surface-container-low/40">
                 <div className="flex items-center gap-2 min-w-0">
                   <WidgetIcon id={widget.id} />
-                  <span className="font-bold text-on-surface truncate">{widget.title}</span>
+                  <span className="ui-card-title truncate">{widget.title}</span>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <Link
                     href={getWidgetLink(widget.id)}
-                    className="text-[11px] text-primary hover:underline font-semibold flex items-center gap-0.5"
+                    className="text-xs text-primary hover:underline font-semibold flex items-center gap-0.5"
                   >
                     전체 →
                   </Link>
@@ -582,13 +627,13 @@ export function DashboardView() {
                     className="p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
                     title="위젯 닫기"
                   >
-                    <X size={13} />
+                    <X size={14} />
                   </button>
                 </div>
               </div>
 
               {/* 2-2. 위젯 본문 영역 (테마 시맨틱 토큰 적용) */}
-              <div className="p-3 flex-1 overflow-y-auto text-xs text-on-surface scrollbar-thin">
+              <div className="p-3.5 sm:p-4 flex-1 overflow-y-auto text-sm text-on-surface scrollbar-thin">
                 {widget.id === "today_schedule" && (
                   <TodayScheduleWidget events={todayEvents} />
                 )}
@@ -623,7 +668,7 @@ export function DashboardView() {
       </div>
 
       {/* ================= 3. 하단 안내 문구 (사진 1 동일) ================= */}
-      <div className="text-[11px] text-on-surface-variant font-light pt-2">
+      <div className="text-xs sm:text-sm text-on-surface-variant font-light pt-2">
         ※ 위젯을 드래그해 순서를 바꾸고, &quot;위젯&quot; 버튼이나 x 로 추가·제거하세요.
       </div>
     </div>
@@ -635,33 +680,33 @@ function WidgetIcon({ id }: { id: string }) {
   const iconClass = "text-primary shrink-0";
   switch (id) {
     case "today_schedule":
-      return <Calendar size={15} className={iconClass} />;
+      return <Calendar size={17} className={iconClass} />;
     case "mini_calendar":
-      return <CalendarDays size={15} className={iconClass} />;
+      return <CalendarDays size={17} className={iconClass} />;
     case "upcoming_schedule":
-      return <Clock size={15} className={iconClass} />;
+      return <Clock size={17} className={iconClass} />;
     case "today_tasks":
-      return <CheckSquare size={15} className={iconClass} />;
+      return <CheckSquare size={17} className={iconClass} />;
     case "dday":
-      return <Flag size={15} className={iconClass} />;
+      return <Flag size={17} className={iconClass} />;
     case "bookmarks":
-      return <Bookmark size={15} className={iconClass} />;
+      return <Bookmark size={17} className={iconClass} />;
     case "weather":
-      return <CloudSun size={15} className={iconClass} />;
+      return <CloudSun size={17} className={iconClass} />;
     case "favorite_notes":
-      return <FileText size={15} className={iconClass} />;
+      return <FileText size={17} className={iconClass} />;
     case "recent_files":
-      return <Folder size={15} className={iconClass} />;
+      return <Folder size={17} className={iconClass} />;
     case "favorite_contacts":
-      return <Users size={15} className={iconClass} />;
+      return <Users size={17} className={iconClass} />;
     case "projects":
-      return <Kanban size={15} className={iconClass} />;
+      return <Kanban size={17} className={iconClass} />;
     case "chat":
-      return <MessageSquare size={15} className={iconClass} />;
+      return <MessageSquare size={17} className={iconClass} />;
     case "quick_exam":
-      return <GraduationCap size={15} className={iconClass} />;
+      return <GraduationCap size={17} className={iconClass} />;
     default:
-      return <LayoutGrid size={15} className={iconClass} />;
+      return <LayoutGrid size={17} className={iconClass} />;
   }
 }
 
@@ -698,14 +743,14 @@ function getWidgetLink(id: string) {
 function TodayScheduleWidget({ events }: { events: CalendarEvent[] }) {
   if (events.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-xs text-on-surface-variant font-light py-8">
-        오늘 예정된 일정이 없습니다.
+      <div className="h-full flex items-center justify-center ui-empty-state py-8">
+        오늘 일정이 없습니다.
       </div>
     );
   }
 
   return (
-    <div className="space-y-1.5 overflow-y-auto max-h-[170px] pr-1 scrollbar-thin">
+    <div className="space-y-2 overflow-y-auto max-h-[175px] pr-1 scrollbar-thin">
       {events.map((item, idx) => {
         const isAllDay = item.allDay;
         const timeStr = isAllDay ? "종일" : item.startDate.slice(11, 16);
@@ -716,15 +761,15 @@ function TodayScheduleWidget({ events }: { events: CalendarEvent[] }) {
         return (
           <div
             key={item._id || idx}
-            className="flex items-center justify-between py-1 border-b border-outline-variant/40 last:border-b-0 text-[11px]"
+            className="flex items-center justify-between py-1.5 border-b border-outline-variant/40 last:border-b-0 text-xs sm:text-sm"
           >
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <span className="font-mono text-on-surface-variant text-[10px] w-8 shrink-0">{timeStr}</span>
+              <span className="font-mono text-on-surface-variant text-[11px] w-9 shrink-0">{timeStr}</span>
               <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
               <span className="truncate text-on-surface font-medium">{item.title}</span>
             </div>
             {tagStr && (
-              <span className="text-[10px] font-mono text-on-surface-variant shrink-0 ml-1.5">
+              <span className="text-[11px] font-mono text-on-surface-variant shrink-0 ml-1.5">
                 {tagStr}
               </span>
             )}
@@ -772,19 +817,19 @@ function MiniCalendarWidget({ events = [] }: { events?: CalendarEvent[] }) {
 
   return (
     <div className="flex flex-col justify-between h-full">
-      <div className="flex items-center justify-between text-[11px] font-mono font-bold text-on-surface pb-1">
-        <button onClick={prevMonth} className="p-0.5 hover:text-primary cursor-pointer text-on-surface-variant">
-          <ChevronLeft size={13} />
+      <div className="flex items-center justify-between text-xs sm:text-sm font-mono font-bold text-on-surface pb-1">
+        <button onClick={prevMonth} className="p-1 hover:text-primary cursor-pointer text-on-surface-variant">
+          <ChevronLeft size={14} />
         </button>
         <span>
           {year}년 {month + 1}월
         </span>
-        <button onClick={nextMonth} className="p-0.5 hover:text-primary cursor-pointer text-on-surface-variant">
-          <ChevronRight size={13} />
+        <button onClick={nextMonth} className="p-1 hover:text-primary cursor-pointer text-on-surface-variant">
+          <ChevronRight size={14} />
         </button>
       </div>
 
-      <div className="grid grid-cols-7 text-center text-[10px] text-on-surface-variant font-mono py-1">
+      <div className="grid grid-cols-7 text-center text-[11px] text-on-surface-variant font-mono py-1">
         <span>일</span>
         <span>월</span>
         <span>화</span>
@@ -794,7 +839,7 @@ function MiniCalendarWidget({ events = [] }: { events?: CalendarEvent[] }) {
         <span>토</span>
       </div>
 
-      <div className="grid grid-cols-7 gap-y-1 text-center text-[11px] font-mono flex-1 items-center">
+      <div className="grid grid-cols-7 gap-y-1 text-center text-xs font-mono flex-1 items-center">
         {daysArr.map((dayNum, i) => {
           if (!dayNum) return <span key={i} />;
           const isToday = dayNum === 4 && month === 10 && year === 2026;
@@ -802,7 +847,7 @@ function MiniCalendarWidget({ events = [] }: { events?: CalendarEvent[] }) {
           return (
             <div key={i} className="flex flex-col items-center justify-center">
               <span
-                className={`w-5 h-5 flex items-center justify-center rounded-full text-xs ${
+                className={`w-5.5 h-5.5 flex items-center justify-center rounded-full text-xs ${
                   isToday ? "bg-primary text-on-primary font-bold shadow-xs" : "text-on-surface"
                 }`}
               >
@@ -824,7 +869,7 @@ function MiniCalendarWidget({ events = [] }: { events?: CalendarEvent[] }) {
 function UpcomingScheduleWidget({ events }: { events: CalendarEvent[] }) {
   if (events.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-xs text-on-surface-variant font-light">
+      <div className="h-full flex items-center justify-center ui-empty-state">
         다가오는 일정이 없습니다.
       </div>
     );
@@ -833,12 +878,12 @@ function UpcomingScheduleWidget({ events }: { events: CalendarEvent[] }) {
   return (
     <div className="space-y-2">
       {events.slice(0, 5).map((evt, idx) => (
-        <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-outline-variant/30 last:border-b-0">
+        <div key={idx} className="flex items-center justify-between text-xs sm:text-sm py-1 border-b border-outline-variant/30 last:border-b-0">
           <div className="flex items-center gap-2 truncate">
             <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
             <span className="truncate text-on-surface font-medium">{evt.title}</span>
           </div>
-          <span className="text-[10px] font-mono text-on-surface-variant shrink-0">
+          <span className="text-[11px] font-mono text-on-surface-variant shrink-0">
             {evt.startDate.slice(5, 10)}
           </span>
         </div>
@@ -863,9 +908,9 @@ function TodayTasksWidget({
 }) {
   return (
     <div className="flex flex-col justify-between h-full space-y-2">
-      <ScrollArea orientation="vertical" className="space-y-1 flex-1 pr-1">
+      <ScrollArea orientation="vertical" className="space-y-1.5 flex-1 pr-1">
         {tasks.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-xs text-on-surface-variant font-light py-8">
+          <div className="h-full flex items-center justify-center ui-empty-state py-8">
             오늘 할일이 없습니다.
           </div>
         ) : (
@@ -873,12 +918,12 @@ function TodayTasksWidget({
             <div
               key={task.id}
               onClick={() => onToggleTask(task.id)}
-              className="flex items-center gap-2 p-1.5 rounded-md hover:bg-surface-container-low cursor-pointer text-xs transition-colors"
+              className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-surface-container-low cursor-pointer text-xs sm:text-sm transition-colors"
             >
               {task.done ? (
-                <CheckSquare size={14} className="text-primary shrink-0" />
+                <CheckSquare size={15} className="text-primary shrink-0" />
               ) : (
-                <Square size={14} className="text-on-surface-variant shrink-0" />
+                <Square size={15} className="text-on-surface-variant shrink-0" />
               )}
               <span
                 className={`truncate ${
@@ -893,17 +938,17 @@ function TodayTasksWidget({
       </ScrollArea>
 
       {/* 할일 인라인 퀵 추가 (사진 1) */}
-      <form onSubmit={onAddTask} className="flex items-center gap-1.5 pt-1">
+      <form onSubmit={onAddTask} className="flex items-center gap-2 pt-1">
         <input
           type="text"
           value={newTaskInput}
           onChange={(e) => setNewTaskInput(e.target.value)}
           placeholder="할일 빠르게 추가 후 Enter"
-          className="flex-1 px-2.5 py-1.5 bg-surface-container-low border border-outline-variant rounded-md text-xs text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary font-medium"
+          className="flex-1 px-3 py-1.5 bg-surface-container-low border border-outline-variant rounded-lg text-xs sm:text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary font-medium"
         />
         <button
           type="submit"
-          className="px-3 py-1.5 bg-primary text-on-primary font-bold rounded-md text-xs hover:opacity-90 shrink-0 cursor-pointer shadow-xs"
+          className="px-3 py-1.5 bg-primary text-on-primary font-bold rounded-lg text-xs sm:text-sm hover:opacity-90 shrink-0 cursor-pointer shadow-xs"
         >
           추가
         </button>
@@ -912,80 +957,84 @@ function TodayTasksWidget({
   );
 }
 
-// 5. D-day 위젯 (사진 3)
+// 5. D-day 위젯 (사진 1)
 function DdayWidget() {
   return (
-    <div className="h-full flex items-center justify-center text-xs text-on-surface-variant font-light">
-      지정된 D-day 가 없어요.
+    <div className="h-full flex items-center justify-center ui-empty-state">
+      지정한 D-day 가 없어요.
     </div>
   );
 }
 
-// 6. 북마크 위젯 (사진 3)
+// 6. 북마크 위젯 (사진 1)
 function BookmarksWidget() {
   return (
-    <div className="h-full flex items-center justify-center text-xs text-on-surface-variant font-light">
-      등록된 북마크가 없어요.
+    <div className="h-full flex items-center justify-center ui-empty-state">
+      별표한 북마크가 없어요.
     </div>
   );
 }
 
-// 7. 날씨 위젯 (사진 3)
+// 7. 날씨 위젯 (사진 1 100% 동일 구현)
 function WeatherWidget() {
   return (
     <div className="flex flex-col justify-between h-full space-y-2 text-on-surface">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <CloudSun size={32} className="text-primary" />
+          <CloudSun size={36} className="text-primary shrink-0" />
           <div>
-            <div className="text-2xl font-bold font-mono leading-none text-on-surface">14°C</div>
-            <div className="text-[10px] text-on-surface-variant mt-0.5">서울특별시 종로구 · 구름많음</div>
+            <div className="text-2xl sm:text-3xl font-extrabold font-mono leading-none text-on-surface">
+              14°C
+            </div>
+            <div className="text-xs text-on-surface-variant mt-1">
+              서울특별시 송파구 · 비
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-1.5 text-[10px] text-on-surface font-mono bg-surface-container-low border border-outline-variant p-2 rounded-md">
-        <div className="flex items-center gap-1">
-          <Droplets size={11} className="text-primary" /> 습도 48%
+      <div className="grid grid-cols-2 gap-2 text-xs text-on-surface font-mono bg-surface-container-low border border-outline-variant p-2 rounded-lg">
+        <div className="flex items-center gap-1.5">
+          <Droplets size={12} className="text-primary" /> 습도 74%
         </div>
-        <div className="flex items-center gap-1">
-          <Wind size={11} className="text-primary" /> 바람 2.1m/s
+        <div className="flex items-center gap-1.5">
+          <Wind size={12} className="text-primary" /> 바람 2.4m/s
         </div>
-        <div className="flex items-center gap-1">
-          <Umbrella size={11} className="text-primary" /> 강수확률 30%
+        <div className="flex items-center gap-1.5">
+          <Umbrella size={12} className="text-primary" /> 강수확률 60%
         </div>
-        <div className="text-on-surface-variant">내일 17° / 10°</div>
+        <div className="text-on-surface-variant">내일 최고/최저 9°/3°</div>
       </div>
 
-      <div className="flex justify-between text-center font-mono text-[9px] text-on-surface-variant border-t border-outline-variant pt-1">
-        <div>21시 11°</div>
-        <div>22시 11°</div>
-        <div>23시 11°</div>
-        <div>00시 10°</div>
-        <div>01시 10°</div>
-        <div>02시 10°</div>
+      <div className="flex justify-between text-center font-mono text-[11px] text-on-surface-variant border-t border-outline-variant pt-1.5">
+        <div>22시<br />13°</div>
+        <div>23시<br />12°</div>
+        <div>00시<br />12°</div>
+        <div>01시<br />11°</div>
+        <div>02시<br />9°</div>
+        <div>03시<br />8°</div>
       </div>
     </div>
   );
 }
 
-// 8. 즐겨찾기 노트 위젯 (사진 3)
+// 8. 즐겨찾기 노트 위젯 (사진 1)
 function FavoriteNotesWidget() {
   return (
-    <div className="h-full flex items-center justify-center text-xs text-on-surface-variant font-light">
-      등록된 노트가 없어요.
+    <div className="h-full flex items-center justify-center ui-empty-state">
+      별표한 노트가 없어요.
     </div>
   );
 }
 
-// 9. 최근 파일 위젯 (사진 3)
+// 9. 최근 파일 위젯 (사진 1)
 function RecentFilesWidget() {
   return (
-    <div className="h-full flex flex-col items-center justify-center text-xs text-on-surface-variant font-light gap-2">
-      <span>아직 문서가 없어요</span>
+    <div className="h-full flex items-center justify-center ui-empty-state gap-1.5">
+      <span>아직 문서가 없어요.</span>
       <Link
         href="/drive"
-        className="px-2.5 py-1 bg-surface-container-low hover:bg-surface-container border border-outline-variant text-on-surface rounded-md text-[11px] font-semibold transition-colors"
+        className="text-primary hover:underline font-semibold"
       >
         만들기
       </Link>
@@ -993,29 +1042,29 @@ function RecentFilesWidget() {
   );
 }
 
-// 10. 즐겨찾는 연락처 위젯 (사진 3)
+// 10. 즐겨찾는 연락처 위젯 (사진 1)
 function FavoriteContactsWidget() {
   return (
-    <div className="h-full flex items-center justify-center text-xs text-on-surface-variant font-light">
-      등록된 연락처가 없어요.
+    <div className="h-full flex items-center justify-center ui-empty-state">
+      별표한 연락처가 없어요.
     </div>
   );
 }
 
-// 11. 프로젝트 위젯 (사진 3)
+// 11. 프로젝트 위젯 (사진 1)
 function ProjectsWidget() {
   return (
-    <div className="h-full flex items-center justify-center text-xs text-on-surface-variant font-light">
+    <div className="h-full flex items-center justify-center ui-empty-state">
       담당으로 지정된 일이 없어요.
     </div>
   );
 }
 
-// 12. 채팅 위젯 (사진 3)
+// 12. 채팅 위젯 (사진 1)
 function ChatWidget() {
   return (
-    <div className="h-full flex items-center justify-center text-center text-xs text-on-surface-variant font-light px-4 leading-relaxed">
-      열린 프로젝트의 참가자가 여기 나타납니다. 프로젝트에 참가자를 초대해 보세요.
+    <div className="h-full flex items-center justify-center px-4 leading-relaxed ui-empty-state">
+      같은 프로젝트의 참가자가 여기 나타납니다. 프로젝트에 참가자를 초대해 보세요.
     </div>
   );
 }
@@ -1025,16 +1074,16 @@ function QuickExamWidget() {
   return (
     <div className="h-full flex flex-col justify-between">
       <div>
-        <div className="font-semibold text-xs text-on-surface">정보처리기사 실전 모의고사</div>
-        <p className="text-[11px] text-on-surface-variant mt-1 font-light">
+        <div className="font-bold text-sm text-on-surface">정보처리기사 실전 모의고사</div>
+        <p className="text-xs text-on-surface-variant mt-1 font-light">
           최근 자주 틀린 오답 노트와 핵심 기출을 바로 풀어보세요.
         </p>
       </div>
       <Link
         href="/exam/subject"
-        className="w-full py-2 bg-primary text-on-primary font-bold rounded-md text-xs flex items-center justify-center gap-1.5 hover:opacity-90 shadow-xs transition-opacity"
+        className="w-full py-2 bg-primary text-on-primary font-bold rounded-lg text-xs sm:text-sm flex items-center justify-center gap-1.5 hover:opacity-90 shadow-xs transition-opacity"
       >
-        <GraduationCap size={14} />
+        <GraduationCap size={15} />
         <span>바로 문제 풀기</span>
         <ArrowRight size={13} />
       </Link>
