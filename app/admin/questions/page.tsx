@@ -45,6 +45,8 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { atomDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { oneLight } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { invalidateQuestionsCache } from "@/lib/questionsClient";
+import { AIQuestionImportModal } from "@/components/admin/AIQuestionImportModal";
+import { alertModal } from "@/lib/alert";
 
 interface SubjectInfo {
   name: string;
@@ -207,6 +209,7 @@ export default function AdminQuestionsPage() {
   };
   const [showQuestionId, setShowQuestionId] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [showCardActiveButtons, setShowCardActiveButtons] = useState(() => {
     if (typeof window !== "undefined") {
       const savedCardToggle = localStorage.getItem("showCardActiveButtons");
@@ -316,10 +319,10 @@ export default function AdminQuestionsPage() {
         invalidateQuestionsCache();
         fetchQuestions();
       } else {
-        alert(`${modeLabel} 상태 변경에 실패했습니다.`);
+        alertModal.error(`${modeLabel} 상태 변경에 실패했습니다.`);
       }
     } catch {
-      alert("서버 통신 중 오류가 발생했습니다.");
+      alertModal.error("서버 통신 중 오류가 발생했습니다.");
     } finally {
       setIsTogglingSubject(null);
     }
@@ -330,7 +333,8 @@ export default function AdminQuestionsPage() {
     const modeLabel = transferMode === "subject" ? "모든 과목" : "모든 회차";
     const actionLabel = nextState ? "전체 출제 활성화" : "전체 비활성화";
 
-    if (!confirm(`${modeLabel}을 ${actionLabel}하시겠습니까?`)) return;
+    if (!(await alertModal.confirm(`${modeLabel}을 ${actionLabel}하시겠습니까?`, "일괄 상태 변경")))
+      return;
 
     setIsTogglingSubject("All");
     try {
@@ -351,10 +355,10 @@ export default function AdminQuestionsPage() {
         invalidateQuestionsCache();
         fetchQuestions();
       } else {
-        alert("일괄 변경에 실패했습니다.");
+        alertModal.error("일괄 변경에 실패했습니다.");
       }
     } catch {
-      alert("서버 통신 중 오류가 발생했습니다.");
+      alertModal.error("서버 통신 중 오류가 발생했습니다.");
     } finally {
       setIsTogglingSubject(null);
     }
@@ -365,11 +369,15 @@ export default function AdminQuestionsPage() {
     const modeLabel = transferMode === "subject" ? "과목" : "회차";
     const paramKey = transferMode === "subject" ? "deleteSubject" : "deleteExamType";
 
-    if (
-      !confirm(
-        `[데이터 삭제 확인]\n\n'${itemName}' ${modeLabel}에 속한 문제 (${totalCount}개)를 데이터베이스에서 삭제하시겠습니까?\n\n※ 삭제된 데이터는 복구할 수 없습니다.`,
-      )
-    ) {
+    const confirmed = await alertModal.confirm({
+      title: "데이터 삭제 확인",
+      message: `'${itemName}' ${modeLabel}에 속한 문제 (${totalCount}개)를 데이터베이스에서 삭제하시겠습니까?\n\n※ 삭제된 데이터는 복구할 수 없습니다.`,
+      confirmText: "삭제",
+      cancelText: "취소",
+      isDestructive: true,
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -380,16 +388,16 @@ export default function AdminQuestionsPage() {
 
       if (res.ok) {
         const data = await res.json();
-        alert(data.message || `${modeLabel}의 모든 문제가 삭제되었습니다.`);
+        alertModal.success(data.message || `${modeLabel}의 모든 문제가 삭제되었습니다.`);
         setSelectedInactiveItems((prev) => prev.filter((id) => id !== itemName));
         setSelectedActiveItems((prev) => prev.filter((id) => id !== itemName));
         invalidateQuestionsCache();
         fetchQuestions();
       } else {
-        alert("삭제 처리에 실패했습니다.");
+        alertModal.error("삭제 처리에 실패했습니다.");
       }
     } catch {
-      alert("서버 통신 중 오류가 발생했습니다.");
+      alertModal.error("서버 통신 중 오류가 발생했습니다.");
     }
   };
 
@@ -400,13 +408,17 @@ export default function AdminQuestionsPage() {
     const modeLabel = transferMode === "subject" ? "과목" : "회차";
     const paramKey = transferMode === "subject" ? "deleteSubject" : "deleteExamType";
 
-    if (
-      !confirm(
-        `[선택 항목 삭제]\n\n선택한 ${targets.length}개의 ${modeLabel} (${targets.join(
-          ", ",
-        )})에 포함된 모든 문제를 삭제하시겠습니까?\n\n※ 삭제된 데이터는 복구할 수 없습니다.`,
-      )
-    ) {
+    const confirmed = await alertModal.confirm({
+      title: "선택 항목 삭제 확인",
+      message: `선택한 ${targets.length}개의 ${modeLabel} (${targets.join(
+        ", ",
+      )})에 포함된 모든 문제를 삭제하시겠습니까?\n\n※ 삭제된 데이터는 복구할 수 없습니다.`,
+      confirmText: "일괄 삭제",
+      cancelText: "취소",
+      isDestructive: true,
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -416,13 +428,13 @@ export default function AdminQuestionsPage() {
           method: "DELETE",
         });
       }
-      alert(`선택한 ${targets.length}개 ${modeLabel}의 모든 문제가 삭제되었습니다.`);
+      alertModal.success(`선택한 ${targets.length}개 ${modeLabel}의 모든 문제가 삭제되었습니다.`);
       setSelectedInactiveItems([]);
       setSelectedActiveItems([]);
       invalidateQuestionsCache();
       fetchQuestions();
     } catch {
-      alert("삭제 중 오류가 발생했습니다.");
+      alertModal.error("삭제 중 오류가 발생했습니다.");
     }
   };
 
@@ -466,10 +478,10 @@ export default function AdminQuestionsPage() {
       if (res.ok) {
         fetchQuestions();
       } else {
-        alert("상태 변경에 실패했습니다.");
+        alertModal.error("상태 변경에 실패했습니다.");
       }
     } catch {
-      alert("서버 통신 중 오류가 발생했습니다.");
+      alertModal.error("서버 통신 중 오류가 발생했습니다.");
     }
   };
 
@@ -536,7 +548,7 @@ export default function AdminQuestionsPage() {
 
   const handleRemoveOption = (index: number) => {
     if (formData.options.length <= 2) {
-      alert("객관식 보기는 최소 2개 이상이어야 합니다.");
+      alertModal.warning("객관식 보기는 최소 2개 이상이어야 합니다.");
       return;
     }
     const newOptions = formData.options.filter((_, i) => i !== index);
@@ -559,7 +571,7 @@ export default function AdminQuestionsPage() {
 
   const handleRemoveTag = (tagToRemove: string) => {
     if (formData.correctAnswer.length <= 1) {
-      alert("최소 한 개 이상의 정답이 필요합니다.");
+      alertModal.warning("최소 한 개 이상의 정답이 필요합니다.");
       return;
     }
     setFormData((prev) => ({
@@ -630,22 +642,38 @@ export default function AdminQuestionsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("정말로 이 문제를 삭제하시겠습니까?")) return;
+    const confirmed = await alertModal.confirm({
+      title: "문제 삭제 확인",
+      message: "정말로 이 문제를 삭제하시겠습니까?\n\n※ 삭제된 문제는 복구할 수 없습니다.",
+      confirmText: "삭제",
+      cancelText: "취소",
+      isDestructive: true,
+    });
+    if (!confirmed) return;
+
     try {
       const res = await fetch(`/api/questions?id=${id}`, { method: "DELETE" });
       if (res.ok) {
-        alert("삭제되었습니다.");
+        alertModal.success("문제가 성공적으로 삭제되었습니다.");
         fetchQuestions();
       } else {
-        alert("삭제에 실패했습니다.");
+        alertModal.error("삭제에 실패했습니다.");
       }
     } catch {
-      alert("오류가 발생했습니다.");
+      alertModal.error("서버 통신 중 오류가 발생했습니다.");
     }
   };
 
   const handleResetHistory = async (id: string) => {
-    if (!confirm("이 문제의 풀이 기록을 완전히 초기화하시겠습니까?")) return;
+    const confirmed = await alertModal.confirm({
+      title: "풀이 기록 초기화",
+      message: "이 문제의 풀이 기록을 완전히 초기화하시겠습니까?",
+      confirmText: "초기화",
+      cancelText: "취소",
+      isDestructive: true,
+    });
+    if (!confirmed) return;
+
     try {
       const res = await fetch("/api/questions", {
         method: "PUT",
@@ -653,29 +681,36 @@ export default function AdminQuestionsPage() {
         body: JSON.stringify({ _id: id, history: [] }),
       });
       if (res.ok) {
-        alert("풀이 기록이 초기화되었습니다.");
+        alertModal.success("풀이 기록이 초기화되었습니다.");
         fetchQuestions();
       } else {
-        alert("기록 초기화에 실패했습니다.");
+        alertModal.error("기록 초기화에 실패했습니다.");
       }
     } catch {
-      alert("서버 오류가 발생했습니다.");
+      alertModal.error("서버 오류가 발생했습니다.");
     }
   };
 
   const handleResetAllHistory = async () => {
-    if (!confirm("모든 문제의 풀이 및 정답 이력이 초기화됩니다. 계속 진행하시겠습니까?"))
-      return;
+    const confirmed = await alertModal.confirm({
+      title: "전체 풀이 이력 초기화",
+      message: "모든 문제의 풀이 및 정답 이력이 영구적으로 초기화됩니다. 계속 진행하시겠습니까?",
+      confirmText: "전체 초기화",
+      cancelText: "취소",
+      isDestructive: true,
+    });
+    if (!confirmed) return;
+
     try {
       const res = await fetch("/api/questions?resetAll=true", { method: "DELETE" });
       if (res.ok) {
-        alert("모든 문제의 풀이 기록이 초기화되었습니다.");
+        alertModal.success("모든 문제의 풀이 기록이 초기화되었습니다.");
         fetchQuestions();
       } else {
-        alert("전체 초기화에 실패했습니다.");
+        alertModal.error("전체 초기화에 실패했습니다.");
       }
     } catch {
-      alert("서버 오류가 발생했습니다.");
+      alertModal.error("서버 오류가 발생했습니다.");
     }
   };
 
@@ -702,6 +737,18 @@ export default function AdminQuestionsPage() {
           >
             <Settings size={13} className="text-primary" />
             <span>출제 설정</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAIModalOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container-lowest hover:bg-surface-container-low text-primary rounded-md text-xs font-semibold border border-primary/30 transition-all cursor-pointer shadow-2xs group"
+            title="문서 스캔 또는 PDF 텍스트 기반 AI 문항 자동 등록 (준비 중)"
+          >
+            <Sparkles size={13} className="text-primary group-hover:rotate-12 transition-transform" />
+            <span>AI로 문제 등록</span>
+            <span className="ui-badge text-[9px] px-1.5 py-0.2 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold">
+              준비 중
+            </span>
           </button>
           <button
             onClick={openAddModal}
@@ -2035,6 +2082,26 @@ export default function AdminQuestionsPage() {
             </div>
           </div>
         )}
+
+      {/* 🌟 AI로 문제 등록 미리보기 모달 (Phase 2 준비 중) */}
+      {isAIModalOpen && (
+        <AIQuestionImportModal
+          isOpen={isAIModalOpen}
+          onClose={() => setIsAIModalOpen(false)}
+          defaultSubject={
+            filterSubject === "All"
+              ? subjectsList[0]?.name || "소프트웨어공학"
+              : filterSubject
+          }
+          defaultExamType={
+            filterExamType === "All"
+              ? examTypesList[0] || "2024년 2회차"
+              : filterExamType
+          }
+          subjectsList={subjectsList.map((s) => s.name)}
+          examTypesList={examTypesList}
+        />
+      )}
     </div>
   );
 }

@@ -1,7 +1,18 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import Question from '@/models/Question';
+import QuestionAttempt from '@/models/QuestionAttempt';
+import LearningLog from '@/models/LearningLog';
 import { withAudit } from '@/lib/withAudit';
+
+function formatDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 // 1. 문제 목록 조회 (단건 조회 / 전체 조회 / 서버 사이드 페이지네이션 및 과목별 통계)
 async function handleGet(req: Request) {
@@ -9,20 +20,62 @@ async function handleGet(req: Request) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
 
-  // 특정 ID로 조회를 요청한 경우 단건 반환
+  const session = await getServerSession(authOptions);
+  const userEmail = session?.user?.email;
+
+  // 특정 ID로 조회를 요청한 경우 단건 반환 (유저별 풀이 이력 매핑)
   if (id) {
-    const question = await Question.findById(id);
+    const question = await Question.findById(id).lean();
     if (!question) {
       return NextResponse.json({ error: '문제를 찾을 수 없습니다.' }, { status: 404 });
+    }
+    if (userEmail) {
+      const userAttempts = await QuestionAttempt.find({ userEmail, questionId: id })
+        .sort({ timestamp: 1 })
+        .select('isCorrect timestamp')
+        .lean();
+      question.history = userAttempts;
+    } else {
+      question.history = [];
     }
     return NextResponse.json([question], { status: 200 });
   }
 
   const pageParam = searchParams.get('page');
 
-  // 페이지네이션 파라미터가 없으면 기존처럼 전체 배열 반환 (수험자 모의고사 등 하위 호환성 유지)
+  // 페이지네이션 파라미터가 없으면 수험자 모의고사 등 전체 조회 (유저별 독립 풀이 이력 매핑)
   if (!pageParam) {
-    const questions = await Question.find({}).sort({ subject: 1, examType: 1, questionNumber: 1 });
+    const questions = await Question.find({}).sort({ subject: 1, examType: 1, questionNumber: 1 }).lean();
+
+    if (userEmail) {
+      // 로그인 사용자의 문제 풀이 기록만 가져와서 question.history에 매핑
+      const attempts = await QuestionAttempt.find({ userEmail })
+        .sort({ timestamp: 1 })
+        .select('questionId isCorrect timestamp')
+        .lean();
+
+      const userHistoryMap = new Map<string, { isCorrect: boolean; timestamp: Date }[]>();
+      attempts.forEach((att) => {
+        const qIdStr = att.questionId.toString();
+        if (!userHistoryMap.has(qIdStr)) {
+          userHistoryMap.set(qIdStr, []);
+        }
+        userHistoryMap.get(qIdStr)!.push({
+          isCorrect: att.isCorrect,
+          timestamp: att.timestamp,
+        });
+      });
+
+      questions.forEach((q) => {
+        q.history = userHistoryMap.get(q._id.toString()) || [];
+      });
+    } else {
+      // 미로그인 게스트인 경우 다른 사람의 풀이 기록이 카운트되지 않도록 빈 배열 처리
+      questions.forEach((q) => {
+        q.history = [];
+      });
+    }
+
     return NextResponse.json(questions);
   }
 
@@ -161,8 +214,24 @@ async function handleDelete(req: Request) {
 
   // 전체 풀이 기록 초기화 요청 처리
   if (resetAll === 'true') {
-    await Question.updateMany({}, { $set: { history: [] } });
-    return NextResponse.json({ success: true, message: 'All histories reset' }, { status: 200 });
+    const session = await getServerSession(authOptions);
+    const userRole = (session?.user as { role?: string })?.role;
+    const userEmail = session?.user?.email;
+
+    if (userRole === 'admin') {
+      await Question.updateMany({}, { $set: { history: [] } });
+      await QuestionAttempt.deleteMany({});
+      return NextResponse.json({ success: true, message: 'All histories reset' }, { status: 200 });
+    } else if (userEmail) {
+      // 일반 사용자는 본인의 풀이 기록만 초기화
+      await QuestionAttempt.deleteMany({ userEmail });
+      await Question.updateMany(
+        { 'history.userEmail': userEmail },
+        { $pull: { history: { userEmail } } }
+      );
+      return NextResponse.json({ success: true, message: 'My histories reset' }, { status: 200 });
+    }
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
   // 과목 전체 일괄 삭제
@@ -255,10 +324,14 @@ async function handlePut(req: Request) {
     );
   }
 
-  // 4-2. 단일 문제 수정
+  // 4-2. 단일 문제 수정 (개별 풀이 기록 초기화 처리 포함)
   const { _id, ...updateData } = body;
   if (!_id) return NextResponse.json({ success: false, error: 'Question ID is required' }, { status: 400 });
-  
+
+  if (Array.isArray(updateData.history) && updateData.history.length === 0) {
+    await QuestionAttempt.deleteMany({ questionId: _id });
+  }
+
   const updatedQuestion = await Question.findByIdAndUpdate(_id, updateData, { returnDocument: 'after' });
   return NextResponse.json({ success: true, data: updatedQuestion }, { status: 200 });
 }
@@ -266,14 +339,66 @@ async function handlePut(req: Request) {
 // 5. 사용자 문제 풀이 기록(정답/오답) 추가
 async function handlePatch(req: Request) {
   await dbConnect();
+  const session = await getServerSession(authOptions);
+  const userEmail = session?.user?.email;
   const body = await req.json();
-  const { _id, isCorrect } = body;
+  const { _id, isCorrect, userAnswer = "" } = body;
   
   if (!_id) return NextResponse.json({ success: false, error: 'Question ID is required' }, { status: 400 });
 
+  const now = new Date();
+
+  // 로그인 사용자의 경우 독립 QuestionAttempt 컬렉션 및 러닝 로그 연동
+  if (userEmail) {
+    const question = await Question.findById(_id).select("subject examType title").lean();
+    if (question) {
+      await QuestionAttempt.create({
+        userEmail,
+        questionId: _id,
+        isCorrect: Boolean(isCorrect),
+        userAnswer: String(userAnswer || ""),
+        subject: question.subject || "",
+        examType: question.examType || "",
+        timestamp: now,
+      });
+
+      const todayStr = formatDate(now);
+      await LearningLog.findOneAndUpdate(
+        { userEmail, date: todayStr },
+        {
+          $inc: {
+            questionsSolved: 1,
+            ...(isCorrect ? { questionsCorrect: 1 } : {}),
+          },
+          $push: {
+            recentActivities: {
+              $each: [
+                {
+                  type: "question",
+                  title: `기출 풀이 (${isCorrect ? "정답" : "오답"}): ${question.title?.slice(0, 30) || "문제"}`,
+                  timestamp: now,
+                },
+              ],
+              $slice: -20,
+            },
+          },
+        },
+        { returnDocument: "after", upsert: true }
+      );
+    }
+  }
+
   const updatedQuestion = await Question.findByIdAndUpdate(
     _id,
-    { $push: { history: { isCorrect, timestamp: new Date() } } },
+    {
+      $push: {
+        history: {
+          userEmail: userEmail || undefined,
+          isCorrect: Boolean(isCorrect),
+          timestamp: now,
+        },
+      },
+    },
     { returnDocument: 'after' }
   );
   return NextResponse.json({ success: true, data: updatedQuestion }, { status: 200 });

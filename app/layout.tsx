@@ -3,10 +3,11 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { CustomThemeProvider } from "@/components/theme/CustomThemeProvider";
 import { ToastContainer } from "@/components/ui/ToastContainer";
+import { AlertDialogContainer } from "@/components/ui/AlertDialogContainer";
 
 export const metadata: Metadata = {
-  title: "원퀴즈 (OneQuiz) - 나혼자 공부하는 플랫폼",
-  description: "기출문제 자가 학습, 일정, 일기장, 프로젝트 보드를 통합한 올인원 스터디 웹 워크스페이스",
+  title: "원퀴즈 (OneQuiz) - 올인원 통합 워크스페이스 플랫폼",
+  description: "일정, 업무, 지식, 프로젝트, 커뮤니티, 라이프스타일까지 하나로 연결하는 올인원 통합 웹 플랫폼",
 };
 
 export default function RootLayout({
@@ -30,6 +31,7 @@ export default function RootLayout({
           <CustomThemeProvider>
             {children}
             <ToastContainer />
+            <AlertDialogContainer />
           </CustomThemeProvider>
         </Providers>
       </body>

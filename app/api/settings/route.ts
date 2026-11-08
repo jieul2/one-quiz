@@ -8,12 +8,16 @@ async function handleGet() {
   let setting = await SiteSetting.findOne({});
   if (!setting) {
     setting = await SiteSetting.create({
-      siteTitle: 'oneQuiz',
-      landingSubtitle: '중간고사 : 10/12 ~ 16, 드론조종사 : 10/21',
-      isMaintenanceMode: false,
-      maintenanceMessage: '시스템 서버 안정화 작업',
-      maintenanceUpdatedAt: null,
-      disabledFeatures: { exam: false, diary: false, ideas: false, admin: false },
+      siteTitle: '원퀴즈 (OneQuiz)',
+      landingSubtitle: '혼자서 공부하는 수험생을 위한 올인원 스터디 플랫폼',
+      studyGoalQuestions: 20,
+      pomodoroDefaultMinutes: 25,
+      examDefaultTimeLimit: 60,
+      enableOnboardingGuide: true,
+      enableNoticeBanner: false,
+      noticeBannerText: '2026 자격증/기출문제 신규 모의고사가 업데이트되었습니다!',
+      noticeBannerType: 'info',
+      logRetentionDays: 90,
     });
   }
   return NextResponse.json(setting, { status: 200 });
@@ -22,7 +26,18 @@ async function handleGet() {
 async function handlePut(req: Request) {
   await dbConnect();
   const body = await req.json();
-  const { siteTitle, landingSubtitle, isMaintenanceMode, maintenanceMessage, disabledFeatures } = body;
+  const {
+    siteTitle,
+    landingSubtitle,
+    studyGoalQuestions,
+    pomodoroDefaultMinutes,
+    examDefaultTimeLimit,
+    enableOnboardingGuide,
+    enableNoticeBanner,
+    noticeBannerText,
+    noticeBannerType,
+    logRetentionDays,
+  } = body;
 
   let setting = await SiteSetting.findOne({});
   if (!setting) {
@@ -31,27 +46,14 @@ async function handlePut(req: Request) {
 
   if (siteTitle !== undefined) setting.siteTitle = siteTitle;
   if (landingSubtitle !== undefined) setting.landingSubtitle = landingSubtitle;
-  
-  if (isMaintenanceMode !== undefined) {
-    setting.isMaintenanceMode = isMaintenanceMode;
-    // 점검 모드가 켜지는 순간 현재 시간을 점검 시간으로 자동 기록
-    if (isMaintenanceMode) {
-      setting.maintenanceUpdatedAt = new Date();
-    }
-  }
-
-  if (maintenanceMessage !== undefined) setting.maintenanceMessage = maintenanceMessage;
-  
-  if (disabledFeatures !== undefined) {
-    // TypeScript 경고(nullish coalescing 불필요)를 해결한 안전한 불리언 할당
-    setting.disabledFeatures = {
-      exam: Boolean(disabledFeatures.exam),
-      diary: Boolean(disabledFeatures.diary),
-      ideas: Boolean(disabledFeatures.ideas),
-      admin: Boolean(disabledFeatures.admin),
-    };
-    setting.markModified('disabledFeatures');
-  }
+  if (studyGoalQuestions !== undefined) setting.studyGoalQuestions = Number(studyGoalQuestions);
+  if (pomodoroDefaultMinutes !== undefined) setting.pomodoroDefaultMinutes = Number(pomodoroDefaultMinutes);
+  if (examDefaultTimeLimit !== undefined) setting.examDefaultTimeLimit = Number(examDefaultTimeLimit);
+  if (enableOnboardingGuide !== undefined) setting.enableOnboardingGuide = Boolean(enableOnboardingGuide);
+  if (enableNoticeBanner !== undefined) setting.enableNoticeBanner = Boolean(enableNoticeBanner);
+  if (noticeBannerText !== undefined) setting.noticeBannerText = noticeBannerText;
+  if (noticeBannerType !== undefined) setting.noticeBannerType = noticeBannerType;
+  if (logRetentionDays !== undefined) setting.logRetentionDays = Number(logRetentionDays);
 
   setting.updatedAt = new Date();
   await setting.save();

@@ -2,34 +2,42 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import AuditLog from '@/models/AuditLog';
 
-// GET: 페이지네이션 파라미터(page, limit)를 받아 DB에서 필요한 구간만 조회
+// GET: 페이지네이션(page, limit) 및 HTTP 메서드(method), 로그 레벨(level) 필터로 DB 조회
 export async function GET(request: Request) {
   try {
     await dbConnect();
-    
+
     const { searchParams } = new URL(request.url);
     const email = searchParams.get('email');
+    const method = searchParams.get('method');
+    const level = searchParams.get('level');
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '20', 10);
+    const limit = parseInt(searchParams.get('limit') || '15', 10);
 
-    const query = email && email !== 'ALL' ? { email } : {};
-    
+    const query: Record<string, unknown> = {};
+    if (email && email !== 'ALL') query.email = email;
+    if (method && method !== 'ALL') query.method = method;
+    if (level && level !== 'ALL') query.level = level;
+
     // 전체 일치하는 문서 개수 계산 (페이지네이션 계산용)
     const total = await AuditLog.countDocuments(query);
 
-    // skip과 limit을 적용하여 해당 페이지 데이터만 조회
+    // skip과 limit을 적용하여 해당 페이지 데이터만 최신순으로 조회
     const skip = (page - 1) * limit;
     const logs = await AuditLog.find(query)
       .sort({ timestamp: -1 })
       .skip(skip)
       .limit(limit);
 
-    return NextResponse.json({
-      logs,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit) || 1,
-    }, { status: 200 });
+    return NextResponse.json(
+      {
+        logs,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error('Failed to fetch audit logs:', error);
     return NextResponse.json({ error: '로그를 불러오지 못했습니다.' }, { status: 500 });

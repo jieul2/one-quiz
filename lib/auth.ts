@@ -17,6 +17,7 @@ declare module "next-auth" {
 interface NewUserData {
   name?: string | null;
   image?: string | null;
+  provider?: string | null;
   providerAccountId: string;
   lastLoginAt: Date;
   email?: string | null;
@@ -27,6 +28,7 @@ const UserSchema = new mongoose.Schema({
   name: { type: String },
   image: { type: String },
   role: { type: String, default: "user" },
+  provider: { type: String }, // 'google' | 'kakao'
   providerAccountId: { type: String, required: true, unique: true },
   lastLoginAt: { type: Date, default: Date.now },
 });
@@ -48,6 +50,7 @@ export const authOptions = {
       try {
         await dbConnect();
         const providerAccountId = account?.providerAccountId || user.id;
+        const provider = account?.provider || (user.image?.includes("kakao") ? "kakao" : "google");
         if (!providerAccountId) return true;
 
         let dbUser = await User.findOne({ providerAccountId });
@@ -58,6 +61,7 @@ export const authOptions = {
 
         if (dbUser) {
           dbUser.providerAccountId = providerAccountId;
+          dbUser.provider = provider;
           dbUser.name = user.name || dbUser.name;
           dbUser.image = user.image || dbUser.image;
           dbUser.lastLoginAt = new Date();
@@ -69,6 +73,7 @@ export const authOptions = {
           const userData: NewUserData = {
             name: user.name,
             image: user.image,
+            provider,
             providerAccountId,
             lastLoginAt: new Date(),
           };

@@ -13,6 +13,7 @@ export interface IQuestion extends Document {
   explanation?: string;
   isActive: boolean; // 문제 활성화 여부
   history: {
+    userEmail?: string;
     isCorrect: boolean;
     timestamp: Date;
   }[];
@@ -59,6 +60,7 @@ const QuestionSchema: Schema = new Schema({
   history: {
     type: [
       {
+        userEmail: { type: String, required: false },
         isCorrect: { type: Boolean, required: true },
         timestamp: { type: Date, default: Date.now },
       },

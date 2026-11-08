@@ -13,9 +13,11 @@ import {
   DEFAULT_CATEGORIES,
   getEventColorStyles,
   formatDateKey,
+  getLocalDateKey,
   parseDateOnly,
   getDaysDiff,
   getMondayBasedDayOfWeek,
+  getEventTimeDisplay,
 } from "./calendarTypes";
 import { CalendarDayModal } from "./CalendarDayModal";
 import { EventFormModal } from "./EventFormModal";
@@ -81,17 +83,59 @@ export function CalendarView() {
   const [isCategoryFilterOpen, setIsCategoryFilterOpen] = useState(false);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
 
-  // ================= 1. DND 날짜 이동 상태 =================
+  // ================= 1. DND 날짜 이동 상태 및 스켈레톤 프리뷰 =================
   const [draggingEvent, setDraggingEvent] = useState<CalendarEvent | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [dragGrabDateKey, setDragGrabDateKey] = useState<string | null>(null);
+
+  // 🌟 DND 드래그 중 실시간 목표 일자 및 스켈레톤 프리뷰 범위 계산
+  const dragPreviewRef = useRef<{
+    startKey: string;
+    endKey: string;
+    dayDiff: number;
+    title: string;
+    color?: string;
+  } | null>(null);
+
+  const dragPreview = useMemo(() => {
+    if (!draggingEvent || !dragOverDate) return null;
+    const origStartKey = getLocalDateKey(draggingEvent.startDate);
+    const origEndKey = getLocalDateKey(draggingEvent.endDate);
+    const durationDays = Math.max(1, getDaysDiff(origStartKey, origEndKey) + 1);
+
+    const grabKey = dragGrabDateKey || origStartKey;
+    const dayDiff = getDaysDiff(grabKey, dragOverDate);
+
+    const targetStartDate = parseDateOnly(origStartKey);
+    targetStartDate.setDate(targetStartDate.getDate() + dayDiff);
+    const startKey = formatDateKey(targetStartDate);
+
+    const targetEndDate = parseDateOnly(startKey);
+    targetEndDate.setDate(targetEndDate.getDate() + durationDays - 1);
+    const endKey = formatDateKey(targetEndDate);
+
+    return {
+      startKey,
+      endKey,
+      dayDiff,
+      title: draggingEvent.title,
+      color: draggingEvent.color,
+    };
+  }, [draggingEvent, dragOverDate, dragGrabDateKey]);
+
+  useEffect(() => {
+    dragPreviewRef.current = dragPreview;
+  }, [dragPreview]);
 
   // ================= 2. 마우스 리사이즈(기간 조절) 상태 =================
   const [resizingEvent, setResizingEvent] = useState<CalendarEvent | null>(null);
-  const [, setResizingEdge] = useState<"start" | "end">("end");
+  const [resizingEdge, setResizingEdge] = useState<"start" | "end">("end");
   const [resizePreviewStartDate, setResizePreviewStartDate] = useState<string | null>(null);
   const [resizePreviewEndDate, setResizePreviewEndDate] = useState<string | null>(null);
   const isResizingRef = useRef(false);
   const resizingEdgeRef = useRef<"start" | "end">("end");
+  const resizePreviewStartDateRef = useRef<string | null>(null);
+  const resizePreviewEndDateRef = useRef<string | null>(null);
 
   // 일정 목록 서버 로드
   const fetchEvents = useCallback(async () => {
@@ -205,21 +249,29 @@ export function CalendarView() {
     const handleGlobalMouseMove = (e: MouseEvent) => {
       if (!isResizingRef.current || !resizingEvent) return;
 
-      const elem = document.elementFromPoint(e.clientX, e.clientY);
-      const cellElem = elem?.closest("[data-date-key]");
-      if (cellElem) {
-        const dateKey = cellElem.getAttribute("data-date-key");
-        if (dateKey) {
-          if (resizingEdgeRef.current === "start") {
-            const currentEnd = resizePreviewEndDate || resizingEvent.endDate.slice(0, 10);
-            if (dateKey <= currentEnd) {
-              setResizePreviewStartDate(dateKey);
-            }
-          } else {
-            const currentStart = resizePreviewStartDate || resizingEvent.startDate.slice(0, 10);
-            if (dateKey >= currentStart) {
-              setResizePreviewEndDate(dateKey);
-            }
+      // 마우스 위치 하위의 모든 DOM 요소를 탐색하여 data-date-key 셀을 100% 검출
+      const elements = document.elementsFromPoint(e.clientX, e.clientY);
+      let targetDateKey: string | null = null;
+      for (const el of elements) {
+        const cell = el.closest("[data-date-key]");
+        if (cell) {
+          targetDateKey = cell.getAttribute("data-date-key");
+          if (targetDateKey) break;
+        }
+      }
+
+      if (targetDateKey) {
+        if (resizingEdgeRef.current === "start") {
+          const currentEnd = resizePreviewEndDateRef.current || getLocalDateKey(resizingEvent.endDate);
+          if (targetDateKey <= currentEnd && targetDateKey !== resizePreviewStartDateRef.current) {
+            resizePreviewStartDateRef.current = targetDateKey;
+            setResizePreviewStartDate(targetDateKey);
+          }
+        } else {
+          const currentStart = resizePreviewStartDateRef.current || getLocalDateKey(resizingEvent.startDate);
+          if (targetDateKey >= currentStart && targetDateKey !== resizePreviewEndDateRef.current) {
+            resizePreviewEndDateRef.current = targetDateKey;
+            setResizePreviewEndDate(targetDateKey);
           }
         }
       }
@@ -229,20 +281,29 @@ export function CalendarView() {
       if (!isResizingRef.current || !resizingEvent) return;
       isResizingRef.current = false;
 
-      const newStartKey = resizePreviewStartDate || resizingEvent.startDate.slice(0, 10);
-      const newEndKey = resizePreviewEndDate || resizingEvent.endDate.slice(0, 10);
+      const origStartKey = getLocalDateKey(resizingEvent.startDate);
+      const origEndKey = getLocalDateKey(resizingEvent.endDate);
 
-      const hasChanged =
-        newStartKey !== resizingEvent.startDate.slice(0, 10) ||
-        newEndKey !== resizingEvent.endDate.slice(0, 10);
+      const newStartKey = resizePreviewStartDateRef.current || origStartKey;
+      const newEndKey = resizePreviewEndDateRef.current || origEndKey;
+
+      const hasChanged = newStartKey !== origStartKey || newEndKey !== origEndKey;
 
       if (hasChanged && newStartKey <= newEndKey) {
-        const updatedStartDate = resizingEvent.allDay
-          ? `${newStartKey}T00:00:00`
-          : `${newStartKey}${resizingEvent.startDate.slice(10)}`;
-        const updatedEndDate = resizingEvent.allDay
-          ? `${newEndKey}T23:59:59`
-          : `${newEndKey}${resizingEvent.endDate.slice(10)}`;
+        const startTimePart =
+          !resizingEvent.allDay && resizingEvent.startDate.includes("T")
+            ? resizingEvent.startDate.slice(11, 19)
+            : "00:00:00";
+        const endTimePart =
+          !resizingEvent.allDay && resizingEvent.endDate.includes("T")
+            ? resizingEvent.endDate.slice(11, 19)
+            : "23:59:59";
+
+        const localStartDate = new Date(`${newStartKey}T${startTimePart.slice(0, 5) || "00:00"}:00`);
+        const localEndDate = new Date(`${newEndKey}T${endTimePart.slice(0, 5) || "23:59"}:59`);
+
+        const updatedStartDate = localStartDate.toISOString();
+        const updatedEndDate = localEndDate.toISOString();
 
         // 낙관적 업데이트
         setEvents((prev) =>
@@ -264,6 +325,8 @@ export function CalendarView() {
       setResizingEvent(null);
       setResizePreviewStartDate(null);
       setResizePreviewEndDate(null);
+      resizePreviewStartDateRef.current = null;
+      resizePreviewEndDateRef.current = null;
     };
 
     window.addEventListener("mousemove", handleGlobalMouseMove);
@@ -272,7 +335,7 @@ export function CalendarView() {
       window.removeEventListener("mousemove", handleGlobalMouseMove);
       window.removeEventListener("mouseup", handleGlobalMouseUp);
     };
-  }, [resizingEvent, resizePreviewStartDate, resizePreviewEndDate, handleSaveEvent]);
+  }, [resizingEvent, handleSaveEvent]);
 
   const handleResizeStart = (
     e: React.MouseEvent,
@@ -281,57 +344,108 @@ export function CalendarView() {
   ) => {
     e.stopPropagation();
     e.preventDefault();
+    if (typeof window !== "undefined") {
+      window.getSelection()?.removeAllRanges();
+    }
     isResizingRef.current = true;
     resizingEdgeRef.current = edge;
+    const sKey = getLocalDateKey(event.startDate);
+    const eKey = getLocalDateKey(event.endDate);
+    resizePreviewStartDateRef.current = sKey;
+    resizePreviewEndDateRef.current = eKey;
     setResizingEdge(edge);
     setResizingEvent(event);
-    setResizePreviewStartDate(event.startDate.slice(0, 10));
-    setResizePreviewEndDate(event.endDate.slice(0, 10));
+    setResizePreviewStartDate(sKey);
+    setResizePreviewEndDate(eKey);
   };
 
   // ================= 4. DND 이동 핸들러 =================
-  const handleDragStart = (e: React.DragEvent, event: CalendarEvent) => {
+  const handleDragStart = (
+    e: React.DragEvent,
+    event: CalendarEvent,
+    grabDateKey?: string
+  ) => {
+    // 🌟 캘린더 일정을 잡고 이동할 때 이전에 선택된 텍스트 선택 영역 즉시 해제 (잔상 방지)
+    if (typeof window !== "undefined") {
+      window.getSelection()?.removeAllRanges();
+    }
     e.dataTransfer.setData("text/plain", event._id || "");
+    e.dataTransfer.effectAllowed = "move";
     setDraggingEvent(event);
+    setDragGrabDateKey(grabDateKey || getLocalDateKey(event.startDate));
+  };
+
+  const handleDragEnd = () => {
+    setDraggingEvent(null);
+    setDragOverDate(null);
+    setDragGrabDateKey(null);
   };
 
   const handleCellDragOver = (e: React.DragEvent, dateKey: string) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
     if (dragOverDate !== dateKey) {
       setDragOverDate(dateKey);
     }
   };
 
-  const handleCellDrop = async (e: React.DragEvent, targetDateKey: string) => {
+  const handleCellDrop = async (e: React.DragEvent, targetDateKey?: string) => {
     e.preventDefault();
-    setDragOverDate(null);
     const eventToMove = draggingEvent;
+    const currentPreview = dragPreviewRef.current || dragPreview;
+
+    setDragOverDate(null);
     setDraggingEvent(null);
+    setDragGrabDateKey(null);
+    dragPreviewRef.current = null;
 
     if (!eventToMove || !eventToMove._id) return;
 
-    const originalStartKey = eventToMove.startDate.slice(0, 10);
-    if (originalStartKey === targetDateKey) return;
+    const origStartKey = getLocalDateKey(eventToMove.startDate);
+    const origEndKey = getLocalDateKey(eventToMove.endDate);
+    const durationDays = Math.max(1, getDaysDiff(origStartKey, origEndKey) + 1);
 
-    const dayDiff = getDaysDiff(originalStartKey, targetDateKey);
+    // 프리뷰가 있으면 스켈레톤 계산값 사용, 없으면 targetDateKey 기반 직접 계산
+    let newStartKey: string;
+    let newEndKey: string;
 
-    const oldStart = parseDateOnly(eventToMove.startDate);
-    const oldEnd = parseDateOnly(eventToMove.endDate);
+    if (currentPreview) {
+      newStartKey = currentPreview.startKey;
+      newEndKey = currentPreview.endKey;
+    } else if (targetDateKey) {
+      const grabKey = dragGrabDateKey || origStartKey;
+      const dayDiff = getDaysDiff(grabKey, targetDateKey);
+      const sDate = parseDateOnly(origStartKey);
+      sDate.setDate(sDate.getDate() + dayDiff);
+      newStartKey = formatDateKey(sDate);
 
-    oldStart.setDate(oldStart.getDate() + dayDiff);
-    oldEnd.setDate(oldEnd.getDate() + dayDiff);
+      const eDate = parseDateOnly(newStartKey);
+      eDate.setDate(eDate.getDate() + durationDays - 1);
+      newEndKey = formatDateKey(eDate);
+    } else {
+      return;
+    }
 
-    const newStartKey = formatDateKey(oldStart);
-    const newEndKey = formatDateKey(oldEnd);
+    // 변경사항이 없으면 중단
+    if (newStartKey === origStartKey && newEndKey === origEndKey) return;
 
-    const updatedStartDate = eventToMove.allDay
-      ? `${newStartKey}T00:00:00`
-      : `${newStartKey}${eventToMove.startDate.slice(10)}`;
+    // 시간 성분 보존 및 ISO Date 변환 (로컬 타임존 일치 보장)
+    const startTimePart =
+      !eventToMove.allDay && eventToMove.startDate.includes("T")
+        ? eventToMove.startDate.slice(11, 19)
+        : "00:00:00";
+    const endTimePart =
+      !eventToMove.allDay && eventToMove.endDate.includes("T")
+        ? eventToMove.endDate.slice(11, 19)
+        : "23:59:59";
 
-    const updatedEndDate = eventToMove.allDay
-      ? `${newEndKey}T23:59:59`
-      : `${newEndKey}${eventToMove.endDate.slice(10)}`;
+    const localStartDate = new Date(`${newStartKey}T${startTimePart.slice(0, 5) || "00:00"}:00`);
+    const localEndDate = new Date(`${newEndKey}T${endTimePart.slice(0, 5) || "23:59"}:59`);
 
+    const updatedStartDate = localStartDate.toISOString();
+    const updatedEndDate = localEndDate.toISOString();
+
+    // 1. 낙관적 로컬 상태 즉각 반영 (화면 스켈레톤 위치와 100% 일치)
     setEvents((prev) =>
       prev.map((evt) =>
         evt._id === eventToMove._id
@@ -340,6 +454,7 @@ export function CalendarView() {
       )
     );
 
+    // 2. DB 영구 저장 전송 (스켈레톤 목표 시작일/종료일 동기화)
     await handleSaveEvent({
       _id: eventToMove._id,
       startDate: updatedStartDate,
@@ -424,12 +539,32 @@ export function CalendarView() {
     return events.filter((e) => (e.category || "work") === selectedCategoryFilter);
   }, [events, selectedCategoryFilter]);
 
+  // 🌟 실시간 리사이즈 프리뷰 날짜가 주입된 동적 이벤트 목록
+  // 리사이즈 드래그 중인 이벤트의 기간이 줄어들면 빈 자리가 생겨 알고리즘에 의해 실시간으로 위(Row 0 등)로 이동 반영
+  const effectiveEvents = useMemo(() => {
+    if (!resizingEvent || (!resizePreviewStartDate && !resizePreviewEndDate)) {
+      return filteredEvents;
+    }
+    const currentStart = resizePreviewStartDate || getLocalDateKey(resizingEvent.startDate);
+    const currentEnd = resizePreviewEndDate || getLocalDateKey(resizingEvent.endDate);
+
+    return filteredEvents.map((e) =>
+      e._id === resizingEvent._id
+        ? {
+            ...e,
+            startDate: `${currentStart}T00:00:00`,
+            endDate: `${currentEnd}T23:59:59`,
+          }
+        : e
+    );
+  }, [filteredEvents, resizingEvent, resizePreviewStartDate, resizePreviewEndDate]);
+
   // 날짜별 일정 맵핑 (팝오버 및 단일 일정용)
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
-    filteredEvents.forEach((evt) => {
-      const startKey = evt.startDate.slice(0, 10);
-      const endKey = evt.endDate.slice(0, 10);
+    effectiveEvents.forEach((evt) => {
+      const startKey = getLocalDateKey(evt.startDate);
+      const endKey = getLocalDateKey(evt.endDate);
 
       const cur = parseDateOnly(startKey);
       const end = parseDateOnly(endKey);
@@ -442,7 +577,7 @@ export function CalendarView() {
       }
     });
     return map;
-  }, [filteredEvents]);
+  }, [effectiveEvents]);
 
   // ================= 7. 주(Week) 단위 캘린더 막대 정렬 & 행 할당 알고리즘 =================
   // [알고리즘 규칙 1. 정렬(Sorting)]
@@ -456,10 +591,10 @@ export function CalendarView() {
       const weekStartKey = days[0].dateKey;
       const weekEndKey = days[6].dateKey;
 
-      // 이번 주와 겹치는 모든 일정 (다중일 + 단일일)
-      const weekEvents = filteredEvents.filter((evt) => {
-        const sKey = evt.startDate.slice(0, 10);
-        const eKey = evt.endDate.slice(0, 10);
+      // 이번 주와 겹치는 모든 일정 (다중일 + 단일일 - 리사이즈 실시간 프리뷰 자동 반영)
+      const weekEvents = effectiveEvents.filter((evt) => {
+        const sKey = getLocalDateKey(evt.startDate);
+        const eKey = getLocalDateKey(evt.endDate);
         return sKey <= weekEndKey && eKey >= weekStartKey;
       });
 
@@ -470,10 +605,10 @@ export function CalendarView() {
       //          '전체 기간(Duration)'이 길거나 종료일이 더 늦은 일정을 위쪽(Row 0)에 우선 배치!
       //          -> 2주차(11.09~11.15): 11.18까지 가는 1이 위(Row 0), 11.13에 끝나는 3이 아래(Row 1)에 배치!
       const sorted = [...weekEvents].sort((a, b) => {
-        const sA = a.startDate.slice(0, 10);
-        const eA = a.endDate.slice(0, 10);
-        const sB = b.startDate.slice(0, 10);
-        const eB = b.endDate.slice(0, 10);
+        const sA = getLocalDateKey(a.startDate);
+        const eA = getLocalDateKey(a.endDate);
+        const sB = getLocalDateKey(b.startDate);
+        const eB = getLocalDateKey(b.endDate);
 
         // 이번 주 내에서 바가 시작하는 유효 날짜 (지난주에서 이어져 왔으면 이번 주 첫날인 weekStartKey)
         const effectiveStartA = sA < weekStartKey ? weekStartKey : sA;
@@ -509,8 +644,8 @@ export function CalendarView() {
       const segments: SpanningTrackSegment[] = [];
 
       for (const evt of sorted) {
-        const sKey = evt.startDate.slice(0, 10);
-        const eKey = evt.endDate.slice(0, 10);
+        const sKey = getLocalDateKey(evt.startDate);
+        const eKey = getLocalDateKey(evt.endDate);
 
         const isContinuationFromPrev = sKey < weekStartKey;
         const isContinuationToNext = eKey > weekEndKey;
@@ -569,7 +704,7 @@ export function CalendarView() {
         segments,
       };
     },
-    [filteredEvents]
+    [effectiveEvents]
   );
 
   // 셀 클릭 시 사진3 팝오버 오픈
@@ -582,6 +717,7 @@ export function CalendarView() {
   const handleCloseDayModal = () => {
     setSelectedDayForModal(null);
     setSelectedDayAnchorRect(null);
+    setSelectedDateKey(null);
   };
 
   const handleOpenCreateModal = (date?: Date) => {
@@ -743,11 +879,37 @@ export function CalendarView() {
       {/* 🌟 캘린더 막대 리사이즈 중 실시간 기간 안내 툴팁 배지 */}
       {resizingEvent && (resizePreviewStartDate || resizePreviewEndDate) && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-primary text-on-primary rounded-full shadow-2xl text-xs font-bold flex items-center gap-2 pointer-events-none transition-all duration-150 animate-bounce">
+          <span className="w-2 h-2 rounded-full bg-white animate-ping shrink-0" />
           <span>{resizingEvent.title}</span>
           <span className="opacity-60">|</span>
           <span className="font-mono">
-            {resizePreviewStartDate || resizingEvent.startDate.slice(0, 10)} ~{" "}
-            {resizePreviewEndDate || resizingEvent.endDate.slice(0, 10)}
+            {resizePreviewStartDate || getLocalDateKey(resizingEvent.startDate)} ~{" "}
+            {resizePreviewEndDate || getLocalDateKey(resizingEvent.endDate)}
+          </span>
+          <span className="text-[10px] bg-black/25 px-2 py-0.5 rounded-full font-semibold">
+            {resizingEdge === "start" ? "시작일 조절" : "종료일 조절"} (
+            {Math.max(
+              1,
+              getDaysDiff(
+                resizePreviewStartDate || getLocalDateKey(resizingEvent.startDate),
+                resizePreviewEndDate || getLocalDateKey(resizingEvent.endDate)
+              ) + 1
+            )}
+            일간)
+          </span>
+        </div>
+      )}
+
+      {/* 🌟 캘린더 드래그 앤 드롭 이동 중 상단 실시간 안내 배지 */}
+      {draggingEvent && dragPreview && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-primary text-on-primary rounded-full shadow-2xl text-xs font-bold flex items-center gap-2 pointer-events-none transition-all duration-150 animate-bounce">
+          <span>이동 중: {draggingEvent.title}</span>
+          <span className="opacity-60">|</span>
+          <span className="font-mono">
+            {dragPreview.startKey} ~ {dragPreview.endKey}
+          </span>
+          <span className="text-[10px] bg-black/20 px-2 py-0.5 rounded-full">
+            {dragPreview.dayDiff > 0 ? `+${dragPreview.dayDiff}일` : `${dragPreview.dayDiff}일`}
           </span>
         </div>
       )}
@@ -770,6 +932,34 @@ export function CalendarView() {
           <div className="divide-y divide-outline-variant">
             {weeks.map((weekDays, weekIdx) => {
               const { trackCount, segments } = getWeekSpanningTracks(weekDays);
+              const weekStartKey = weekDays[0].dateKey;
+              const weekEndKey = weekDays[6].dateKey;
+
+              // 🌟 DND 스켈레톤 프리뷰 세그먼트 계산 (현재 주에 걸치는 경우)
+              let skeletonSeg: {
+                startCol: number;
+                endCol: number;
+                isContinuationFromPrev: boolean;
+                isContinuationToNext: boolean;
+              } | null = null;
+
+              if (dragPreview) {
+                const { startKey: pStart, endKey: pEnd } = dragPreview;
+                if (pStart <= weekEndKey && pEnd >= weekStartKey) {
+                  const effStart = pStart < weekStartKey ? weekStartKey : pStart;
+                  const effEnd = pEnd > weekEndKey ? weekEndKey : pEnd;
+                  const startCol = weekDays.findIndex((d) => d.dateKey === effStart) + 1;
+                  const endCol = weekDays.findIndex((d) => d.dateKey === effEnd) + 1;
+                  if (startCol >= 1 && endCol >= 1) {
+                    skeletonSeg = {
+                      startCol,
+                      endCol,
+                      isContinuationFromPrev: pStart < weekStartKey,
+                      isContinuationToNext: pEnd > weekEndKey,
+                    };
+                  }
+                }
+              }
 
               return (
                 <div
@@ -783,17 +973,25 @@ export function CalendarView() {
                       const isOver = dragOverDate === day.dateKey;
                       const isSelected = selectedDateKey === day.dateKey;
 
-                      // 리사이즈 프리뷰 여부
-                      const isResizeTarget =
+                      // 리사이즈 프리뷰 여부 (시작일/종료일 양방향 모두 커버)
+                      const curResizeStart = resizePreviewStartDate || (resizingEvent ? getLocalDateKey(resizingEvent.startDate) : "");
+                      const curResizeEnd = resizePreviewEndDate || (resizingEvent ? getLocalDateKey(resizingEvent.endDate) : "");
+                      const isResizeTarget = Boolean(
                         resizingEvent &&
-                        resizePreviewEndDate &&
-                        day.dateKey >= resizingEvent.startDate.slice(0, 10) &&
-                        day.dateKey <= resizePreviewEndDate;
+                        curResizeStart &&
+                        curResizeEnd &&
+                        day.dateKey >= curResizeStart &&
+                        day.dateKey <= curResizeEnd
+                      );
 
                       return (
                         <div
                           key={day.dateKey}
                           data-date-key={day.dateKey}
+                          onDragEnter={(e) => {
+                            e.preventDefault();
+                            handleCellDragOver(e, day.dateKey);
+                          }}
                           onDragOver={(e) => handleCellDragOver(e, day.dateKey)}
                           onDrop={(e) => handleCellDrop(e, day.dateKey)}
                           onClick={(e) => handleSelectDayCell(day, e.currentTarget)}
@@ -802,8 +1000,8 @@ export function CalendarView() {
                               ? "opacity-35 bg-surface-container-low/20"
                               : "hover:bg-surface-container-low/40"
                           } ${isSelected ? "ring-1 ring-white/70 dark:ring-white/80 rounded-sm" : ""} ${
-                            isOver ? "bg-primary/10 ring-2 ring-primary ring-inset" : ""
-                          } ${isResizeTarget ? "bg-amber-500/10 ring-1 ring-amber-500/50" : ""}`}
+                            isOver ? "bg-primary/20 ring-2 ring-primary ring-inset" : ""
+                          } ${isResizeTarget ? "bg-primary/15 ring-2 ring-primary/40 ring-inset" : ""}`}
                         >
                           {/* 날짜 번호 및 추가 버튼 (사진2: 좌측 상단 일자) */}
                           <div className="flex items-center justify-between text-xs leading-none">
@@ -821,16 +1019,22 @@ export function CalendarView() {
                               {day.dayNumber}
                             </span>
 
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenCreateModal(day.date);
-                              }}
-                              className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container cursor-pointer transition-opacity"
-                              title="일정 추가"
-                            >
-                              <Plus size={11} />
-                            </button>
+                            {isOver ? (
+                              <span className="px-1.5 py-0.5 rounded bg-primary text-on-primary text-[10px] font-bold shadow-xs animate-in zoom-in-95 duration-100">
+                                여기에 이동
+                              </span>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenCreateModal(day.date);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container cursor-pointer transition-opacity"
+                                title="일정 추가"
+                              >
+                                <Plus size={11} />
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
@@ -839,6 +1043,46 @@ export function CalendarView() {
 
                   {/* 3-2. 전면 일정 오버레이 레이어 (사진 2의 가로 연속 바 + 불릿 리스트) */}
                   <div className="relative pt-6 sm:pt-7 pb-1.5 px-0.5 flex flex-col gap-1 pointer-events-none">
+                    {/* 🌟 B. DND 스켈레톤 프리뷰 바 (드래그 중 목표 위치를 펄싱 점선 스켈레톤으로 시각화 - 라이트/다크 완벽 대비) */}
+                    {skeletonSeg && (
+                      <div className="grid grid-cols-7 gap-0 w-full h-5 sm:h-5.5 relative pointer-events-none mb-1">
+                        <div
+                          style={{
+                            gridColumnStart: skeletonSeg.startCol,
+                            gridColumnEnd: skeletonSeg.endCol + 1,
+                          }}
+                          className="px-0.5 h-full relative"
+                        >
+                          <div
+                            className={`w-full h-full flex items-center justify-between text-[10px] sm:text-[11px] font-bold border-2 border-dashed border-primary bg-primary/20 dark:bg-primary/30 text-primary shadow-md shadow-primary/20 ring-2 ring-primary/40 backdrop-blur-[1px] animate-pulse ${
+                              skeletonSeg.isContinuationFromPrev
+                                ? "rounded-l-none border-l-0 pl-1"
+                                : "rounded-l-md border-l-[3.5px] pl-1.5"
+                            } ${
+                              skeletonSeg.isContinuationToNext
+                                ? "rounded-r-none border-r-0 pr-1"
+                                : "rounded-r-md pr-1.5"
+                            }`}
+                          >
+                            <div className="flex items-center gap-1 min-w-0 truncate">
+                              {skeletonSeg.isContinuationFromPrev ? (
+                                <span className="text-[9px]">◀</span>
+                              ) : (
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping shrink-0" />
+                              )}
+                              <span className="truncate">{dragPreview?.title}</span>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold font-mono bg-primary text-on-primary shrink-0 shadow-xs">
+                                {dragPreview?.startKey.slice(5)} ~ {dragPreview?.endKey.slice(5)}
+                              </span>
+                              {skeletonSeg.isContinuationToNext && <span className="text-[9px]">▶</span>}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* A. 다중일(기간) 연속 가로 바 레이어 (트랙별 7열 CSS Grid) */}
                     {Array.from({ length: trackCount }).map((_, trackIdx) => {
                       const trackSegments = segments.filter((s) => s.trackIndex === trackIdx);
@@ -847,11 +1091,63 @@ export function CalendarView() {
                       return (
                         <div
                           key={trackIdx}
-                          className="grid grid-cols-7 gap-0 w-full h-4 sm:h-4.5 relative pointer-events-none"
+                          className="grid grid-cols-7 gap-0 w-full h-5 sm:h-5.5 relative pointer-events-none mb-1"
                         >
                           {trackSegments.map((seg) => {
                             const styles = getEventColorStyles(seg.evt.color, isDark);
+                            const isThisResizing = Boolean(resizingEvent && seg.evt._id === resizingEvent._id);
+                            const isThisDragging = Boolean(draggingEvent && seg.evt._id === draggingEvent._id);
 
+                            // 🌟 1. 리사이즈 중인 이벤트: 실시간 고대비 점선 스켈레톤 바 (라이트모드 초고대비 + 줄이기/늘리기 시 트랙 재할당 즉각 반영)
+                            if (isThisResizing) {
+                              const isStartEdge = resizingEdge === "start";
+                              const curStartKey = getLocalDateKey(seg.evt.startDate);
+                              const curEndKey = getLocalDateKey(seg.evt.endDate);
+                              const curDuration = Math.max(1, getDaysDiff(curStartKey, curEndKey) + 1);
+
+                              return (
+                                <div
+                                  key={`resizing-skeleton-${seg.evt._id}`}
+                                  style={{
+                                    gridColumnStart: seg.startCol,
+                                    gridColumnEnd: seg.endCol + 1,
+                                  }}
+                                  className="px-0.5 h-full relative pointer-events-none z-20"
+                                >
+                                  <div
+                                    className={`w-full h-full flex items-center justify-between text-[10px] sm:text-[11px] font-bold border-2 border-dashed border-primary bg-primary/20 dark:bg-primary/30 text-primary shadow-md shadow-primary/20 ring-2 ring-primary/40 backdrop-blur-[1px] animate-pulse ${
+                                      seg.isContinuationFromPrev
+                                        ? "rounded-l-none border-l-0 pl-1"
+                                        : "rounded-l-md border-l-[3.5px] pl-1.5"
+                                    } ${
+                                      seg.isContinuationToNext
+                                        ? "rounded-r-none border-r-0 pr-1"
+                                        : "rounded-r-md pr-1.5"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1 min-w-0 truncate">
+                                      {seg.isContinuationFromPrev ? (
+                                        <span className="text-[9px]">◀</span>
+                                      ) : (
+                                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping shrink-0" />
+                                      )}
+                                      <span className="truncate">{seg.evt.title}</span>
+                                      <span className="text-[9px] font-medium opacity-85 shrink-0 hidden sm:inline">
+                                        ({isStartEdge ? "시작일 조절" : "종료일 조절"})
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold font-mono bg-primary text-on-primary shrink-0 shadow-xs">
+                                        {curDuration}일 ({curStartKey.slice(5)}~{curEndKey.slice(5)})
+                                      </span>
+                                      {seg.isContinuationToNext && <span className="text-[9px]">▶</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            // 🌟 2. 일반 및 드래그 중인 이벤트 바
                             return (
                               <div
                                 key={seg.evt._id || seg.evt.title}
@@ -859,11 +1155,24 @@ export function CalendarView() {
                                   gridColumnStart: seg.startCol,
                                   gridColumnEnd: seg.endCol + 1,
                                 }}
-                                className="px-0.5 h-full relative pointer-events-auto"
+                                className={`px-0.5 h-full relative ${
+                                  draggingEvent || resizingEvent ? "pointer-events-none" : "pointer-events-auto"
+                                }`}
                               >
                                 <div
                                   draggable
-                                  onDragStart={(e) => handleDragStart(e, seg.evt)}
+                                  onDragStart={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    const fraction = Math.max(
+                                      0,
+                                      Math.min(0.999, (e.clientX - rect.left) / rect.width)
+                                    );
+                                    const colSpan = seg.endCol - seg.startCol + 1;
+                                    const colOffset = Math.floor(fraction * colSpan);
+                                    const grabIdx = seg.startCol - 1 + colOffset;
+                                    handleDragStart(e, seg.evt, weekDays[grabIdx]?.dateKey);
+                                  }}
+                                  onDragEnd={handleDragEnd}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleOpenEditModal(seg.evt);
@@ -871,51 +1180,67 @@ export function CalendarView() {
                                   style={{
                                     backgroundColor: styles.bgRgba,
                                     borderColor: styles.borderRgba,
+                                    borderLeftColor: !seg.isContinuationFromPrev ? styles.accentColor : styles.borderRgba,
                                     color: styles.textColor,
-                                    backdropFilter: "blur(2px)",
                                   }}
-                                  className={`group/bar relative w-full h-full flex items-center justify-between text-[10px] sm:text-[11px] font-medium select-none cursor-grab active:cursor-grabbing hover:brightness-110 hover:shadow-xs transition-all duration-200 ease-out border shadow-2xs ${
+                                  className={`group/bar relative w-full h-full flex items-center justify-between text-[11px] sm:text-[11.5px] font-semibold select-none cursor-grab active:cursor-grabbing hover:brightness-105 hover:shadow-xs transition-all duration-150 ease-out border shadow-2xs ${
                                     seg.isContinuationFromPrev
                                       ? "rounded-l-none border-l-0 pl-1"
-                                      : "rounded-l-sm pl-1.5"
+                                      : "rounded-l-md border-l-[3.5px] pl-1.5"
                                   } ${
                                     seg.isContinuationToNext
                                       ? "rounded-r-none border-r-0 pr-1"
-                                      : "rounded-r-sm pr-1.5"
+                                      : "rounded-r-md pr-1.5"
                                   } ${
-                                    draggingEvent?._id === seg.evt._id
-                                      ? "opacity-30 border-dashed scale-95"
+                                    isThisDragging
+                                      ? "opacity-25 border-dashed scale-95"
                                       : "opacity-100"
                                   }`}
-                                  title={`${seg.evt.title} (${seg.evt.startDate.slice(5, 10)} ~ ${seg.evt.endDate.slice(5, 10)}) - 드래그하여 이동 또는 양 끝을 조절할 수 있습니다`}
+                                  title={`${seg.evt.title} (${seg.evt.allDay ? "종일" : getEventTimeDisplay(seg.evt, true).timeText}, ${getLocalDateKey(seg.evt.startDate).slice(5)} ~ ${getLocalDateKey(seg.evt.endDate).slice(5)}) - 드래그하여 이동 또는 양 끝을 조절할 수 있습니다`}
                                 >
                                   {/* 좌측 가장자리 리사이즈 핸들 (시작일 조정) */}
                                   {!seg.isContinuationFromPrev && (
                                     <div
                                       onMouseDown={(e) => handleResizeStart(e, seg.evt, "start")}
-                                      className="absolute left-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-white/40 rounded-l-xs opacity-0 group-hover/bar:opacity-100 transition-opacity z-10"
+                                      className="absolute left-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-black/15 dark:hover:bg-white/30 rounded-l-xs opacity-0 group-hover/bar:opacity-100 transition-opacity z-10"
                                       title="시작일 드래그 조절"
                                     />
                                   )}
 
-                                  {/* 좌측 타이틀 (이전 주에서 넘어왔으면 ◀ 화살표) */}
-                                  <div className="flex items-center gap-1 min-w-0 truncate">
-                                    {seg.isContinuationFromPrev && (
-                                      <span className="text-[9px] font-bold opacity-80 shrink-0">◀</span>
+                                  {/* 좌측 타이틀 (이전 주에서 넘어왔으면 ◀ 화살표, 시작일이면 컬러 도트 + 종일/시간 뱃지) */}
+                                  <div className="flex items-center gap-1.5 min-w-0 truncate">
+                                    {seg.isContinuationFromPrev ? (
+                                      <span className="text-[9px] font-bold opacity-75 shrink-0">◀</span>
+                                    ) : (
+                                      <>
+                                        <span
+                                          className="w-1.5 h-1.5 rounded-full shrink-0 shadow-2xs"
+                                          style={{ backgroundColor: styles.accentColor }}
+                                        />
+                                        {seg.evt.allDay ? (
+                                          <span className="text-[9px] font-bold px-1 py-0.2 rounded bg-black/10 dark:bg-white/15 shrink-0 leading-tight opacity-90">
+                                            종일
+                                          </span>
+                                        ) : (
+                                          <span className="font-mono text-[9.5px] font-bold px-1 py-0.2 rounded bg-black/10 dark:bg-white/15 shrink-0 leading-tight opacity-95">
+                                            {getEventTimeDisplay(seg.evt, false).timeText}
+                                          </span>
+                                        )}
+                                      </>
                                     )}
                                     <span className="truncate leading-none">{seg.evt.title}</span>
                                   </div>
 
                                   {/* 우측 인디케이터 (다음 주로 넘어가면 ▶ 화살표) */}
                                   {seg.isContinuationToNext && (
-                                    <span className="text-[9px] font-bold opacity-80 shrink-0 ml-1">▶</span>
+                                    <span className="text-[9px] font-bold opacity-75 shrink-0 ml-1">▶</span>
                                   )}
 
                                   {/* 우측 가장자리 리사이즈 핸들 (종료일 조정) */}
                                   {!seg.isContinuationToNext && (
                                     <div
                                       onMouseDown={(e) => handleResizeStart(e, seg.evt, "end")}
-                                      className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-white/40 rounded-r-xs opacity-0 group-hover/bar:opacity-100 transition-opacity z-10"
+                                      className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-black/15 dark:hover:bg-white/30 rounded-r-xs opacity-0 group-hover/bar:opacity-100 transition-opacity z-10"
                                       title="종료일 드래그 조절"
                                     />
                                   )}
@@ -965,10 +1290,11 @@ export function CalendarView() {
                       return (
                         <div
                           key={evt._id || evt.title}
-                          className="p-1 rounded text-[11px] truncate border font-medium"
+                          className="px-2 py-1 rounded-md text-[11px] truncate border border-l-[3px] font-semibold transition-all hover:brightness-105 shadow-2xs"
                           style={{
                             backgroundColor: styles.bgRgba,
                             borderColor: styles.borderRgba,
+                            borderLeftColor: styles.accentColor,
                             color: styles.textColor,
                           }}
                         >
@@ -1009,19 +1335,20 @@ export function CalendarView() {
                   style={{
                     backgroundColor: styles.bgRgba,
                     borderColor: styles.borderRgba,
+                    borderLeftColor: styles.accentColor,
                     color: styles.textColor,
                   }}
-                  className="p-3 rounded-md border flex items-center justify-between cursor-pointer hover:brightness-110"
+                  className="p-3 rounded-lg border border-l-[4px] flex items-center justify-between cursor-pointer hover:brightness-105 transition-all shadow-2xs"
                 >
                   <div className="flex items-center gap-2">
                     <span
                       className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: styles.dotColor }}
+                      style={{ backgroundColor: styles.accentColor }}
                     />
-                    <span className="font-semibold text-xs">{evt.title}</span>
+                    <span className="font-semibold text-xs sm:text-sm">{evt.title}</span>
                   </div>
                   <span className="text-[11px] font-mono opacity-80">
-                    {evt.startDate.slice(5, 10)} ~ {evt.endDate.slice(5, 10)}
+                    {getLocalDateKey(evt.startDate).slice(5)} ~ {getLocalDateKey(evt.endDate).slice(5)}
                   </span>
                 </div>
               );
@@ -1043,17 +1370,17 @@ export function CalendarView() {
                 <div
                   key={evt._id || evt.title}
                   onClick={() => handleOpenEditModal(evt)}
-                  className="flex items-center justify-between p-2.5 rounded-md hover:bg-surface-container-low border border-outline-variant text-xs cursor-pointer transition-colors"
+                  className="flex items-center justify-between p-2.5 rounded-lg hover:bg-surface-container-low border border-outline-variant text-xs cursor-pointer transition-colors shadow-2xs"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: styles.dotColor }}
+                      className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs"
+                      style={{ backgroundColor: styles.accentColor }}
                     />
                     <span className="font-medium text-on-surface truncate">{evt.title}</span>
                   </div>
                   <span className="text-[11px] font-mono text-on-surface-variant shrink-0">
-                    {evt.startDate.slice(5, 10)} ~ {evt.endDate.slice(5, 10)}
+                    {getLocalDateKey(evt.startDate).slice(5)} ~ {getLocalDateKey(evt.endDate).slice(5)}
                   </span>
                 </div>
               );
@@ -1068,6 +1395,7 @@ export function CalendarView() {
           date={selectedDayForModal}
           events={eventsByDate.get(formatDateKey(selectedDayForModal)) || []}
           anchorRect={selectedDayAnchorRect}
+          isDark={isDark}
           onClose={handleCloseDayModal}
           onSelectEvent={(evt) => {
             handleCloseDayModal();

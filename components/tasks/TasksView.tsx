@@ -346,6 +346,10 @@ export function TasksView() {
 
   // ================= 🌟 드래그 앤 드롭 및 실시간 고스트 위치 계산 =================
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    // 🌟 할일 카드를 잡고 이동할 때 기존 텍스트 선택 영역 즉시 해제 (잔상 방지)
+    if (typeof window !== "undefined") {
+      window.getSelection()?.removeAllRanges();
+    }
     e.dataTransfer.setData("text/plain", taskId);
     setDraggingTaskId(taskId);
   };

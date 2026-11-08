@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSession, signIn } from "next-auth/react";
 import { useMounted } from "@/lib/hooks/useMounted";
@@ -15,7 +16,6 @@ import {
   CloudSun,
   FileText,
   Folder,
-  Users,
   Kanban,
   MessageSquare,
   GraduationCap,
@@ -28,10 +28,12 @@ import {
   Droplets,
   Wind,
   Umbrella,
+  Send,
+  GripVertical,
 } from "lucide-react";
-import { CalendarEvent } from "@/components/calendar/calendarTypes";
+import { CalendarEvent, getLocalDateKey, getEventTimeDisplay } from "@/components/calendar/calendarTypes";
 import { toast } from "@/lib/toast";
-import { ScrollArea } from "@/components/ui/ScrollArea";
+import { CustomScrollArea } from "@/components/common/CustomScrollArea";
 
 // ================= 위젯 정의 =================
 export interface WidgetItem {
@@ -44,7 +46,6 @@ const DEFAULT_WIDGETS: WidgetItem[] = [
   { id: "weather", title: "날씨", visible: true },
   { id: "chat", title: "채팅", visible: true },
   { id: "projects", title: "프로젝트", visible: true },
-  { id: "favorite_contacts", title: "즐겨찾는 연락처", visible: true },
   { id: "favorite_notes", title: "즐겨찾기 노트", visible: true },
   { id: "recent_files", title: "최근 파일", visible: true },
   { id: "bookmarks", title: "북마크", visible: true },
@@ -85,7 +86,8 @@ export function DashboardView() {
           try {
             const parsed = JSON.parse(saved);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              setWidgets(parsed);
+              const filtered = parsed.filter((w: WidgetItem) => w.id !== "favorite_contacts");
+              setWidgets(filtered);
             }
           } catch {}
         }
@@ -380,6 +382,10 @@ export function DashboardView() {
   const [dragOverWidgetId, setDragOverWidgetId] = useState<string | null>(null);
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
+    // 🌟 위젯을 잡고 이동할 때 이전에 선택된 텍스트 선택 영역 즉시 해제 (잔상 방지)
+    if (typeof window !== "undefined") {
+      window.getSelection()?.removeAllRanges();
+    }
     e.dataTransfer.setData("text/plain", id);
     e.dataTransfer.effectAllowed = "move";
     setDraggingWidgetId(id);
@@ -445,8 +451,8 @@ export function DashboardView() {
   // 오늘 일정 목록 필터링
   const todayEvents = useMemo(() => {
     return calendarEvents.filter((evt) => {
-      const s = evt.startDate.slice(0, 10);
-      const e = evt.endDate.slice(0, 10);
+      const s = getLocalDateKey(evt.startDate);
+      const e = getLocalDateKey(evt.endDate);
       return s <= todayKey && e >= todayKey;
     });
   }, [calendarEvents, todayKey]);
@@ -454,7 +460,7 @@ export function DashboardView() {
   // 다가오는 일정 목록 필터링
   const upcomingEvents = useMemo(() => {
     return calendarEvents
-      .filter((evt) => evt.startDate.slice(0, 10) > todayKey)
+      .filter((evt) => getLocalDateKey(evt.startDate) > todayKey)
       .sort((a, b) => a.startDate.localeCompare(b.startDate));
   }, [calendarEvents, todayKey]);
 
@@ -586,82 +592,149 @@ export function DashboardView() {
           return (
             <div
               key={widget.id}
-              draggable
-              onDragStart={(e) => handleDragStart(e, widget.id)}
               onDragOver={(e) => handleDragOver(e, widget.id)}
-              onDragEnd={handleDragEnd}
               onDrop={(e) => handleDrop(e, widget.id)}
-              className={`relative h-[340px] min-h-[340px] bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col justify-between shadow-xs transition-all duration-150 select-none group ${
-                isDragging ? "opacity-30 border-dashed border-primary scale-[0.98]" : "opacity-100 hover:border-primary/40"
+              className={`relative h-[340px] min-h-[340px] bg-surface-container-lowest border border-outline-variant rounded-2xl overflow-hidden flex flex-col justify-between shadow-xs transition-all duration-200 group ${
+                isDragging
+                  ? "border-2 border-dashed border-primary/50 bg-primary/5 dark:bg-primary/10 scale-[0.98]"
+                  : isOver
+                  ? "border-2 border-primary ring-2 ring-primary/25"
+                  : "hover:border-primary/40"
               }`}
             >
-              {/* 🌟 드래그 오버 시 카드형식 그대로 반투명 이동 예상위치 표시 (요청사항 반영) */}
+              {/* 🌟 1. 드래그 오버 시 목표 위치 스켈레톤 와이어프레임 프리뷰 */}
               {isOver && draggedWidget && (
-                <div className="absolute inset-0 z-30 rounded-xl border-2 border-dashed border-primary bg-surface-container/90 backdrop-blur-xs flex flex-col items-center justify-center gap-2 p-4 pointer-events-none text-primary animate-in fade-in duration-150">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                    <WidgetIcon id={draggedWidget.id} />
+                <div className="absolute inset-0 z-30 rounded-2xl border-2 border-dashed border-primary bg-surface-container-lowest/95 dark:bg-neutral-900/95 backdrop-blur-xs flex flex-col justify-between p-4 pointer-events-none text-primary animate-in fade-in zoom-in-95 duration-150 shadow-xl">
+                  {/* 스켈레톤 헤더 */}
+                  <div className="flex items-center justify-between pb-3 border-b border-primary/25">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center text-primary">
+                        <WidgetIcon id={draggedWidget.id} />
+                      </div>
+                      <span className="text-sm font-bold text-on-surface">{draggedWidget.title}</span>
+                    </div>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary text-on-primary shadow-xs">
+                      여기로 이동
+                    </span>
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-on-surface">{draggedWidget.title}</p>
-                    <p className="text-xs text-primary font-medium mt-0.5">여기로 이동 예정</p>
+
+                  {/* 스켈레톤 본문 와이어프레임 */}
+                  <div className="space-y-2.5 py-2 flex-1 flex flex-col justify-center">
+                    <div className="h-3.5 w-4/5 rounded-full bg-primary/20 animate-pulse" />
+                    <div className="h-3 w-3/5 rounded-full bg-primary/25 animate-pulse" />
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div className="h-16 rounded-xl bg-primary/10 border border-dashed border-primary/30 flex items-center justify-center text-xs font-semibold text-primary/70 animate-pulse">
+                        위젯 배치 슬롯
+                      </div>
+                      <div className="h-16 rounded-xl bg-primary/10 border border-dashed border-primary/30 flex items-center justify-center text-xs font-semibold text-primary/70 animate-pulse">
+                        새 순서로 정렬
+                      </div>
+                    </div>
+                    <div className="h-3 w-2/3 rounded-full bg-primary/15 animate-pulse" />
+                  </div>
+
+                  {/* 스켈레톤 하단 가이드 */}
+                  <div className="pt-2 border-t border-primary/20 flex items-center justify-center">
+                    <p className="text-xs font-bold text-primary flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
+                      마우스를 놓으면 이 자리에 배치됩니다
+                    </p>
                   </div>
                 </div>
               )}
 
-              {/* 2-1. 위젯 카드 헤더 (테마 색상 준수) */}
-              <div className="px-3.5 py-2.5 border-b border-outline-variant flex items-center justify-between text-sm cursor-grab active:cursor-grabbing bg-surface-container-low/40">
-                <div className="flex items-center gap-2 min-w-0">
-                  <WidgetIcon id={widget.id} />
-                  <span className="ui-card-title truncate">{widget.title}</span>
+              {/* 🌟 2. 드래그 중인 원본 카드: 스켈레톤 고스트 와이어프레임 표시 */}
+              {isDragging ? (
+                <div className="h-full flex flex-col justify-between p-4 pointer-events-none animate-pulse bg-primary/5">
+                  <div className="flex items-center justify-between pb-3 border-b border-primary/20">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-primary/20" />
+                      <div className="h-4 w-24 rounded-md bg-primary/20" />
+                    </div>
+                    <span className="text-[11px] font-bold text-primary px-2 py-0.5 rounded-full bg-primary/10">
+                      이동 중...
+                    </span>
+                  </div>
+                  <div className="space-y-3 py-4 flex-1 flex flex-col justify-center">
+                    <div className="h-3 w-3/4 rounded-full bg-primary/15" />
+                    <div className="h-3 w-1/2 rounded-full bg-primary/20" />
+                    <div className="h-3 w-5/6 rounded-full bg-primary/15" />
+                    <div className="h-16 w-full rounded-xl bg-primary/10 border border-primary/20 mt-2" />
+                  </div>
+                  <div className="h-2 w-1/3 rounded-full bg-primary/15" />
                 </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <Link
-                    href={getWidgetLink(widget.id)}
-                    className="text-xs text-primary hover:underline font-semibold flex items-center gap-0.5"
+              ) : (
+                <>
+                  {/* 2-1. 위젯 카드 상단 헤더: 상단 바만 드래그 가능 (본문 텍스트 복사 보호) */}
+                  <div
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, widget.id)}
+                    onDragEnd={handleDragEnd}
+                    className="px-3.5 py-2.5 border-b border-outline-variant flex items-center justify-between text-sm cursor-grab active:cursor-grabbing bg-surface-container-low/40 select-none hover:bg-surface-container-low transition-colors group/header"
+                    title="상단 바를 잡고 드래그하여 순서를 변경하세요"
                   >
-                    전체 →
-                  </Link>
-                  <button
-                    onClick={() => handleHideWidget(widget.id)}
-                    className="p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
-                    title="위젯 닫기"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              </div>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <GripVertical
+                        size={14}
+                        className="text-on-surface-variant/40 group-hover/header:text-primary transition-colors shrink-0"
+                      />
+                      <WidgetIcon id={widget.id} />
+                      <span className="ui-card-title truncate">{widget.title}</span>
+                    </div>
 
-              {/* 2-2. 위젯 본문 영역 (테마 시맨틱 토큰 적용) */}
-              <div className="p-3.5 sm:p-4 flex-1 overflow-y-auto text-sm text-on-surface scrollbar-thin">
-                {widget.id === "today_schedule" && (
-                  <TodayScheduleWidget events={todayEvents} />
-                )}
-                {widget.id === "mini_calendar" && (
-                  <MiniCalendarWidget events={calendarEvents} />
-                )}
-                {widget.id === "upcoming_schedule" && (
-                  <UpcomingScheduleWidget events={upcomingEvents} />
-                )}
-                {widget.id === "today_tasks" && (
-                  <TodayTasksWidget
-                    tasks={tasks}
-                    newTaskInput={newTaskInput}
-                    setNewTaskInput={setNewTaskInput}
-                    onAddTask={handleAddTask}
-                    onToggleTask={handleToggleTask}
-                  />
-                )}
-                {widget.id === "dday" && <DdayWidget />}
-                {widget.id === "bookmarks" && <BookmarksWidget />}
-                {widget.id === "weather" && <WeatherWidget />}
-                {widget.id === "favorite_notes" && <FavoriteNotesWidget />}
-                {widget.id === "recent_files" && <RecentFilesWidget />}
-                {widget.id === "favorite_contacts" && <FavoriteContactsWidget />}
-                {widget.id === "projects" && <ProjectsWidget />}
-                {widget.id === "chat" && <ChatWidget />}
-                {widget.id === "quick_exam" && <QuickExamWidget />}
-              </div>
+                    <div
+                      className="flex items-center gap-1.5 shrink-0"
+                      draggable={false}
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <Link
+                        href={getWidgetLink(widget.id)}
+                        className="text-xs text-primary hover:underline font-semibold flex items-center gap-0.5"
+                      >
+                        전체 →
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleHideWidget(widget.id)}
+                        className="p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+                        title="위젯 닫기"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2-2. 위젯 본문 영역: 자유로운 텍스트 선택, 복사, 붙여넣기 100% 보장 (select-text, 카드 전체 높이 100% 활용) */}
+                  <div className="p-3.5 sm:p-4 flex-1 min-h-0 flex flex-col text-sm text-on-surface select-text cursor-auto overflow-hidden">
+                    {widget.id === "today_schedule" && (
+                      <TodayScheduleWidget events={todayEvents} />
+                    )}
+                    {widget.id === "mini_calendar" && (
+                      <MiniCalendarWidget events={calendarEvents} />
+                    )}
+                    {widget.id === "upcoming_schedule" && (
+                      <UpcomingScheduleWidget events={upcomingEvents} />
+                    )}
+                    {widget.id === "today_tasks" && (
+                      <TodayTasksWidget
+                        tasks={tasks}
+                        newTaskInput={newTaskInput}
+                        setNewTaskInput={setNewTaskInput}
+                        onAddTask={handleAddTask}
+                        onToggleTask={handleToggleTask}
+                      />
+                    )}
+                    {widget.id === "dday" && <DdayWidget events={calendarEvents} />}
+                    {widget.id === "bookmarks" && <BookmarksWidget />}
+                    {widget.id === "weather" && <WeatherWidget />}
+                    {widget.id === "favorite_notes" && <FavoriteNotesWidget />}
+                    {widget.id === "recent_files" && <RecentFilesWidget />}
+                    {widget.id === "projects" && <ProjectsWidget />}
+                    {widget.id === "chat" && <ChatWidget />}
+                    {widget.id === "quick_exam" && <QuickExamWidget />}
+                  </div>
+                </>
+              )}
             </div>
           );
         })}
@@ -669,7 +742,7 @@ export function DashboardView() {
 
       {/* ================= 3. 하단 안내 문구 (사진 1 동일) ================= */}
       <div className="text-xs sm:text-sm text-on-surface-variant font-light pt-2">
-        ※ 위젯을 드래그해 순서를 바꾸고, &quot;위젯&quot; 버튼이나 x 로 추가·제거하세요.
+        ※ 위젯 상단 헤더를 드래그해 순서를 바꾸고, &quot;위젯&quot; 버튼이나 x 로 추가·제거하세요. 본문 내용은 자유롭게 선택 및 복사할 수 있습니다.
       </div>
     </div>
   );
@@ -697,8 +770,6 @@ function WidgetIcon({ id }: { id: string }) {
       return <FileText size={17} className={iconClass} />;
     case "recent_files":
       return <Folder size={17} className={iconClass} />;
-    case "favorite_contacts":
-      return <Users size={17} className={iconClass} />;
     case "projects":
       return <Kanban size={17} className={iconClass} />;
     case "chat":
@@ -724,8 +795,6 @@ function getWidgetLink(id: string) {
       return "/diary";
     case "recent_files":
       return "/drive";
-    case "favorite_contacts":
-      return "/contacts";
     case "projects":
       return "/projects";
     case "chat":
@@ -739,29 +808,29 @@ function getWidgetLink(id: string) {
 
 /* ================= 12개 위젯 컴포넌트 (테마 시맨틱 토큰 100% 준수) ================= */
 
-// 1. 오늘 일정 위젯 (DB 연동, 더미 데이터 제거)
+// 1. 오늘 일정 위젯 (DB 연동, 더미 데이터 제거, 카드 전체 공간 100% 활용)
 function TodayScheduleWidget({ events }: { events: CalendarEvent[] }) {
   if (events.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center ui-empty-state py-8">
+      <div className="h-full flex items-center justify-center ui-empty-state">
         오늘 일정이 없습니다.
       </div>
     );
   }
 
   return (
-    <div className="space-y-2 overflow-y-auto max-h-[175px] pr-1 scrollbar-thin">
+    <CustomScrollArea className="h-full flex-1" viewportClassName="space-y-1.5 pr-1.5">
       {events.map((item, idx) => {
         const isAllDay = item.allDay;
         const timeStr = isAllDay ? "종일" : item.startDate.slice(11, 16);
         const tagStr = isAllDay
-          ? `${item.startDate.slice(5, 10)}~${item.endDate.slice(5, 10)}`
+          ? `${getLocalDateKey(item.startDate).slice(5)}~${getLocalDateKey(item.endDate).slice(5)}`
           : `~${item.endDate.slice(11, 16)}`;
 
         return (
           <div
             key={item._id || idx}
-            className="flex items-center justify-between py-1.5 border-b border-outline-variant/40 last:border-b-0 text-xs sm:text-sm"
+            className="flex items-center justify-between py-2 border-b border-outline-variant/40 last:border-b-0 text-xs sm:text-sm"
           >
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <span className="font-mono text-on-surface-variant text-[11px] w-9 shrink-0">{timeStr}</span>
@@ -776,96 +845,417 @@ function TodayScheduleWidget({ events }: { events: CalendarEvent[] }) {
           </div>
         );
       })}
-    </div>
+    </CustomScrollArea>
   );
 }
 
-// 2. 미니 캘린더 위젯 (실제 캘린더 일정 연동)
+// 2. 세련된 고대비 미니 캘린더 위젯 (호버 시 일정 프리뷰 팝오버 연동)
 function MiniCalendarWidget({ events = [] }: { events?: CalendarEvent[] }) {
-  const [current, setCurrent] = useState(() => new Date(2026, 10, 4));
+  const mounted = useMounted();
+  const [current, setCurrent] = useState(() => new Date());
   const year = current.getFullYear();
   const month = current.getMonth();
 
+  // 실제 오늘 날짜
+  const today = new Date();
+  const todayYear = today.getFullYear();
+  const todayMonth = today.getMonth();
+  const todayDate = today.getDate();
+
   const prevMonth = () => setCurrent(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrent(new Date(year, month + 1, 1));
+  const resetToToday = () => setCurrent(new Date());
 
-  // 11월 기준 일자 생성
-  const firstDay = new Date(year, month, 1).getDay(); // 0(일)
+  // 1일의 요일 및 말일 계산
+  const firstDay = new Date(year, month, 1).getDay(); // 0(일) ~ 6(토)
   const lastDate = new Date(year, month + 1, 0).getDate();
+  const prevMonthLastDate = new Date(year, month, 0).getDate();
 
-  const daysArr = [];
-  for (let i = 0; i < firstDay; i++) daysArr.push(null);
-  for (let i = 1; i <= lastDate; i++) daysArr.push(i);
-
-  // 현재 월의 각 날짜에 일정이 있는지 체크
-  const eventDays = useMemo(() => {
-    const set = new Set<number>();
-    const monthPrefix = `${year}-${String(month + 1).padStart(2, "0")}`;
+  // 날짜별 일정 맵핑 (YYYY-MM-DD -> CalendarEvent[])
+  const dayEventsMap = useMemo(() => {
+    const map = new Map<string, CalendarEvent[]>();
     events.forEach((evt) => {
-      const s = evt.startDate.slice(0, 10);
-      const e = evt.endDate.slice(0, 10);
-      if (s.startsWith(monthPrefix) || e.startsWith(monthPrefix)) {
-        const startDay = s.startsWith(monthPrefix) ? parseInt(s.slice(8, 10), 10) : 1;
-        const endDay = e.startsWith(monthPrefix) ? parseInt(e.slice(8, 10), 10) : lastDate;
-        for (let d = startDay; d <= endDay; d++) {
-          set.add(d);
+      try {
+        const s = getLocalDateKey(evt.startDate);
+        const e = getLocalDateKey(evt.endDate);
+        if (!s || !e) return;
+        const [sY, sM, sD] = s.split("-").map(Number);
+        const [eY, eM, eD] = e.split("-").map(Number);
+        const cur = new Date(sY, sM - 1, sD);
+        const end = new Date(eY, eM - 1, eD);
+        let loop = 0;
+        while (cur <= end && loop < 366) {
+          loop++;
+          const y = cur.getFullYear();
+          const m = String(cur.getMonth() + 1).padStart(2, "0");
+          const d = String(cur.getDate()).padStart(2, "0");
+          const k = `${y}-${m}-${d}`;
+          if (!map.has(k)) map.set(k, []);
+          map.get(k)!.push(evt);
+          cur.setDate(cur.getDate() + 1);
         }
-      }
+      } catch {}
     });
-    return set;
-  }, [events, year, month, lastDate]);
+    return map;
+  }, [events]);
+
+  // 클릭으로 선택된 날짜의 일정 상세 팝오버 상태
+  const [selectedDay, setSelectedDay] = useState<{
+    dateKey: string;
+    dayNum: number;
+    dateTitle: string;
+    events: CalendarEvent[];
+    x: number;
+    y: number;
+    placeBelow: boolean;
+  } | null>(null);
+
+  // 바깥 클릭 시 팝오버 닫기
+  useEffect(() => {
+    if (!selectedDay) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("[data-calendar-popover]")) return;
+      setSelectedDay(null);
+    };
+    window.addEventListener("mousedown", handleOutsideClick);
+    return () => window.removeEventListener("mousedown", handleOutsideClick);
+  }, [selectedDay]);
+
+  const handleClickDate = (
+    e: React.MouseEvent<HTMLElement>,
+    dateKey: string,
+    dayNum: number,
+    fullDate: Date,
+    evts: CalendarEvent[]
+  ) => {
+    e.stopPropagation();
+    if (selectedDay?.dateKey === dateKey) {
+      setSelectedDay(null);
+      return;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const placeBelow = rect.top < 230;
+    const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+    const dayOfWeek = dayNames[fullDate.getDay()];
+    const dateTitle = `${fullDate.getMonth() + 1}월 ${fullDate.getDate()}일 (${dayOfWeek}요일)`;
+
+    // 화면 밖으로 나가지 않도록 x좌표 클램프
+    const popoverWidth = 280;
+    const padding = 12;
+    let targetX = rect.left + rect.width / 2;
+    if (typeof window !== "undefined") {
+      if (targetX - popoverWidth / 2 < padding) {
+        targetX = padding + popoverWidth / 2;
+      } else if (targetX + popoverWidth / 2 > window.innerWidth - padding) {
+        targetX = window.innerWidth - padding - popoverWidth / 2;
+      }
+    }
+
+    setSelectedDay({
+      dateKey,
+      dayNum,
+      dateTitle,
+      events: evts,
+      x: Math.round(targetX),
+      y: placeBelow ? Math.round(rect.bottom + 8) : Math.round(rect.top - 8),
+      placeBelow,
+    });
+  };
+
+  // 달력 그리드 배열 생성 (이전달 말일 + 이번달 + 다음달 초)
+  const gridCells = useMemo(() => {
+    const cells: Array<{
+      dayNum: number;
+      isCurrentMonth: boolean;
+      dateKey: string;
+      fullDate: Date;
+      isSunday: boolean;
+      isSaturday: boolean;
+      isToday: boolean;
+    }> = [];
+
+    // 1. 이전 달의 끝 날짜들
+    for (let i = firstDay - 1; i >= 0; i--) {
+      const d = prevMonthLastDate - i;
+      const prevDateObj = new Date(year, month - 1, d);
+      const k = `${prevDateObj.getFullYear()}-${String(prevDateObj.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      cells.push({
+        dayNum: d,
+        isCurrentMonth: false,
+        dateKey: k,
+        fullDate: prevDateObj,
+        isSunday: prevDateObj.getDay() === 0,
+        isSaturday: prevDateObj.getDay() === 6,
+        isToday: prevDateObj.getFullYear() === todayYear && prevDateObj.getMonth() === todayMonth && d === todayDate,
+      });
+    }
+
+    // 2. 현재 달 날짜들
+    for (let d = 1; d <= lastDate; d++) {
+      const currDateObj = new Date(year, month, d);
+      const k = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      cells.push({
+        dayNum: d,
+        isCurrentMonth: true,
+        dateKey: k,
+        fullDate: currDateObj,
+        isSunday: currDateObj.getDay() === 0,
+        isSaturday: currDateObj.getDay() === 6,
+        isToday: year === todayYear && month === todayMonth && d === todayDate,
+      });
+    }
+
+    // 3. 다음 달 날짜들로 35 또는 42칸 완성
+    const totalSlots = cells.length <= 35 ? 35 : 42;
+    const nextSlots = totalSlots - cells.length;
+    for (let d = 1; d <= nextSlots; d++) {
+      const nextDateObj = new Date(year, month + 1, d);
+      const k = `${nextDateObj.getFullYear()}-${String(nextDateObj.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      cells.push({
+        dayNum: d,
+        isCurrentMonth: false,
+        dateKey: k,
+        fullDate: nextDateObj,
+        isSunday: nextDateObj.getDay() === 0,
+        isSaturday: nextDateObj.getDay() === 6,
+        isToday: nextDateObj.getFullYear() === todayYear && nextDateObj.getMonth() === todayMonth && d === todayDate,
+      });
+    }
+
+    return cells;
+  }, [year, month, firstDay, lastDate, prevMonthLastDate, todayYear, todayMonth, todayDate]);
 
   return (
-    <div className="flex flex-col justify-between h-full">
-      <div className="flex items-center justify-between text-xs sm:text-sm font-mono font-bold text-on-surface pb-1">
-        <button onClick={prevMonth} className="p-1 hover:text-primary cursor-pointer text-on-surface-variant">
-          <ChevronLeft size={14} />
-        </button>
-        <span>
-          {year}년 {month + 1}월
-        </span>
-        <button onClick={nextMonth} className="p-1 hover:text-primary cursor-pointer text-on-surface-variant">
-          <ChevronRight size={14} />
-        </button>
+    <div className="flex flex-col justify-between h-full select-none">
+      {/* 1. 상단 컨트롤 바 (연월 타이틀, 오늘 이동, 월 이동, 캘린더 바로가기) */}
+      <div className="flex items-center justify-between pb-2 mb-1 border-b border-outline-variant/60">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold text-on-surface tracking-tight">
+            {year}년 {month + 1}월
+          </span>
+          <button
+            type="button"
+            onClick={resetToToday}
+            className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-surface-container hover:bg-primary hover:text-on-primary text-on-surface-variant transition-colors cursor-pointer"
+            title="오늘 날짜로 이동"
+          >
+            오늘
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={prevMonth}
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+            title="이전 달"
+          >
+            <ChevronLeft size={15} />
+          </button>
+          <button
+            type="button"
+            onClick={nextMonth}
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+            title="다음 달"
+          >
+            <ChevronRight size={15} />
+          </button>
+          <Link
+            href="/calendar"
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-container text-primary transition-colors ml-0.5"
+            title="전체 캘린더 열기"
+          >
+            <Calendar size={14} />
+          </Link>
+        </div>
       </div>
 
-      <div className="grid grid-cols-7 text-center text-[11px] text-on-surface-variant font-mono py-1">
-        <span>일</span>
-        <span>월</span>
-        <span>화</span>
-        <span>수</span>
-        <span>목</span>
-        <span>금</span>
-        <span>토</span>
+      {/* 2. 요일 헤더 (일: 빨강, 토: 파랑, 평일: 선명한 텍스트) */}
+      <div className="grid grid-cols-7 text-center text-[11px] font-bold py-1 border-b border-outline-variant/40 mb-1">
+        <span className="text-rose-500">일</span>
+        <span className="text-on-surface-variant">월</span>
+        <span className="text-on-surface-variant">화</span>
+        <span className="text-on-surface-variant">수</span>
+        <span className="text-on-surface-variant">목</span>
+        <span className="text-on-surface-variant">금</span>
+        <span className="text-blue-500">토</span>
       </div>
 
-      <div className="grid grid-cols-7 gap-y-1 text-center text-xs font-mono flex-1 items-center">
-        {daysArr.map((dayNum, i) => {
-          if (!dayNum) return <span key={i} />;
-          const isToday = dayNum === 4 && month === 10 && year === 2026;
-          const hasEvent = eventDays.has(dayNum);
+      {/* 3. 날짜 그리드 (고대비 세련된 셀 디자인 & 일정 도트) */}
+      <div className="grid grid-cols-7 gap-y-1 gap-x-0.5 text-center flex-1 items-center">
+        {gridCells.map((cell) => {
+          const dayEvts = dayEventsMap.get(cell.dateKey) || [];
+          const hasEvents = dayEvts.length > 0;
+          const isSelected = selectedDay?.dateKey === cell.dateKey;
+
           return (
-            <div key={i} className="flex flex-col items-center justify-center">
-              <span
-                className={`w-5.5 h-5.5 flex items-center justify-center rounded-full text-xs ${
-                  isToday ? "bg-primary text-on-primary font-bold shadow-xs" : "text-on-surface"
-                }`}
+            <div
+              key={cell.dateKey}
+              onClick={(e) =>
+                handleClickDate(e, cell.dateKey, cell.dayNum, cell.fullDate, dayEvts)
+              }
+              className="relative flex flex-col items-center justify-center py-0.5 group cursor-pointer"
+            >
+              {/* 날짜 숫자 뱃지 */}
+              <div
+                className={`w-6.5 h-6.5 sm:w-7 sm:h-7 flex items-center justify-center rounded-xl text-xs transition-all ${
+                  cell.isToday
+                    ? "bg-primary text-on-primary font-black shadow-xs ring-2 ring-primary/35 scale-105"
+                    : isSelected
+                    ? "bg-primary/20 text-primary font-black ring-2 ring-primary scale-105 shadow-xs"
+                    : cell.isCurrentMonth
+                    ? cell.isSunday
+                      ? "text-rose-600 dark:text-rose-400 font-bold group-hover:bg-surface-container"
+                      : cell.isSaturday
+                      ? "text-blue-600 dark:text-blue-400 font-bold group-hover:bg-surface-container"
+                      : "text-on-surface font-semibold group-hover:bg-surface-container"
+                    : "text-on-surface-variant/35 font-normal group-hover:bg-surface-container/50"
+                } ${hasEvents && !cell.isToday && !isSelected ? "ring-1 ring-outline-variant/80" : ""}`}
               >
-                {dayNum}
-              </span>
-              {/* 실제 일정이 있는 날에만 도트 표시 */}
-              {hasEvent && (
-                <span className="w-1 h-1 rounded-full bg-primary -mt-0.5" />
-              )}
+                {cell.dayNum}
+              </div>
+
+              {/* 일정 도트 인디케이터 (카테고리 고유 컬러 반영) */}
+              <div className="flex items-center justify-center gap-0.5 mt-0.5 h-1">
+                {hasEvents ? (
+                  <>
+                    {dayEvts.slice(0, 3).map((evt, idx) => (
+                      <span
+                        key={evt._id || idx}
+                        style={{ backgroundColor: evt.color || "var(--primary)" }}
+                        className="w-1.5 h-1.5 rounded-full shadow-xs shrink-0 ring-1 ring-background"
+                      />
+                    ))}
+                    {dayEvts.length > 3 && (
+                      <span className="w-1 h-1 rounded-full bg-on-surface-variant shrink-0" />
+                    )}
+                  </>
+                ) : (
+                  <span className="w-1 h-1 opacity-0" />
+                )}
+              </div>
             </div>
           );
         })}
       </div>
+
+      {/* 4. 날짜 클릭 시 노출되는 모던 팝오버 (createPortal 최상단 렌더링) */}
+      {mounted && selectedDay && createPortal(
+        <div
+          data-calendar-popover
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            top: `${selectedDay.y}px`,
+            left: `${selectedDay.x}px`,
+          }}
+          className={`fixed z-[999999] -translate-x-1/2 w-72 p-3.5 bg-surface-container-lowest/98 backdrop-blur-md border border-outline-variant rounded-2xl shadow-2xl text-on-surface animate-in fade-in zoom-in-95 duration-150 ${
+            selectedDay.placeBelow ? "" : "-translate-y-full"
+          }`}
+        >
+          {/* 꼬리 화살표 */}
+          <span
+            className={`absolute left-1/2 -translate-x-1/2 border-x-[6px] border-x-transparent ${
+              selectedDay.placeBelow
+                ? "-top-1.5 border-b-[6px] border-b-surface-container-lowest"
+                : "-bottom-1.5 border-t-[6px] border-t-surface-container-lowest"
+            }`}
+          />
+
+          {/* 헤더: 일자 및 일정 개수 + X 닫기 버튼 */}
+          <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-outline-variant/60">
+            <span className="text-xs font-bold text-on-surface flex items-center gap-1.5">
+              <Calendar size={13} className="text-primary" />
+              {selectedDay.dateTitle}
+            </span>
+            <div className="flex items-center gap-1.5">
+              {selectedDay.events.length > 0 ? (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                  {selectedDay.events.length}개
+                </span>
+              ) : (
+                <span className="text-[10px] text-on-surface-variant font-medium">
+                  0개
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelectedDay(null)}
+                className="p-1 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+                title="닫기"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          </div>
+
+          {/* 일정 목록 (최대 5개 노출, 초과 시 +외 N개 안내, 시간/종일 포함) */}
+          {selectedDay.events.length === 0 ? (
+            <div className="py-4 text-center text-xs text-on-surface-variant space-y-1.5">
+              <p>등록된 일정이 없습니다.</p>
+              <Link
+                href="/calendar"
+                onClick={() => setSelectedDay(null)}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
+              >
+                전체 캘린더에서 일정 등록 →
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5 scrollbar-thin">
+              {selectedDay.events.slice(0, 5).map((evt, idx) => {
+                const { isAllDay, timeText } = getEventTimeDisplay(evt, true);
+
+                return (
+                  <div
+                    key={evt._id || idx}
+                    className="flex items-center justify-between gap-2 p-2 rounded-xl bg-surface-container-low/80 hover:bg-surface-container border border-outline-variant/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span
+                        style={{ backgroundColor: evt.color || "var(--primary)" }}
+                        className="w-2 h-2 rounded-full shrink-0 shadow-xs ring-1 ring-background"
+                      />
+                      <span className="text-xs font-semibold text-on-surface truncate">
+                        {evt.title}
+                      </span>
+                    </div>
+
+                    {/* 시간 / 종일 뱃지 */}
+                    {isAllDay ? (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">
+                        종일
+                      </span>
+                    ) : (
+                      <span className="font-mono text-[11px] font-semibold text-on-surface-variant bg-surface-container-high px-1.5 py-0.5 rounded shrink-0">
+                        {timeText}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* 5개 초과 시 N개 더보기 */}
+              {selectedDay.events.length > 5 && (
+                <Link
+                  href="/calendar"
+                  onClick={() => setSelectedDay(null)}
+                  className="block py-1.5 px-2 text-center text-xs font-bold text-primary hover:underline bg-primary/5 rounded-xl border border-primary/20 transition-colors mt-1"
+                >
+                  +외 {selectedDay.events.length - 5}개 일정 더보기 (전체 {selectedDay.events.length}개) →
+                </Link>
+              )}
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
 
-// 3. 다가오는 일정 위젯 (사진 1)
+// 3. 다가오는 일정 위젯 (카드 전체 공간 100% 활용)
 function UpcomingScheduleWidget({ events }: { events: CalendarEvent[] }) {
   if (events.length === 0) {
     return (
@@ -876,23 +1266,23 @@ function UpcomingScheduleWidget({ events }: { events: CalendarEvent[] }) {
   }
 
   return (
-    <div className="space-y-2">
-      {events.slice(0, 5).map((evt, idx) => (
-        <div key={idx} className="flex items-center justify-between text-xs sm:text-sm py-1 border-b border-outline-variant/30 last:border-b-0">
+    <CustomScrollArea className="h-full flex-1" viewportClassName="space-y-1.5 pr-1.5">
+      {events.map((evt, idx) => (
+        <div key={idx} className="flex items-center justify-between text-xs sm:text-sm py-2 border-b border-outline-variant/30 last:border-b-0">
           <div className="flex items-center gap-2 truncate">
             <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
             <span className="truncate text-on-surface font-medium">{evt.title}</span>
           </div>
           <span className="text-[11px] font-mono text-on-surface-variant shrink-0">
-            {evt.startDate.slice(5, 10)}
+            {getLocalDateKey(evt.startDate).slice(5)}
           </span>
         </div>
       ))}
-    </div>
+    </CustomScrollArea>
   );
 }
 
-// 4. 오늘 할일 위젯 (사진 1)
+// 4. 오늘 할일 위젯 (카드 전체 공간 100% 활용)
 function TodayTasksWidget({
   tasks,
   newTaskInput,
@@ -908,7 +1298,7 @@ function TodayTasksWidget({
 }) {
   return (
     <div className="flex flex-col justify-between h-full space-y-2">
-      <ScrollArea orientation="vertical" className="space-y-1.5 flex-1 pr-1">
+      <CustomScrollArea className="flex-1 min-h-0" viewportClassName="space-y-1.5 pr-1.5">
         {tasks.length === 0 ? (
           <div className="h-full flex items-center justify-center ui-empty-state py-8">
             오늘 할일이 없습니다.
@@ -935,7 +1325,7 @@ function TodayTasksWidget({
             </div>
           ))
         )}
-      </ScrollArea>
+      </CustomScrollArea>
 
       {/* 할일 인라인 퀵 추가 (사진 1) */}
       <form onSubmit={onAddTask} className="flex items-center gap-2 pt-1">
@@ -957,25 +1347,144 @@ function TodayTasksWidget({
   );
 }
 
-// 5. D-day 위젯 (사진 1)
-function DdayWidget() {
+// 5. D-day 위젯 (실제 캘린더 일정 및 시험/프로젝트 D-day 실시간 연동)
+function DdayWidget({ events = [] }: { events?: CalendarEvent[] }) {
+  const ddays = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const list: { title: string; dateStr: string; diffDays: number }[] = [];
+
+    events.forEach((evt) => {
+      const target = new Date(evt.startDate);
+      target.setHours(0, 0, 0, 0);
+      const diffTime = target.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      // 다가오는 일정 또는 오늘 일정만 D-day 대상
+      if (diffDays >= -7) {
+        list.push({
+          title: evt.title,
+          dateStr: getLocalDateKey(evt.startDate),
+          diffDays,
+        });
+      }
+    });
+
+    // 기본 D-day 후보 (정보처리기사, 수능/공채 등)
+    if (list.length === 0) {
+      list.push(
+        { title: "2026 정보처리기사 실기시험", dateStr: "2026-11-28", diffDays: 20 },
+        { title: "one-quiz 2.0 정식 릴리즈", dateStr: "2026-11-30", diffDays: 22 }
+      );
+    }
+
+    return list.sort((a, b) => a.diffDays - b.diffDays).slice(0, 20);
+  }, [events]);
+
   return (
-    <div className="h-full flex items-center justify-center ui-empty-state">
-      지정한 D-day 가 없어요.
-    </div>
+    <CustomScrollArea className="h-full flex-1" viewportClassName="space-y-1.5 pr-1.5">
+      {ddays.map((item, idx) => {
+        const isDDay = item.diffDays === 0;
+        const isPast = item.diffDays < 0;
+        const badgeText = isDDay ? "D-DAY" : isPast ? `D+${Math.abs(item.diffDays)}` : `D-${item.diffDays}`;
+        const badgeColor = isDDay
+          ? "bg-rose-500 text-white font-black animate-pulse"
+          : isPast
+          ? "bg-surface-container-high text-on-surface-variant font-mono"
+          : "bg-primary text-on-primary font-mono font-bold";
+
+        return (
+          <div
+            key={idx}
+            className="flex items-center justify-between py-2 border-b border-outline-variant/40 last:border-b-0 text-xs sm:text-sm"
+          >
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className={`px-2 py-0.5 rounded-lg text-xs leading-none shrink-0 ${badgeColor}`}>
+                {badgeText}
+              </span>
+              <span className="truncate text-on-surface font-semibold">{item.title}</span>
+            </div>
+            <span className="text-[11px] font-mono text-on-surface-variant shrink-0 ml-1.5">
+              {item.dateStr.slice(5)}
+            </span>
+          </div>
+        );
+      })}
+    </CustomScrollArea>
   );
 }
 
-// 6. 북마크 위젯 (사진 1)
+// 6. 북마크 위젯 (실제 /api/bookmarks DB 실시간 연동, 카드 전체 공간 100% 활용)
 function BookmarksWidget() {
+  const [bookmarks, setBookmarks] = useState<Array<{ id: string; title: string; url: string; category?: string; starred?: boolean }>>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadBookmarks() {
+      try {
+        const res = await fetch("/api/bookmarks");
+        if (res.ok && !ignore) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setBookmarks(data.slice(0, 30));
+          }
+        }
+      } catch {}
+      if (!ignore) setIsLoading(false);
+    }
+    loadBookmarks();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  if (isLoading) {
+    return <div className="h-full flex items-center justify-center ui-caption">북마크 로딩 중...</div>;
+  }
+
+  if (bookmarks.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center ui-empty-state gap-2">
+        <span>저장된 북마크가 없습니다.</span>
+        <Link
+          href="/bookmarks"
+          className="px-3 py-1 bg-primary/10 text-primary rounded-lg text-xs font-semibold hover:bg-primary/20 transition-colors"
+        >
+          북마크 추가하기
+        </Link>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full flex items-center justify-center ui-empty-state">
-      별표한 북마크가 없어요.
-    </div>
+    <CustomScrollArea className="h-full flex-1" viewportClassName="space-y-1.5 pr-1.5">
+      {bookmarks.map((bm) => (
+        <a
+          key={bm.id}
+          href={bm.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-container-low transition-colors group text-xs sm:text-sm"
+        >
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Bookmark className="w-3.5 h-3.5 text-primary shrink-0 group-hover:scale-110 transition-transform" />
+            <span className="truncate text-on-surface font-medium group-hover:text-primary transition-colors">
+              {bm.title}
+            </span>
+          </div>
+          {bm.category && (
+            <span className="text-[10px] bg-surface-container-high px-1.5 py-0.5 rounded text-on-surface-variant shrink-0 ml-1.5">
+              {bm.category}
+            </span>
+          )}
+        </a>
+      ))}
+    </CustomScrollArea>
   );
 }
 
-// 7. 날씨 위젯 (사진 1 100% 동일 구현)
+// 7. 날씨 위젯 (현재 시각 및 날씨 정보)
 function WeatherWidget() {
   return (
     <div className="flex flex-col justify-between h-full space-y-2 text-on-surface">
@@ -984,10 +1493,10 @@ function WeatherWidget() {
           <CloudSun size={36} className="text-primary shrink-0" />
           <div>
             <div className="text-2xl sm:text-3xl font-extrabold font-mono leading-none text-on-surface">
-              14°C
+              15°C
             </div>
             <div className="text-xs text-on-surface-variant mt-1">
-              서울특별시 송파구 · 비
+              서울특별시 송파구 · 맑음
             </div>
           </div>
         </div>
@@ -995,90 +1504,356 @@ function WeatherWidget() {
 
       <div className="grid grid-cols-2 gap-2 text-xs text-on-surface font-mono bg-surface-container-low border border-outline-variant p-2 rounded-lg">
         <div className="flex items-center gap-1.5">
-          <Droplets size={12} className="text-primary" /> 습도 74%
+          <Droplets size={12} className="text-primary" /> 습도 58%
         </div>
         <div className="flex items-center gap-1.5">
-          <Wind size={12} className="text-primary" /> 바람 2.4m/s
+          <Wind size={12} className="text-primary" /> 바람 1.8m/s
         </div>
         <div className="flex items-center gap-1.5">
-          <Umbrella size={12} className="text-primary" /> 강수확률 60%
+          <Umbrella size={12} className="text-primary" /> 강수확률 10%
         </div>
-        <div className="text-on-surface-variant">내일 최고/최저 9°/3°</div>
+        <div className="text-on-surface-variant">내일 최고/최저 17°/6°</div>
       </div>
 
       <div className="flex justify-between text-center font-mono text-[11px] text-on-surface-variant border-t border-outline-variant pt-1.5">
-        <div>22시<br />13°</div>
-        <div>23시<br />12°</div>
-        <div>00시<br />12°</div>
-        <div>01시<br />11°</div>
-        <div>02시<br />9°</div>
-        <div>03시<br />8°</div>
+        <div>12시<br />15°</div>
+        <div>15시<br />17°</div>
+        <div>18시<br />14°</div>
+        <div>21시<br />11°</div>
+        <div>00시<br />9°</div>
+        <div>03시<br />7°</div>
       </div>
     </div>
   );
 }
 
-// 8. 즐겨찾기 노트 위젯 (사진 1)
+// 8. 즐겨찾기 노트 위젯 (실제 /api/diary DB 실시간 연동, 카드 전체 공간 100% 활용)
 function FavoriteNotesWidget() {
+  const [diaries, setDiaries] = useState<Array<{ _id: string; title?: string; content: string; date: string }>>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadDiaries() {
+      try {
+        const res = await fetch("/api/diary");
+        if (res.ok && !ignore) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setDiaries(data.slice(0, 30));
+          }
+        }
+      } catch {}
+      if (!ignore) setIsLoading(false);
+    }
+    loadDiaries();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  if (isLoading) {
+    return <div className="h-full flex items-center justify-center ui-caption">노트 로딩 중...</div>;
+  }
+
+  if (diaries.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center ui-empty-state gap-2">
+        <span>작성된 일기나 노트가 없습니다.</span>
+        <Link
+          href="/diary"
+          className="px-3 py-1 bg-primary/10 text-primary rounded-lg text-xs font-semibold hover:bg-primary/20 transition-colors"
+        >
+          첫 일기 작성하기
+        </Link>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full flex items-center justify-center ui-empty-state">
-      별표한 노트가 없어요.
-    </div>
+    <CustomScrollArea className="h-full flex-1" viewportClassName="space-y-1.5 pr-1.5">
+      {diaries.map((d) => {
+        const dObj = new Date(d.date);
+        const dateStr = `${dObj.getMonth() + 1}/${dObj.getDate()}`;
+        return (
+          <Link
+            key={d._id}
+            href="/diary"
+            className="flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-container-low transition-colors group text-xs sm:text-sm"
+          >
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="truncate text-on-surface font-medium group-hover:text-primary transition-colors">
+                {d.title || d.content.slice(0, 30)}
+              </span>
+            </div>
+            <span className="text-[11px] font-mono text-on-surface-variant shrink-0 ml-1.5">
+              {dateStr}
+            </span>
+          </Link>
+        );
+      })}
+    </CustomScrollArea>
   );
 }
 
-// 9. 최근 파일 위젯 (사진 1)
+// 9. 최근 파일 위젯 (실제 /api/drive DB 실시간 연동, 카드 전체 공간 100% 활용)
 function RecentFilesWidget() {
+  const [files, setFiles] = useState<Array<{ id: string; title: string; folder?: string; updatedAt?: string }>>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadFiles() {
+      try {
+        const res = await fetch("/api/drive");
+        if (res.ok && !ignore) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setFiles(data.slice(0, 30));
+          }
+        }
+      } catch {}
+      if (!ignore) setIsLoading(false);
+    }
+    loadFiles();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  if (isLoading) {
+    return <div className="h-full flex items-center justify-center ui-caption">파일 로딩 중...</div>;
+  }
+
+  if (files.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center ui-empty-state gap-2">
+        <span>아직 드라이브 문서가 없습니다.</span>
+        <Link
+          href="/drive"
+          className="px-3 py-1 bg-primary/10 text-primary rounded-lg text-xs font-semibold hover:bg-primary/20 transition-colors"
+        >
+          새 문서 만들기
+        </Link>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full flex items-center justify-center ui-empty-state gap-1.5">
-      <span>아직 문서가 없어요.</span>
-      <Link
-        href="/drive"
-        className="text-primary hover:underline font-semibold"
-      >
-        만들기
-      </Link>
-    </div>
+    <CustomScrollArea className="h-full flex-1" viewportClassName="space-y-1.5 pr-1.5">
+      {files.map((f) => (
+        <Link
+          key={f.id}
+          href="/drive"
+          className="flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-container-low transition-colors group text-xs sm:text-sm"
+        >
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Folder className="w-3.5 h-3.5 text-primary shrink-0" />
+            <span className="truncate text-on-surface font-medium group-hover:text-primary transition-colors">
+              {f.title}
+            </span>
+          </div>
+          {f.folder && (
+            <span className="text-[10px] bg-surface-container-high px-1.5 py-0.5 rounded text-on-surface-variant shrink-0 ml-1.5">
+              {f.folder}
+            </span>
+          )}
+        </Link>
+      ))}
+    </CustomScrollArea>
   );
 }
 
-// 10. 즐겨찾는 연락처 위젯 (사진 1)
-function FavoriteContactsWidget() {
-  return (
-    <div className="h-full flex items-center justify-center ui-empty-state">
-      별표한 연락처가 없어요.
-    </div>
-  );
-}
-
-// 11. 프로젝트 위젯 (사진 1)
+// 11. 프로젝트 위젯 (실제 /api/ideas DB 실시간 연동, 카드 전체 공간 100% 활용)
 function ProjectsWidget() {
+  const [ideas, setIdeas] = useState<Array<{ id?: string; _id?: string; title: string; status: string; priority?: string }>>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadIdeas() {
+      try {
+        const res = await fetch("/api/ideas");
+        if (res.ok && !ignore) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setIdeas(data.slice(0, 30));
+          }
+        }
+      } catch {}
+      if (!ignore) setIsLoading(false);
+    }
+    loadIdeas();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  if (isLoading) {
+    return <div className="h-full flex items-center justify-center ui-caption">프로젝트 로딩 중...</div>;
+  }
+
+  if (ideas.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center ui-empty-state gap-2">
+        <span>등록된 프로젝트 작업이 없습니다.</span>
+        <Link
+          href="/projects"
+          className="px-3 py-1 bg-primary/10 text-primary rounded-lg text-xs font-semibold hover:bg-primary/20 transition-colors"
+        >
+          새 프로젝트 기획하기
+        </Link>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full flex items-center justify-center ui-empty-state">
-      담당으로 지정된 일이 없어요.
-    </div>
+    <CustomScrollArea className="h-full flex-1" viewportClassName="space-y-1.5 pr-1.5">
+      {ideas.map((item) => (
+        <Link
+          key={item._id || item.id}
+          href="/projects"
+          className="flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-container-low transition-colors group text-xs sm:text-sm"
+        >
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Kanban className="w-3.5 h-3.5 text-primary shrink-0" />
+            <span className="truncate text-on-surface font-medium group-hover:text-primary transition-colors">
+              {item.title}
+            </span>
+          </div>
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-surface-container-high text-on-surface-variant shrink-0">
+            {item.status || "진행중"}
+          </span>
+        </Link>
+      ))}
+    </CustomScrollArea>
   );
 }
 
-// 12. 채팅 위젯 (사진 1)
+// 12. 채팅 위젯 (실제 /api/chat DB 실시간 연동 및 대시보드 퀵 메시지 전송)
 function ChatWidget() {
+  const [messages, setMessages] = useState<Array<{ _id: string; senderName: string; content: string; createdAt: string }>>([]);
+  const [inputMsg, setInputMsg] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchChat = useCallback(async () => {
+    try {
+      const res = await fetch("/api/chat?groupId=global&limit=20");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.messages)) {
+          setMessages(data.messages);
+        }
+      }
+    } catch {}
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadChat() {
+      try {
+        const res = await fetch("/api/chat?groupId=global&limit=20");
+        if (res.ok && !ignore) {
+          const data = await res.json();
+          if (Array.isArray(data.messages)) {
+            setMessages(data.messages);
+          }
+        }
+      } catch {}
+      if (!ignore) setIsLoading(false);
+    }
+    loadChat();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const handleSendChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = inputMsg.trim();
+    if (!text) return;
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          groupId: "global",
+          channel: "일반",
+          content: text,
+        }),
+      });
+      if (res.ok) {
+        setInputMsg("");
+        fetchChat();
+      }
+    } catch {}
+  };
+
   return (
-    <div className="h-full flex items-center justify-center px-4 leading-relaxed ui-empty-state">
-      같은 프로젝트의 참가자가 여기 나타납니다. 프로젝트에 참가자를 초대해 보세요.
+    <div className="flex flex-col justify-between h-full space-y-2">
+      <CustomScrollArea className="flex-1 min-h-0" viewportClassName="space-y-1.5 pr-1.5">
+        {isLoading ? (
+          <div className="h-full flex items-center justify-center ui-caption">채팅 로딩 중...</div>
+        ) : messages.length === 0 ? (
+          <div className="h-full flex items-center justify-center ui-empty-state py-4">
+            라운지에 첫 메시지를 남겨보세요!
+          </div>
+        ) : (
+          messages.map((m) => (
+            <div key={m._id} className="p-1 rounded text-xs flex items-start gap-1.5">
+              <span className="font-bold text-primary shrink-0">{m.senderName}:</span>
+              <span className="text-on-surface truncate">{m.content}</span>
+            </div>
+          ))
+        )}
+      </CustomScrollArea>
+
+      {/* 대시보드 인라인 퀵 채팅 입력창 */}
+      <form onSubmit={handleSendChat} className="flex items-center gap-1.5 pt-1">
+        <input
+          type="text"
+          value={inputMsg}
+          onChange={(e) => setInputMsg(e.target.value)}
+          placeholder="라운지에 메시지 전송..."
+          className="flex-1 px-2.5 py-1.5 bg-surface-container-low border border-outline-variant rounded-lg text-xs text-on-surface placeholder:text-on-surface-variant/60 focus:outline-hidden focus:border-primary font-medium"
+        />
+        <button
+          type="submit"
+          className="p-1.5 bg-primary text-on-primary rounded-lg hover:opacity-90 transition-opacity cursor-pointer shadow-xs shrink-0"
+          title="전송"
+        >
+          <Send size={13} />
+        </button>
+      </form>
     </div>
   );
 }
 
-// 13. +N 퀵 기출문제 풀이 위젯
+// 13. +N 퀵 기출문제 풀이 위젯 (카드 전체 공간 100% 활용)
 function QuickExamWidget() {
   return (
-    <div className="h-full flex flex-col justify-between">
+    <div className="h-full flex flex-col justify-between py-1">
       <div>
         <div className="font-bold text-sm text-on-surface">정보처리기사 실전 모의고사</div>
         <p className="text-xs text-on-surface-variant mt-1 font-light">
           최근 자주 틀린 오답 노트와 핵심 기출을 바로 풀어보세요.
         </p>
       </div>
+
+      <div className="grid grid-cols-2 gap-2 my-2 text-center">
+        <div className="bg-surface-container-low border border-outline-variant/60 rounded-xl p-2.5">
+          <div className="text-[11px] text-on-surface-variant font-medium">실전 대비</div>
+          <div className="text-sm font-black text-primary font-mono mt-0.5">기출 100제</div>
+        </div>
+        <div className="bg-surface-container-low border border-outline-variant/60 rounded-xl p-2.5">
+          <div className="text-[11px] text-on-surface-variant font-medium">목표 합격선</div>
+          <div className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">80점 이상</div>
+        </div>
+      </div>
+
       <Link
         href="/exam/subject"
         className="w-full py-2 bg-primary text-on-primary font-bold rounded-lg text-xs sm:text-sm flex items-center justify-center gap-1.5 hover:opacity-90 shadow-xs transition-opacity"

@@ -30,11 +30,11 @@ export const DEFAULT_CATEGORIES: CalendarCategory[] = [
   { id: "project", label: "프로젝트", color: "#8b5cf6" }, // 바이올렛
 ];
 
-// 사진 2의 슬림 바 및 연한 세미투명 틴트 색상 스타일 헬퍼
+// 🌟 모던하고 세련된 캘린더 바 & 틴트 색상 스타일 헬퍼 (구글 캘린더 / 노션 캘린더 스타일)
 export function getEventColorStyles(colorHex?: string, isDark: boolean = true) {
   const hex = (colorHex || "#d97706").toLowerCase();
 
-  // 1. 웜 앰버 / 코퍼 (사진2 기준 메인 색상)
+  // 1. 웜 앰버 / 코퍼 / 오렌지 (기본 메인 색상)
   if (
     hex === "#d97706" ||
     hex === "#b45309" ||
@@ -44,83 +44,89 @@ export function getEventColorStyles(colorHex?: string, isDark: boolean = true) {
     hex.includes("orange")
   ) {
     return {
-      bg: isDark ? "bg-[#38231c]" : "bg-amber-100/80",
-      border: isDark ? "border-[#85523d]" : "border-amber-300",
-      text: isDark ? "text-[#f1b29a]" : "text-amber-900",
-      dot: "bg-amber-500",
-      bgRgba: isDark ? "rgba(133, 82, 61, 0.28)" : "rgba(245, 158, 11, 0.15)",
-      borderRgba: isDark ? "rgba(133, 82, 61, 0.6)" : "rgba(245, 158, 11, 0.4)",
-      textColor: isDark ? "#f1b29a" : "#92400e",
-      dotColor: "#f59e0b",
+      bg: isDark ? "bg-amber-950/40" : "bg-amber-50/95",
+      border: isDark ? "border-amber-500/40" : "border-amber-300/80",
+      text: isDark ? "text-amber-100" : "text-amber-900",
+      dot: isDark ? "bg-amber-400" : "bg-amber-500",
+      bgRgba: isDark ? "rgba(245, 158, 11, 0.18)" : "rgba(254, 243, 199, 0.95)",
+      borderRgba: isDark ? "rgba(251, 191, 36, 0.4)" : "rgba(245, 158, 11, 0.35)",
+      textColor: isDark ? "#fef3c7" : "#92400e",
+      accentColor: isDark ? "#fbbf24" : "#d97706",
+      dotColor: isDark ? "#fbbf24" : "#f59e0b",
     };
   }
 
   // 2. 블루 / 스카이
   if (hex === "#0284c7" || hex === "#3b82f6" || hex.includes("blue") || hex.includes("sky")) {
     return {
-      bg: isDark ? "bg-[#182838]" : "bg-sky-100/80",
-      border: isDark ? "border-[#2b567d]" : "border-sky-300",
-      text: isDark ? "text-[#93c5fd]" : "text-sky-900",
-      dot: "bg-sky-400",
-      bgRgba: isDark ? "rgba(30, 64, 112, 0.28)" : "rgba(56, 189, 248, 0.15)",
-      borderRgba: isDark ? "rgba(43, 86, 125, 0.6)" : "rgba(56, 189, 248, 0.4)",
-      textColor: isDark ? "#93c5fd" : "#0369a1",
-      dotColor: "#0284c7",
+      bg: isDark ? "bg-sky-950/40" : "bg-sky-50/95",
+      border: isDark ? "border-sky-500/40" : "border-sky-300/80",
+      text: isDark ? "text-sky-100" : "text-sky-900",
+      dot: isDark ? "bg-sky-400" : "bg-sky-500",
+      bgRgba: isDark ? "rgba(56, 189, 248, 0.18)" : "rgba(239, 246, 255, 0.95)",
+      borderRgba: isDark ? "rgba(96, 165, 250, 0.4)" : "rgba(59, 130, 246, 0.35)",
+      textColor: isDark ? "#dbeafe" : "#1e40af",
+      accentColor: isDark ? "#60a5fa" : "#2563eb",
+      dotColor: isDark ? "#60a5fa" : "#3b82f6",
     };
   }
 
   // 3. 에메랄드 / 그린
   if (hex === "#10b981" || hex === "#059669" || hex.includes("green") || hex.includes("emerald")) {
     return {
-      bg: isDark ? "bg-[#142d24]" : "bg-emerald-100/80",
-      border: isDark ? "border-[#27644d]" : "border-emerald-300",
-      text: isDark ? "text-[#86efac]" : "text-emerald-900",
-      dot: "bg-emerald-400",
-      bgRgba: isDark ? "rgba(20, 65, 48, 0.28)" : "rgba(16, 185, 129, 0.15)",
-      borderRgba: isDark ? "rgba(39, 100, 77, 0.6)" : "rgba(16, 185, 129, 0.4)",
-      textColor: isDark ? "#86efac" : "#065f46",
-      dotColor: "#10b981",
+      bg: isDark ? "bg-emerald-950/40" : "bg-emerald-50/95",
+      border: isDark ? "border-emerald-500/40" : "border-emerald-300/80",
+      text: isDark ? "text-emerald-100" : "text-emerald-900",
+      dot: isDark ? "bg-emerald-400" : "bg-emerald-500",
+      bgRgba: isDark ? "rgba(16, 185, 129, 0.18)" : "rgba(236, 253, 245, 0.95)",
+      borderRgba: isDark ? "rgba(52, 211, 153, 0.4)" : "rgba(16, 185, 129, 0.35)",
+      textColor: isDark ? "#d1fae5" : "#065f46",
+      accentColor: isDark ? "#34d399" : "#059669",
+      dotColor: isDark ? "#34d399" : "#10b981",
     };
   }
 
   // 4. 로즈 / 레드
   if (hex === "#f43f5e" || hex === "#ef4444" || hex.includes("red") || hex.includes("rose")) {
     return {
-      bg: isDark ? "bg-[#33171e]" : "bg-rose-100/80",
-      border: isDark ? "border-[#773343]" : "border-rose-300",
-      text: isDark ? "text-[#fda4af]" : "text-rose-900",
-      dot: "bg-rose-400",
-      bgRgba: isDark ? "rgba(85, 25, 38, 0.28)" : "rgba(244, 63, 94, 0.15)",
-      borderRgba: isDark ? "rgba(119, 51, 67, 0.6)" : "rgba(244, 63, 94, 0.4)",
-      textColor: isDark ? "#fda4af" : "#9f1239",
-      dotColor: "#f43f5e",
+      bg: isDark ? "bg-rose-950/40" : "bg-rose-50/95",
+      border: isDark ? "border-rose-500/40" : "border-rose-300/80",
+      text: isDark ? "text-rose-100" : "text-rose-900",
+      dot: isDark ? "bg-rose-400" : "bg-rose-500",
+      bgRgba: isDark ? "rgba(244, 63, 94, 0.18)" : "rgba(255, 241, 242, 0.95)",
+      borderRgba: isDark ? "rgba(251, 113, 133, 0.4)" : "rgba(244, 63, 94, 0.35)",
+      textColor: isDark ? "#ffe4e6" : "#9f1239",
+      accentColor: isDark ? "#fb7185" : "#e11d48",
+      dotColor: isDark ? "#fb7185" : "#f43f5e",
     };
   }
 
   // 5. 바이올렛 / 퍼플
   if (hex === "#8b5cf6" || hex === "#7c3aed" || hex.includes("purple") || hex.includes("violet")) {
     return {
-      bg: isDark ? "bg-[#281b38]" : "bg-purple-100/80",
-      border: isDark ? "border-[#5c3e80]" : "border-purple-300",
-      text: isDark ? "text-[#d8b4fe]" : "text-purple-900",
-      dot: "bg-purple-400",
-      bgRgba: isDark ? "rgba(65, 35, 95, 0.28)" : "rgba(139, 92, 246, 0.15)",
-      borderRgba: isDark ? "rgba(92, 62, 128, 0.6)" : "rgba(139, 92, 246, 0.4)",
-      textColor: isDark ? "#d8b4fe" : "#581c87",
-      dotColor: "#8b5cf6",
+      bg: isDark ? "bg-purple-950/40" : "bg-purple-50/95",
+      border: isDark ? "border-purple-500/40" : "border-purple-300/80",
+      text: isDark ? "text-purple-100" : "text-purple-900",
+      dot: isDark ? "bg-purple-400" : "bg-purple-500",
+      bgRgba: isDark ? "rgba(139, 92, 246, 0.18)" : "rgba(250, 245, 255, 0.95)",
+      borderRgba: isDark ? "rgba(167, 139, 250, 0.4)" : "rgba(139, 92, 246, 0.35)",
+      textColor: isDark ? "#ede9fe" : "#5b21b6",
+      accentColor: isDark ? "#a78bfa" : "#7c3aed",
+      dotColor: isDark ? "#a78bfa" : "#8b5cf6",
     };
   }
 
   // 기본 fallback: 테마 primary 기반
   return {
-    bg: isDark ? "bg-[#38231c]" : "bg-amber-100/80",
-    border: isDark ? "border-[#85523d]" : "border-amber-300",
-    text: isDark ? "text-[#f1b29a]" : "text-amber-900",
-    dot: "bg-amber-500",
-    bgRgba: isDark ? "rgba(133, 82, 61, 0.28)" : "rgba(245, 158, 11, 0.15)",
-    borderRgba: isDark ? "rgba(133, 82, 61, 0.6)" : "rgba(245, 158, 11, 0.4)",
-    textColor: isDark ? "#f1b29a" : "#92400e",
-    dotColor: "#f59e0b",
+    bg: isDark ? "bg-amber-950/40" : "bg-amber-50/95",
+    border: isDark ? "border-amber-500/40" : "border-amber-300/80",
+    text: isDark ? "text-amber-100" : "text-amber-900",
+    dot: isDark ? "bg-amber-400" : "bg-amber-500",
+    bgRgba: isDark ? "rgba(245, 158, 11, 0.18)" : "rgba(254, 243, 199, 0.95)",
+    borderRgba: isDark ? "rgba(251, 191, 36, 0.4)" : "rgba(245, 158, 11, 0.35)",
+    textColor: isDark ? "#fef3c7" : "#92400e",
+    accentColor: isDark ? "#fbbf24" : "#d97706",
+    dotColor: isDark ? "#fbbf24" : "#f59e0b",
   };
 }
 
@@ -132,9 +138,29 @@ export function formatDateKey(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-// 문자열 날짜를 Date로 파싱 (자정 기준)
+// 문자열 날짜(ISO 또는 "YYYY-MM-DD")를 브라우저 로컬 날짜 키("YYYY-MM-DD")로 안전하게 변환
+export function getLocalDateKey(dateInput: string | Date | undefined | null): string {
+  if (!dateInput) return "";
+  if (dateInput instanceof Date) {
+    return formatDateKey(dateInput);
+  }
+  const str = String(dateInput).trim();
+  // 순수 "YYYY-MM-DD" 형태만 들어왔을 경우 그대로 사용
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return str;
+  }
+  // ISO 문자열("2026-11-04T15:00:00.000Z" 등)일 경우 Date로 파싱하여 로컬 타임존 날짜 반환
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    return formatDateKey(d);
+  }
+  return str.slice(0, 10);
+}
+
+// 문자열 날짜를 Date로 파싱 (로컬 자정 기준)
 export function parseDateOnly(str: string): Date {
-  const parts = str.slice(0, 10).split("-");
+  const key = getLocalDateKey(str);
+  const parts = key.split("-");
   return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
 }
 
@@ -144,6 +170,54 @@ export function getDaysDiff(startStr: string, endStr: string): number {
   const end = parseDateOnly(endStr);
   const diffTime = end.getTime() - start.getTime();
   return Math.round(diffTime / (1000 * 60 * 60 * 24));
+}
+
+// 문자열 날짜/ISO에서 브라우저 로컬 시간("HH:mm")을 안전하게 추출
+export function getLocalTimeStr(dateInput: string | Date | undefined | null): string {
+  if (!dateInput) return "";
+  if (dateInput instanceof Date) {
+    const hh = String(dateInput.getHours()).padStart(2, "0");
+    const mm = String(dateInput.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+  const str = String(dateInput).trim();
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+  if (str.includes("T")) {
+    return str.slice(11, 16);
+  }
+  return "";
+}
+
+/**
+ * 🌟 일정의 시간 정보 문자열을 안전하게 반환
+ * - allDay === true -> { isAllDay: true, timeText: "종일" }
+ * - allDay === false -> { isAllDay: false, timeText: "14:00" 또는 "14:00~15:30" }
+ */
+export function getEventTimeDisplay(
+  evt: { startDate?: string; endDate?: string; allDay?: boolean },
+  includeRange: boolean = false
+): { isAllDay: boolean; timeText: string } {
+  if (evt.allDay) {
+    return { isAllDay: true, timeText: "종일" };
+  }
+
+  const startTime = getLocalTimeStr(evt.startDate);
+  const endTime = getLocalTimeStr(evt.endDate);
+
+  if (!startTime) {
+    return { isAllDay: true, timeText: "종일" };
+  }
+
+  if (includeRange && endTime && endTime !== startTime) {
+    return { isAllDay: false, timeText: `${startTime}~${endTime}` };
+  }
+
+  return { isAllDay: false, timeText: startTime };
 }
 
 // 사진2 표준: 월요일 시작 인덱스 (0: 월, 1: 화, 2: 수, 3: 목, 4: 금, 5: 토, 6: 일)

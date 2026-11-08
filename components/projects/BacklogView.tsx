@@ -489,6 +489,10 @@ export function BacklogView() {
 
   // Drag and Drop
   const handleDragStart = (e: React.DragEvent, id: string) => {
+    // 🌟 백로그 카드를 잡고 이동할 때 기존 텍스트 선택 영역 즉시 해제 (잔상 방지)
+    if (typeof window !== "undefined") {
+      window.getSelection()?.removeAllRanges();
+    }
     e.dataTransfer.setData("text/plain", id);
     setDraggingItemId(id);
   };

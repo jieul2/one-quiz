@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { Sidebar, SidebarMode } from "./Sidebar";
 import { ThemeModal } from "@/components/theme/ThemeModal";
+import { FeedbackModal } from "@/components/feedback/FeedbackModal";
 import { Menu, PanelLeft, PanelLeftOpen } from "lucide-react";
 
 interface AppShellProps {
@@ -39,6 +40,23 @@ export function AppShell({ children }: AppShellProps) {
     return () => clearTimeout(timer);
   }, []);
 
+  // 🌟 전역 드래그 시작 시 기존 텍스트 선택(드래그) 영역 자동 해제 (잔상 방지)
+  useEffect(() => {
+    const handleGlobalDragStart = () => {
+      if (typeof window !== "undefined") {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          sel.removeAllRanges();
+        }
+      }
+    };
+
+    window.addEventListener("dragstart", handleGlobalDragStart, { capture: true });
+    return () => {
+      window.removeEventListener("dragstart", handleGlobalDragStart, { capture: true });
+    };
+  }, []);
+
   const handleChangeSidebarMode = (mode: SidebarMode) => {
     setSidebarMode(mode);
     if (typeof window !== "undefined") {
@@ -62,14 +80,16 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="min-h-screen bg-background text-on-surface flex flex-col font-sans transition-colors duration-200">
       {/* 1. 반응형 사이드바 (3단계: 완전 숨김 / 아이콘만 / 아이콘+글씨) */}
-      <Sidebar
-        onOpenThemeModal={() => setIsThemeModalOpen(true)}
-        mode={sidebarMode}
-        onChangeMode={handleChangeSidebarMode}
-        onCycleMode={handleCycleSidebarMode}
-        isMobileOpen={isMobileNavOpen}
-        onCloseMobile={() => setIsMobileNavOpen(false)}
-      />
+      <Suspense fallback={null}>
+        <Sidebar
+          onOpenThemeModal={() => setIsThemeModalOpen(true)}
+          mode={sidebarMode}
+          onChangeMode={handleChangeSidebarMode}
+          onCycleMode={handleCycleSidebarMode}
+          isMobileOpen={isMobileNavOpen}
+          onCloseMobile={() => setIsMobileNavOpen(false)}
+        />
+      </Suspense>
 
       {/* 2. 모바일 전용 플로팅 메뉴 버튼 */}
       <div className="fixed top-4 left-4 z-40 md:hidden">
@@ -125,6 +145,9 @@ export function AppShell({ children }: AppShellProps) {
         isOpen={isThemeModalOpen}
         onClose={() => setIsThemeModalOpen(false)}
       />
+
+      {/* 5. 전역 플로팅 피드백 & 버그 제보 모달 */}
+      <FeedbackModal />
     </div>
   );
 }

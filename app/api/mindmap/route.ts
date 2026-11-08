@@ -57,6 +57,7 @@ async function handlePost(req: Request) {
     lastEdited: body.lastEdited || new Date().toISOString().slice(0, 10),
     rootNode: body.rootNode || body.title,
     branches: body.branches || [],
+    nodes: body.nodes || [],
   });
 
   return NextResponse.json({ success: true, data: newMap }, { status: 201 });

@@ -356,6 +356,21 @@ export function RoadmapView() {
   const resizingItemRef = useRef<RoadmapItem | null>(null);
   const resizingEdgeRef = useRef<"start" | "end" | null>(null);
 
+  // 7. 마우스 전체 막대 이동 (DND & 스켈레톤 프리뷰)
+  const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
+  const [dragPreviewStartDate, setDragPreviewStartDate] = useState<string | null>(null);
+  const [dragPreviewEndDate, setDragPreviewEndDate] = useState<string | null>(null);
+  const [isDraggingActive, setIsDraggingActive] = useState(false);
+
+  const isDraggingBarRef = useRef(false);
+  const draggingItemRef = useRef<RoadmapItem | null>(null);
+  const dragStartXRef = useRef(0);
+  const dragStartYRef = useRef(0);
+  const hasDraggedRef = useRef(false);
+  const grabOffsetDaysRef = useRef(0);
+  const dragDurationDaysRef = useRef(0);
+  const justDraggedRef = useRef(false);
+
   // 영구 저장 헬퍼 (프로젝트별 격리 저장: DB + localStorage)
   const persistRoadmap = useCallback(
     async (updated: ProjectRoadmap) => {
@@ -511,46 +526,113 @@ export function RoadmapView() {
     return days;
   }, [roadmap.startDate, roadmap.endDate]);
 
-  // 리사이즈 전역 마우스 이벤트 (시작일/종료일 늘리기 및 줄이기 완벽 지원)
+  // 간트 바 리사이즈 & 전체 막대 드래그 이동 전역 마우스 이벤트 (DND 스켈레톤 프리뷰 지원)
   useEffect(() => {
     const handleGlobalMouseMove = (e: MouseEvent) => {
-      if (!isResizingRef.current || !resizingItemRef.current) return;
+      // 1. 바 리사이즈 처리 (시작일/종료일 늘리기 및 줄이기 완벽 지원)
+      if (isResizingRef.current && resizingItemRef.current) {
+        const dayElem = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement)?.closest(
+          "[data-roadmap-date]"
+        );
+        let targetDateStr: string | null = null;
 
-      const dayElem = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement)?.closest(
-        "[data-roadmap-date]"
-      );
-      let targetDateStr: string | null = null;
-
-      if (dayElem) {
-        targetDateStr = dayElem.getAttribute("data-roadmap-date");
-      } else if (timelineScrollRef.current) {
-        // 수학적 fallback 계산 (마우스가 바 위에 있어도 정확히 감지)
-        const rect = timelineScrollRef.current.getBoundingClientRect();
-        const scrollLeft = timelineScrollRef.current.scrollLeft;
-        const x = e.clientX - rect.left + scrollLeft - 224; // 좌측 항목 컬럼(224px) 보정
-        const dayIdx = Math.floor(x / dayWidth);
-        const dayCell = timelineDays[dayIdx];
-        if (dayCell) {
-          targetDateStr = dayCell.dateStr;
+        if (dayElem) {
+          targetDateStr = dayElem.getAttribute("data-roadmap-date");
+        } else if (timelineScrollRef.current) {
+          // 수학적 fallback 계산 (마우스가 바 위에 있어도 정확히 감지)
+          const rect = timelineScrollRef.current.getBoundingClientRect();
+          const scrollLeft = timelineScrollRef.current.scrollLeft;
+          const leftColElem = timelineScrollRef.current.querySelector(".border-r.border-outline-variant");
+          const leftColWidth = leftColElem ? leftColElem.getBoundingClientRect().width : 224;
+          const x = e.clientX - rect.left + scrollLeft - leftColWidth;
+          const dayIdx = Math.floor(x / dayWidth);
+          const dayCell = timelineDays[dayIdx];
+          if (dayCell) {
+            targetDateStr = dayCell.dateStr;
+          }
         }
+
+        if (!targetDateStr) return;
+
+        if (resizingEdgeRef.current === "end") {
+          // 종료일 리사이즈: 시작일 이상이면 늘리기/줄이기 모두 반영
+          if (targetDateStr >= resizingItemRef.current.startDate) {
+            setResizePreviewEndDate(targetDateStr);
+          }
+        } else if (resizingEdgeRef.current === "start") {
+          // 시작일 리사이즈: 종료일 이하이면 늘리기/줄이기 모두 반영
+          if (targetDateStr <= resizingItemRef.current.endDate) {
+            setResizePreviewStartDate(targetDateStr);
+          }
+        }
+        return;
       }
 
-      if (!targetDateStr) return;
-
-      if (resizingEdgeRef.current === "end") {
-        // 종료일 리사이즈: 시작일 이상이면 늘리기/줄이기 모두 반영
-        if (targetDateStr >= resizingItemRef.current.startDate) {
-          setResizePreviewEndDate(targetDateStr);
+      // 2. 바 전체 드래그 이동 (DND & 스켈레톤 와이어프레임 프리뷰)
+      if (isDraggingBarRef.current && draggingItemRef.current) {
+        if (!hasDraggedRef.current) {
+          const dist = Math.hypot(e.clientX - dragStartXRef.current, e.clientY - dragStartYRef.current);
+          if (dist < 4) return;
+          hasDraggedRef.current = true;
+          setIsDraggingActive(true);
+          window.getSelection()?.removeAllRanges();
         }
-      } else if (resizingEdgeRef.current === "start") {
-        // 시작일 리사이즈: 종료일 이하이면 늘리기/줄이기 모두 반영
-        if (targetDateStr <= resizingItemRef.current.endDate) {
-          setResizePreviewStartDate(targetDateStr);
+
+        // 컨테이너 좌우 경계 접근 시 부드러운 가로 자동 스크롤
+        if (timelineScrollRef.current) {
+          const rect = timelineScrollRef.current.getBoundingClientRect();
+          const leftColElem = timelineScrollRef.current.querySelector(".border-r.border-outline-variant");
+          const leftColWidth = leftColElem ? leftColElem.getBoundingClientRect().width : 224;
+          const timelineVisibleLeft = rect.left + leftColWidth;
+          const timelineVisibleRight = rect.right;
+
+          if (e.clientX < timelineVisibleLeft + 36) {
+            timelineScrollRef.current.scrollLeft -= 14;
+          } else if (e.clientX > timelineVisibleRight - 36) {
+            timelineScrollRef.current.scrollLeft += 14;
+          }
+        }
+
+        let targetDayIdx: number | null = null;
+        const dayElem = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement)?.closest(
+          "[data-roadmap-date]"
+        );
+        if (dayElem) {
+          const dateStr = dayElem.getAttribute("data-roadmap-date");
+          if (dateStr) {
+            const idx = timelineDays.findIndex((d) => d.dateStr === dateStr);
+            if (idx !== -1) targetDayIdx = idx;
+          }
+        }
+        if (targetDayIdx === null && timelineScrollRef.current) {
+          const rect = timelineScrollRef.current.getBoundingClientRect();
+          const scrollLeft = timelineScrollRef.current.scrollLeft;
+          const leftColElem = timelineScrollRef.current.querySelector(".border-r.border-outline-variant");
+          const leftColWidth = leftColElem ? leftColElem.getBoundingClientRect().width : 224;
+          const x = e.clientX - rect.left + scrollLeft - leftColWidth;
+          targetDayIdx = Math.floor(x / dayWidth);
+        }
+
+        if (targetDayIdx !== null && timelineDays.length > 0) {
+          const duration = dragDurationDaysRef.current;
+          const grabOffset = grabOffsetDaysRef.current;
+          const boundedTargetIdx = Math.max(0, Math.min(timelineDays.length - 1, targetDayIdx));
+          const maxStartIdx = Math.max(0, timelineDays.length - 1 - duration);
+          const newStartIdx = Math.max(0, Math.min(maxStartIdx, boundedTargetIdx - grabOffset));
+          const newEndIdx = Math.min(timelineDays.length - 1, newStartIdx + duration);
+
+          const startDay = timelineDays[newStartIdx];
+          const endDay = timelineDays[newEndIdx];
+          if (startDay && endDay) {
+            setDragPreviewStartDate(startDay.dateStr);
+            setDragPreviewEndDate(endDay.dateStr);
+          }
         }
       }
     };
 
     const handleGlobalMouseUp = () => {
+      // 1. 바 리사이즈 종료
       if (isResizingRef.current && resizingItemRef.current) {
         const targetId = resizingItemRef.current.id;
         const newStart = resizePreviewStartDate || resizingItemRef.current.startDate;
@@ -565,14 +647,44 @@ export function RoadmapView() {
           );
           persistRoadmap({ ...roadmap, items: updatedItems });
         }
+        isResizingRef.current = false;
+        resizingItemRef.current = null;
+        resizingEdgeRef.current = null;
+        setResizingItemId(null);
+        setResizingEdge(null);
+        setResizePreviewStartDate(null);
+        setResizePreviewEndDate(null);
       }
-      isResizingRef.current = false;
-      resizingItemRef.current = null;
-      resizingEdgeRef.current = null;
-      setResizingItemId(null);
-      setResizingEdge(null);
-      setResizePreviewStartDate(null);
-      setResizePreviewEndDate(null);
+
+      // 2. 바 전체 드래그 이동 종료
+      if (isDraggingBarRef.current && draggingItemRef.current) {
+        const item = draggingItemRef.current;
+        if (hasDraggedRef.current) {
+          justDraggedRef.current = true;
+          setTimeout(() => {
+            justDraggedRef.current = false;
+          }, 120);
+
+          const newStart = dragPreviewStartDate || item.startDate;
+          const newEnd = dragPreviewEndDate || item.endDate;
+
+          if (newStart !== item.startDate || newEnd !== item.endDate) {
+            const updatedItems = roadmap.items.map((it) =>
+              it.id === item.id ? { ...it, startDate: newStart, endDate: newEnd } : it
+            );
+            persistRoadmap({ ...roadmap, items: updatedItems });
+            toast.success(`'${item.title}' 일정이 이동되었습니다. (${newStart} ~ ${newEnd})`);
+          }
+        }
+
+        isDraggingBarRef.current = false;
+        draggingItemRef.current = null;
+        hasDraggedRef.current = false;
+        setIsDraggingActive(false);
+        setDraggingItemId(null);
+        setDragPreviewStartDate(null);
+        setDragPreviewEndDate(null);
+      }
     };
 
     window.addEventListener("mousemove", handleGlobalMouseMove);
@@ -581,7 +693,16 @@ export function RoadmapView() {
       window.removeEventListener("mousemove", handleGlobalMouseMove);
       window.removeEventListener("mouseup", handleGlobalMouseUp);
     };
-  }, [roadmap, resizePreviewStartDate, resizePreviewEndDate, persistRoadmap, dayWidth, timelineDays]);
+  }, [
+    roadmap,
+    resizePreviewStartDate,
+    resizePreviewEndDate,
+    dragPreviewStartDate,
+    dragPreviewEndDate,
+    persistRoadmap,
+    dayWidth,
+    timelineDays,
+  ]);
 
   const handleResizeStart = (
     e: React.MouseEvent,
@@ -597,6 +718,52 @@ export function RoadmapView() {
     setResizingEdge(edge);
     setResizePreviewStartDate(item.startDate);
     setResizePreviewEndDate(item.endDate);
+  };
+
+  const handleBarMouseDown = (e: React.MouseEvent, item: RoadmapItem) => {
+    if (e.button !== 0) return;
+    // 텍스트 선택 잔상 즉시 해제 (Rule 50)
+    window.getSelection()?.removeAllRanges();
+
+    isDraggingBarRef.current = true;
+    hasDraggedRef.current = false;
+    draggingItemRef.current = item;
+    dragStartXRef.current = e.clientX;
+    dragStartYRef.current = e.clientY;
+
+    const itemStartIdx = timelineDays.findIndex((d) => d.dateStr === item.startDate);
+    const itemEndIdx = timelineDays.findIndex((d) => d.dateStr === item.endDate);
+
+    let duration = 0;
+    if (itemStartIdx !== -1 && itemEndIdx !== -1) {
+      duration = Math.max(0, itemEndIdx - itemStartIdx);
+    } else {
+      const sMs = new Date(item.startDate).getTime();
+      const eMs = new Date(item.endDate).getTime();
+      duration = Math.max(0, Math.round((eMs - sMs) / (1000 * 60 * 60 * 24)));
+    }
+    dragDurationDaysRef.current = duration;
+
+    // 클릭 지점의 day index 계산하여 클릭 지점 offset 보존
+    let clickDayIdx = itemStartIdx !== -1 ? itemStartIdx : 0;
+    if (timelineScrollRef.current) {
+      const rect = timelineScrollRef.current.getBoundingClientRect();
+      const scrollLeft = timelineScrollRef.current.scrollLeft;
+      const leftColElem = timelineScrollRef.current.querySelector(".border-r.border-outline-variant");
+      const leftColWidth = leftColElem ? leftColElem.getBoundingClientRect().width : 224;
+      const x = e.clientX - rect.left + scrollLeft - leftColWidth;
+      const calculatedIdx = Math.floor(x / dayWidth);
+      if (calculatedIdx >= 0 && calculatedIdx < timelineDays.length) {
+        clickDayIdx = calculatedIdx;
+      }
+    }
+
+    const startBaseIdx = itemStartIdx !== -1 ? itemStartIdx : clickDayIdx;
+    grabOffsetDaysRef.current = Math.max(0, Math.min(duration, clickDayIdx - startBaseIdx));
+
+    setDraggingItemId(item.id);
+    setDragPreviewStartDate(item.startDate);
+    setDragPreviewEndDate(item.endDate);
   };
 
   // 프로젝트 기간 수정 저장
@@ -1354,7 +1521,7 @@ export function RoadmapView() {
           orientation="both"
           maxHeight="620px"
         >
-          <div className="min-w-max flex flex-col">
+          <div className={`min-w-max flex flex-col ${isDraggingActive ? "select-none cursor-grabbing" : ""}`}>
             {/* 2-1. 헤더: 좌측 '항목' + 우측 주차/날짜 타임라인 헤더 */}
             <div className="flex border-b border-outline-variant bg-surface-container-low text-sm sticky top-0 z-20">
               {/* 좌측 고정 항목 열 헤더 */}
@@ -1442,17 +1609,26 @@ export function RoadmapView() {
               ) : null}
 
               {filteredRoadmapItems.map((item) => {
+                const isThisResizing = resizingItemId === item.id;
+                const isThisDragging = draggingItemId === item.id && isDraggingActive;
+
                 const effectiveStartDate =
-                  resizingItemId === item.id && resizePreviewStartDate
+                  isThisResizing && resizePreviewStartDate
                     ? resizePreviewStartDate
                     : item.startDate;
                 const effectiveEndDate =
-                  resizingItemId === item.id && resizePreviewEndDate
+                  isThisResizing && resizePreviewEndDate
                     ? resizePreviewEndDate
                     : item.endDate;
                 const barPos = getBarPosition(effectiveStartDate, effectiveEndDate);
                 const baseColor = item.color || "#0ea5e9";
                 const isSingleDay = effectiveStartDate === effectiveEndDate;
+
+                // 드래그 이동 중 실시간 스켈레톤 바 위치 계산
+                const skeletonBarPos =
+                  isThisDragging && dragPreviewStartDate && dragPreviewEndDate
+                    ? getBarPosition(dragPreviewStartDate, dragPreviewEndDate)
+                    : null;
 
                 return (
                   <div
@@ -1511,36 +1687,63 @@ export function RoadmapView() {
                         ))}
                       </div>
 
-                      {/* 사진1 스타일의 얇고 세련된 반투명 간트 바 (라이트/다크 테마 텍스트 대비 최적화) */}
+                      {/* 🌟 실시간 DND 스켈레톤 와이어프레임 프리뷰 (달력/대시보드와 동일한 모던 펄싱 와이어프레임) */}
+                      {isThisDragging && skeletonBarPos && (
+                        <div
+                          style={{
+                            left: `${skeletonBarPos.left}px`,
+                            width: `${skeletonBarPos.width}px`,
+                          }}
+                          className="absolute h-[26px] rounded-xs shadow-md z-30 pointer-events-none px-2 flex items-center justify-between text-xs truncate border-2 border-dashed border-primary bg-primary/20 dark:bg-primary/30 text-primary ring-2 ring-primary/40 backdrop-blur-xs animate-pulse select-none font-bold"
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0 truncate">
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping shrink-0" />
+                            <span className="truncate">{item.title}</span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 ml-1.5">
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-primary text-on-primary shrink-0 shadow-xs">
+                              {dragPreviewStartDate ? dragPreviewStartDate.slice(5) : ""} ~ {dragPreviewEndDate ? dragPreviewEndDate.slice(5) : ""}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 사진1 스타일의 얇고 세련된 반투명 간트 바 (드래그 전체 이동 & 양쪽 끝 리사이즈 완벽 지원) */}
                       {barPos && (
                         <div
+                          onMouseDown={(e) => handleBarMouseDown(e, item)}
+                          onClick={() => {
+                            if (justDraggedRef.current || hasDraggedRef.current) return;
+                            setActiveCommentItemId(item.id);
+                          }}
                           style={{
                             left: `${barPos.left}px`,
                             width: `${barPos.width}px`,
                             backgroundColor: isDark ? `${baseColor}44` : `${baseColor}25`,
                             borderColor: isDark ? `${baseColor}99` : `${baseColor}cc`,
                             borderWidth: "1.5px",
-                            borderStyle: "solid",
+                            borderStyle: isThisDragging ? "dashed" : "solid",
                             backdropFilter: "blur(2px)",
                           }}
-                          onClick={() => setActiveCommentItemId(item.id)}
-                          className={`group/bar absolute h-[26px] rounded-xs shadow-xs px-2 flex items-center justify-between text-xs truncate cursor-pointer hover:brightness-110 transition-all z-0 select-none ${
+                          className={`group/bar absolute h-[26px] rounded-xs shadow-xs px-2 flex items-center justify-between text-xs truncate cursor-grab active:cursor-grabbing hover:brightness-110 transition-all z-10 select-none ${
+                            isThisDragging ? "opacity-30 scale-95 pointer-events-none" : ""
+                          } ${
                             isDark ? "text-white font-medium" : "text-slate-900 font-bold"
                           }`}
-                          title={`${item.title} (${effectiveStartDate} ~ ${effectiveEndDate}) - 양쪽 핸들을 드래그하여 기간을 늘리거나 줄일 수 있습니다`}
+                          title={`${item.title} (${effectiveStartDate} ~ ${effectiveEndDate}) - 드래그하여 일정 이동, 양쪽 끝을 드래그하여 기간 조절`}
                         >
                           {/* 좌측 마우스 리사이즈 핸들 (시작일 늘리기/줄이기) */}
                           <div
                             onMouseDown={(e) => handleResizeStart(e, item, "start")}
-                            className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize rounded-l-xs opacity-0 group-hover/bar:opacity-100 transition-opacity z-10 ${
+                            className={`absolute left-0 top-0 bottom-0 w-2.5 cursor-ew-resize rounded-l-xs opacity-0 group-hover/bar:opacity-100 transition-opacity z-20 ${
                               isDark ? "hover:bg-white/40" : "hover:bg-black/20"
                             }`}
                             title="드래그하여 시작일 조절 (늘리기/줄이기)"
                           />
 
-                          {/* 바 타이틀 텍스트 (라이트 모드에서 검정 슬레이트 글씨, 다크 모드에서 흰색 글씨로 시인성 100% 보장) */}
+                          {/* 바 타이틀 텍스트 */}
                           <span
-                            className={`truncate text-xs font-semibold leading-none drop-shadow-xs ${
+                            className={`truncate text-xs font-semibold leading-none drop-shadow-xs pointer-events-none ${
                               isDark ? "text-white font-medium" : "text-slate-900 font-bold"
                             } ${isSingleDay ? "w-full text-center" : ""}`}
                           >
@@ -1550,7 +1753,7 @@ export function RoadmapView() {
                           {/* 2일 이상 넓은 바에서만 내부 댓글 말풍선 표시 */}
                           {!isSingleDay && barPos.width > 90 && item.comments.length > 0 && (
                             <span
-                              className={`text-xs shrink-0 ml-1.5 font-mono ${
+                              className={`text-xs shrink-0 ml-1.5 font-mono pointer-events-none ${
                                 isDark ? "text-white/80" : "text-slate-800 font-bold"
                               }`}
                             >
@@ -1561,7 +1764,7 @@ export function RoadmapView() {
                           {/* 우측 마우스 리사이즈 핸들 (종료일 늘리기/줄이기) */}
                           <div
                             onMouseDown={(e) => handleResizeStart(e, item, "end")}
-                            className={`absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize rounded-r-xs opacity-0 group-hover/bar:opacity-100 transition-opacity z-10 ${
+                            className={`absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize rounded-r-xs opacity-0 group-hover/bar:opacity-100 transition-opacity z-20 ${
                               isDark ? "hover:bg-white/40" : "hover:bg-black/20"
                             }`}
                             title="드래그하여 종료일 조절 (늘리기/줄이기)"

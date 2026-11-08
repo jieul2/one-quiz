@@ -1,172 +1,287 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { ShieldCheck, MessageSquare, Send } from "lucide-react";
+import {
+  ShieldCheck,
+  MessageSquare,
+  Send,
+  Users,
+  Hash,
+  ExternalLink,
+  Sparkles,
+} from "lucide-react";
+import { toast } from "@/lib/toast";
 
-interface Message {
-  id: string;
-  sender: "user" | "peer";
-  text: string;
-  time: string;
+interface ChatMessageItem {
+  _id: string;
+  senderEmail: string;
+  senderName: string;
+  content: string;
+  createdAt: string;
+}
+
+interface GroupSummary {
+  _id: string;
+  name: string;
+  category: string;
 }
 
 export function ChatView() {
   const { data: session } = useSession();
-  const userName = session?.user?.name || "학습자";
+  const userEmail = session?.user?.email;
 
-  const [activeChannel, setActiveChannel] = useState("원퀴즈 스터디 라운지");
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [activeChannel, setActiveChannel] = useState("전체 라운지");
+  const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [inputText, setInputText] = useState("");
+  const [myGroups, setMyGroups] = useState<GroupSummary[]>([]);
 
-  const handleSend = (e: React.FormEvent) => {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // 1. 내 그룹 목록 조회
+  useEffect(() => {
+    let ignore = false;
+    async function fetchGroups() {
+      try {
+        const res = await fetch("/api/groups");
+        if (res.ok && !ignore) {
+          const data = await res.json();
+          setMyGroups(data.myGroups || []);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    fetchGroups();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  // 2. 메시지 로드 (글로벌 라운지)
+  useEffect(() => {
+    let ignore = false;
+    async function loadMessages() {
+      try {
+        const res = await fetch(`/api/chat?groupId=global&channel=${encodeURIComponent(activeChannel)}`);
+        if (res.ok && !ignore) {
+          const data = await res.json();
+          setMessages(data.messages || []);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    loadMessages();
+    return () => {
+      ignore = true;
+    };
+  }, [activeChannel]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // 3. 메시지 전송
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
 
-    const now = new Date();
-    const timeStr = `${now.getHours() < 12 ? "오전" : "오후"} ${now.getHours() % 12 || 12}:${String(now.getMinutes()).padStart(2, "0")}`;
-
-    const newMsg: Message = {
-      id: Date.now().toString(),
-      sender: "user",
-      text: inputText.trim(),
-      time: timeStr,
-    };
-
-    setMessages((prev) => [...prev, newMsg]);
+    const sendingContent = inputText.trim();
     setInputText("");
 
-    // Simulated peer echo response
-    setTimeout(() => {
-      const echoMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        sender: "peer",
-        text: "좋은 의견입니다! 오답 노트를 원퀴즈 일기장에 기록해 두시면 복습할 때 훨씬 기억에 잘 남습니다.",
-        time: timeStr,
-      };
-      setMessages((prev) => [...prev, echoMsg]);
-    }, 1000);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          groupId: "global",
+          channelName: activeChannel,
+          content: sendingContent,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setMessages((prev) => [...prev, data.message]);
+      }
+    } catch {
+      toast.error("메시지 전송에 실패했습니다.");
+    }
   };
 
+  const channels = ["전체 라운지", "기출 풀이 Q&A", "공부 인증", "스터디 모집"];
+
   return (
-    <div className="flex flex-col w-full gap-space-lg">
-      {/* 상단 헤더 (라운딩 박스 없이 플랫 헤더) */}
+    <div className="w-full space-y-4">
+      {/* 상단 플랫 헤더 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="ui-page-title">
-              스터디 채팅
-            </h1>
-            <span className="ui-badge inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container text-primary border border-outline-variant">
+            <h1 className="ui-page-title text-on-surface">스터디 라운지 & 그룹 채팅</h1>
+            <span className="ui-badge inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-primary border border-outline-variant font-semibold">
               <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-              보안 연결
+              실시간 라운지
             </span>
           </div>
-          <p className="ui-page-subtitle mt-0.5">
-            원퀴즈 스터디 동료들과 실시간으로 질의응답을 나누고 학습 팁을 공유하세요.
+          <p className="ui-page-subtitle block mt-0.5">
+            원퀴즈 스터디 동료들과 실시간으로 질의응답을 나누고, 참여 중인 스터디 그룹 전용 채팅방으로 바로 이동하세요.
           </p>
         </div>
+
+        <Link
+          href="/groups"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-on-primary font-medium ui-button hover:opacity-90 transition-all cursor-pointer shadow-xs self-start sm:self-auto"
+        >
+          <Users size={13} />
+          <span>스터디 그룹 관리</span>
+        </Link>
       </div>
 
-      <div className="w-full bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-xs flex flex-col md:flex-row overflow-hidden h-[620px]">
-        {/* Left Channels List */}
-        <div className="w-full md:w-72 bg-surface-container-low/40 border-r border-outline-variant flex flex-col justify-between shrink-0">
-          <div className="p-space-md flex flex-col gap-2">
-            <span className="font-label-sm font-bold text-on-surface-variant px-1">대화 채널</span>
-            {["원퀴즈 스터디 라운지", "정보처리기사 Q&A", "알고리즘 코테방"].map((ch) => (
-              <button
-                key={ch}
-                onClick={() => setActiveChannel(ch)}
-                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-body-sm text-left transition-colors ${
-                  activeChannel === ch
-                    ? "bg-surface-container-lowest text-on-surface font-bold shadow-xs border border-outline-variant"
-                    : "text-on-surface-variant hover:bg-surface-container-low"
-                }`}
-              >
-                <MessageSquare className="w-4 h-4 text-primary" />
-                <span className="truncate">{ch}</span>
-              </button>
-            ))}
+      {/* 2열 구조 (채널 + 채팅 화면) */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 h-[580px]">
+        {/* 좌측 채널 및 소속 그룹 */}
+        <div className="md:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-3 flex flex-col justify-between overflow-y-auto">
+          <div className="space-y-4">
+            {/* 1. 공개 라운지 채널 */}
+            <div>
+              <span className="ui-caption font-bold text-on-surface-variant px-1 block mb-1">
+                공개 라운지 채널
+              </span>
+              <div className="space-y-1">
+                {channels.map((ch) => (
+                  <button
+                    key={ch}
+                    onClick={() => setActiveChannel(ch)}
+                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg ui-body transition-colors cursor-pointer text-left ${
+                      activeChannel === ch
+                        ? "bg-surface-container text-primary font-semibold"
+                        : "text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
+                    }`}
+                  >
+                    <Hash size={14} className={activeChannel === ch ? "text-primary" : "text-on-surface-variant"} />
+                    <span>{ch}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. 내가 참여 중인 스터디 그룹 */}
+            <div className="pt-2 border-t border-outline-variant">
+              <div className="flex items-center justify-between px-1 mb-1.5">
+                <span className="ui-caption font-bold text-on-surface-variant">
+                  내 스터디 그룹 ({myGroups.length})
+                </span>
+                <Link href="/groups" className="text-[11px] text-primary hover:underline">
+                  전체보기
+                </Link>
+              </div>
+
+              {myGroups.length === 0 ? (
+                <div className="p-3 text-center bg-surface-container-low rounded-lg text-xs text-on-surface-variant">
+                  참여 중인 스터디 그룹이 없습니다.
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {myGroups.map((g) => (
+                    <Link
+                      key={g._id}
+                      href={`/groups/${g._id}`}
+                      className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-surface-container-low hover:bg-surface-container border border-outline-variant/60 text-xs transition-colors group"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <Users size={12} className="text-secondary" />
+                        <span className="font-semibold text-on-surface group-hover:text-primary transition-colors">
+                          {g.name}
+                        </span>
+                      </div>
+                      <ExternalLink size={11} className="text-on-surface-variant" />
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="p-space-md border-t border-outline-variant flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[12px]">
-              {userName[0]}
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="font-label-sm font-semibold text-on-surface truncate">{userName}</span>
-              <span className="text-[10px] text-emerald-500 font-medium">온라인</span>
-            </div>
+          <div className="p-2.5 bg-surface-container-low rounded-lg text-xs text-on-surface-variant flex items-center gap-2">
+            <Sparkles size={14} className="text-primary shrink-0" />
+            <span>건전하고 유익한 스터디 문화를 지켜주세요.</span>
           </div>
         </div>
 
-        {/* Right Chat Conversation Box */}
-        <div className="flex-1 flex flex-col justify-between h-full bg-surface-container-lowest">
-          {/* Chat Channel Header */}
-          <div className="p-space-md border-b border-outline-variant flex items-center justify-between">
+        {/* 우측 채팅 영역 */}
+        <div className="md:col-span-8 bg-surface-container-lowest border border-outline-variant rounded-xl flex flex-col overflow-hidden">
+          {/* 채널 헤더 */}
+          <div className="px-4 py-3 border-b border-outline-variant flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="font-headline-sm font-bold text-on-surface">{activeChannel}</span>
-              <span className="text-caption text-on-surface-variant">· 4명 참여 중</span>
+              <Hash size={16} className="text-primary" />
+              <span className="ui-card-title text-on-surface">{activeChannel}</span>
             </div>
+            <span className="text-[11px] text-on-surface-variant">
+              {messages.length}개 메시지
+            </span>
           </div>
 
-          {/* Messages Flow */}
-          <div className="flex-1 p-space-md overflow-y-auto flex flex-col gap-space-sm">
+          {/* 메시지 스트림 */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {messages.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-on-surface-variant">
-                <MessageSquare className="w-10 h-10 opacity-30 mb-2 text-primary" />
-                <p className="text-sm font-semibold text-on-surface">대화 내역이 없습니다</p>
-                <p className="text-xs text-on-surface-variant font-light mt-1">
-                  &quot;{activeChannel}&quot;에 첫 메시지를 보내 스터디원들과 대화를 시작해보세요.
-                </p>
+              <div className="h-full flex flex-col items-center justify-center text-center text-on-surface-variant gap-2">
+                <MessageSquare size={24} className="opacity-40" />
+                <p className="ui-body">#{activeChannel} 채널에 아직 메시지가 없습니다.</p>
+                <p className="ui-caption">동료 학습자들에게 인사를 건네보세요!</p>
               </div>
             ) : (
-              messages.map((m) => {
-                const isMe = m.sender === "user";
+              messages.map((msg) => {
+                const isMine = msg.senderEmail === userEmail;
                 return (
                   <div
-                    key={m.id}
-                    className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
+                    key={msg._id}
+                    className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}
                   >
-                    <div className="flex items-baseline gap-1.5 mb-0.5">
-                      <span className="font-label-sm text-[11px] font-semibold text-on-surface-variant">
-                        {isMe ? userName : "스터디 멘토"}
+                    <div className="flex items-center gap-1.5 text-[10px] text-on-surface-variant px-1 mb-0.5">
+                      <span className="font-semibold">{msg.senderName}</span>
+                      <span>
+                        {new Date(msg.createdAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
-                      <span className="text-[10px] text-on-surface-variant opacity-70">{m.time}</span>
                     </div>
                     <div
-                      className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-body-sm leading-relaxed ${
-                        isMe
-                          ? "bg-primary text-on-primary rounded-tr-xs shadow-xs"
-                          : "bg-surface-container-low text-on-surface rounded-tl-xs border border-outline-variant"
+                      className={`max-w-[80%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
+                        isMine
+                          ? "bg-primary text-on-primary rounded-tr-none shadow-xs"
+                          : "bg-surface-container text-on-surface rounded-tl-none border border-outline-variant"
                       }`}
                     >
-                      {m.text}
+                      {msg.content}
                     </div>
                   </div>
                 );
               })
             )}
+            <div ref={messagesEndRef} />
           </div>
 
-          {/* Chat Input Bar */}
+          {/* 하단 입력 폼 */}
           <form
             onSubmit={handleSend}
-            className="p-space-md border-t border-outline-variant flex items-center gap-2 bg-surface-container-lowest"
+            className="p-3 border-t border-outline-variant flex items-center gap-2 bg-surface-container-lowest"
           >
             <input
               type="text"
-              placeholder="메시지를 입력하세요 (Enter로 전송)..."
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              className="flex-1 bg-surface-container-low px-4 py-2.5 rounded-xl border border-outline-variant text-body-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary"
+              placeholder={`#${activeChannel} 채널에 메시지 입력...`}
+              className="flex-1 px-3.5 py-2.5 bg-surface-container-low border border-outline-variant rounded-xl text-xs text-on-surface outline-hidden focus:border-primary transition-colors"
             />
             <button
               type="submit"
-              className="p-2.5 rounded-xl bg-primary text-on-primary hover:opacity-90 transition-opacity shrink-0 flex items-center justify-center shadow-xs"
-              title="전송"
+              disabled={!inputText.trim()}
+              className="p-2.5 bg-primary disabled:opacity-40 text-on-primary rounded-xl hover:opacity-90 transition-opacity cursor-pointer shrink-0 shadow-xs"
             >
-              <Send className="w-4 h-4" />
+              <Send size={15} />
             </button>
           </form>
         </div>

@@ -27,8 +27,11 @@ import { oneLight } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import {
   getQuestions,
   updateCachedQuestionHistory,
+  invalidateQuestionsCache,
   QuestionItem as QuestionType,
 } from "@/lib/questionsClient";
+import { toast } from "@/lib/toast";
+import { alertModal } from "@/lib/alert";
 import { AppShell } from "@/components/layout/AppShell";
 
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -260,12 +263,15 @@ function ExamContent() {
     [paramSubject, paramExamType],
   );
 
-  // 1. 문제 리스트 로드
+  const userEmail = session?.user?.email;
+
+  // 1. 문제 리스트 로드 (사용자 계정 상태에 따라 캐시 무효화 및 유저별 독립 풀이 이력 로드)
   useEffect(() => {
     let ignore = false;
     async function loadData() {
       try {
-        const data = await getQuestions();
+        invalidateQuestionsCache();
+        const data = await getQuestions(true);
         if (!ignore) {
           setRawQuestions(data);
           filterAndSelectQuestions(data, appliedCountMode, appliedUnsolved, appliedSequential);
@@ -278,7 +284,7 @@ function ExamContent() {
     return () => {
       ignore = true;
     };
-  }, [filterAndSelectQuestions, appliedCountMode, appliedUnsolved, appliedSequential]);
+  }, [filterAndSelectQuestions, appliedCountMode, appliedUnsolved, appliedSequential, userEmail]);
 
   const handleApplyNewSet = () => {
     setAppliedCountMode(pendingCountMode);
@@ -297,7 +303,8 @@ function ExamContent() {
   };
 
   const handleSubmit = async (qId: string, question: QuestionType) => {
-    const userAnswer = userAnswers[qId]?.trim().toLowerCase();
+    const rawAnswer = userAnswers[qId]?.trim() || "";
+    const userAnswer = rawAnswer.toLowerCase();
     if (!userAnswer) return;
 
     const activeCorrectAnswer =
@@ -313,16 +320,20 @@ function ExamContent() {
     setResults((prev) => ({ ...prev, [qId]: isCorrect }));
     setShowExplanation((prev) => ({ ...prev, [qId]: true }));
 
-    // 캐시 및 DB 업데이트
+    // 캐시 및 DB 업데이트 (유저별 독립 이력)
     const newAttempt = { isCorrect, timestamp: new Date().toISOString() };
     const updatedHistory = [...(question.history || []), newAttempt];
     updateCachedQuestionHistory(qId, updatedHistory);
+
     try {
-      await fetch(`/api/questions/${qId}/history`, {
+      const res = await fetch(`/api/questions/${qId}/history`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isCorrect }),
+        body: JSON.stringify({ isCorrect, userAnswer: rawAnswer }),
       });
+      if (res.status === 401) {
+        toast.info("로그인하면 문제 풀이 기록과 정답률이 나만의 계정에 안전하게 저장됩니다.");
+      }
     } catch (e) {
       console.error(e);
     }
@@ -711,15 +722,16 @@ function ExamContent() {
                                       }),
                                     });
                                     if (res.ok) {
-                                      alert(
-                                        "관리자에게 문제 오류 신고가 접수되었습니다. 감사합니다!",
+                                      alertModal.success(
+                                        "관리자에게 문제 오류 신고가 접수되었습니다. 검토 후 신속히 반영하겠습니다!",
+                                        "신고 접수 완료"
                                       );
                                     } else {
-                                      alert("신고 접수 중 오류가 발생했습니다.");
+                                      alertModal.error("신고 접수 중 오류가 발생했습니다.");
                                     }
                                   } catch (e) {
                                     console.error(e);
-                                    alert("서버 오류가 발생했습니다.");
+                                    alertModal.error("서버 통신 중 오류가 발생했습니다.");
                                   }
                                 }}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive text-xs font-bold rounded-lg transition-colors cursor-pointer"

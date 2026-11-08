@@ -25,6 +25,12 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
+  BookCopy,
+  Plus,
+  Trash2,
+  Tag,
+  Copy,
+  Check,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { SaveStatusIndicator, SaveStatus } from "@/components/common/SaveStatusIndicator";
@@ -49,11 +55,14 @@ interface DiaryType {
 }
 
 interface NoteItem {
-  id: string;
+  _id: string;
   folder: string;
   title: string;
   content: string;
-  updatedAt: string;
+  tags?: string[];
+  sourceDiaryId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 const WEATHER_OPTIONS = [
@@ -74,6 +83,14 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
   // 저장 상태 인디케이터 관리
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [savedTimeStr, setSavedTimeStr] = useState<string>("");
+
+  const markSaved = () => {
+    const now = new Date();
+    setSavedTimeStr(
+      `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
+    );
+    setSaveStatus("saved");
+  };
 
   // 일기 카드 펼침/접힘 상태 (기본 디폴트: 모두 접혀있음)
   const [expandedDiaryIds, setExpandedDiaryIds] = useState<Set<string>>(new Set());
@@ -111,26 +128,258 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
   // Image Lightbox Viewer
   const [viewingImage, setViewingImage] = useState<string | null>(null);
 
-  // Notes state (localStorage backed)
+  // ================= 🌟 지식노트 (Notes) 상태 및 핸들러 =================
   const [notes, setNotes] = useState<NoteItem[]>([]);
+  const [isLoadingNotes, setIsLoadingNotes] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<string>("전체");
   const [selectedNote, setSelectedNote] = useState<NoteItem | null>(null);
 
-  // 로컬스토리지 노트 로드
+  // 새 노트 작성 / 수정 모달 상태
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [editingNote, setEditingNote] = useState<NoteItem | null>(null);
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteFolder, setNoteFolder] = useState("일반");
+  const [noteCustomFolder, setNoteCustomFolder] = useState("");
+  const [noteContent, setNoteContent] = useState("");
+  const [noteTags, setNoteTags] = useState<string[]>([]);
+  const [noteTagInput, setNoteTagInput] = useState("");
+  const [isNoteSubmitting, setIsNoteSubmitting] = useState(false);
+  const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
+
+  // 지식노트 초기 로드
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (typeof window !== "undefined") {
-        const saved = localStorage.getItem("onequiz_notes_data");
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed)) setNotes(parsed);
-          } catch {}
+    let ignore = false;
+    async function loadNotes() {
+      if (status === "authenticated") {
+        try {
+          const res = await fetch("/api/notes");
+          if (res.ok && !ignore) {
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              setNotes(data);
+              if (typeof window !== "undefined") {
+                localStorage.setItem("onequiz_notes_data", JSON.stringify(data));
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Failed to fetch notes:", e);
+        } finally {
+          if (!ignore) setIsLoadingNotes(false);
+        }
+      } else if (status === "unauthenticated") {
+        if (!ignore) setIsLoadingNotes(false);
+      }
+    }
+    loadNotes();
+    return () => {
+      ignore = true;
+    };
+  }, [status]);
+
+  // 폴더 목록 계산
+  const defaultFolders = React.useMemo(() => ["전체", "일반", "오늘의 일기", "생각 & 메모", "아이디어"], []);
+  const dynamicFolders = React.useMemo(() => {
+    const custom = new Set<string>();
+    notes.forEach((n) => {
+      if (n.folder && !defaultFolders.includes(n.folder)) {
+        custom.add(n.folder);
+      }
+    });
+    return [...defaultFolders, ...Array.from(custom)];
+  }, [notes, defaultFolders]);
+
+  // 지식노트 검색 및 필터링
+  const filteredNotes = React.useMemo(() => {
+    let list = notes;
+    if (selectedFolder !== "전체") {
+      list = list.filter((n) => n.folder === selectedFolder);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(
+        (n) =>
+          n.title.toLowerCase().includes(q) ||
+          n.content.toLowerCase().includes(q) ||
+          n.tags?.some((t) => t.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [notes, selectedFolder, searchQuery]);
+
+  // 새 노트 작성 모달 열기
+  const handleOpenCreateNoteModal = () => {
+    setEditingNote(null);
+    setNoteTitle("");
+    setNoteFolder(selectedFolder !== "전체" ? selectedFolder : "일반");
+    setNoteCustomFolder("");
+    setNoteContent("");
+    setNoteTags([]);
+    setNoteTagInput("");
+    setShowNoteModal(true);
+  };
+
+  // 기존 노트 수정 모달 열기
+  const handleOpenEditNoteModal = (note: NoteItem) => {
+    setEditingNote(note);
+    setNoteTitle(note.title);
+    setNoteFolder(note.folder);
+    setNoteCustomFolder("");
+    setNoteContent(note.content);
+    setNoteTags(note.tags || []);
+    setNoteTagInput("");
+    setShowNoteModal(true);
+  };
+
+  // 노트 저장 (신규 등록 또는 수정)
+  const handleSaveNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!noteTitle.trim()) {
+      toast.warning("노트 제목을 입력해주세요.");
+      return;
+    }
+    const targetFolder =
+      noteFolder === "__new__"
+        ? noteCustomFolder.trim() || "일반"
+        : noteFolder;
+
+    setIsNoteSubmitting(true);
+    setSaveStatus("saving");
+
+    try {
+      if (editingNote) {
+        const res = await fetch("/api/notes", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingNote._id,
+            title: noteTitle.trim(),
+            content: noteContent,
+            folder: targetFolder,
+            tags: noteTags,
+          }),
+        });
+
+        if (res.ok) {
+          const { note } = await res.json();
+          setNotes((prev) => prev.map((n) => (n._id === note._id ? note : n)));
+          setSelectedNote(note);
+          setShowNoteModal(false);
+          markSaved();
+          toast.success("지식노트가 성공적으로 수정되었습니다.");
+        } else {
+          toast.error("노트 수정에 실패했습니다.");
+        }
+      } else {
+        const res = await fetch("/api/notes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: noteTitle.trim(),
+            content: noteContent,
+            folder: targetFolder,
+            tags: noteTags,
+          }),
+        });
+
+        if (res.ok) {
+          const { note } = await res.json();
+          setNotes((prev) => [note, ...prev]);
+          setSelectedNote(note);
+          setSelectedFolder(targetFolder);
+          setShowNoteModal(false);
+          markSaved();
+          toast.success("새 지식노트가 등록되었습니다.");
+        } else {
+          toast.error("노트 생성에 실패했습니다.");
         }
       }
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
+    } catch {
+      toast.error("서버 통신 오류가 발생했습니다.");
+    } finally {
+      setIsNoteSubmitting(false);
+    }
+  };
+
+  // 노트 삭제
+  const handleDeleteNote = async (noteId: string) => {
+    if (!confirm("정말 이 지식노트를 삭제하시겠습니까?")) return;
+    try {
+      const res = await fetch(`/api/notes?id=${noteId}`, { method: "DELETE" });
+      if (res.ok) {
+        setNotes((prev) => prev.filter((n) => n._id !== noteId));
+        if (selectedNote?._id === noteId) {
+          setSelectedNote(null);
+        }
+        toast.success("지식노트가 삭제되었습니다.");
+      } else {
+        toast.error("노트 삭제 실패");
+      }
+    } catch {
+      toast.error("서버 통신 실패");
+    }
+  };
+
+  // 🌟 [핵심 기능] 일기 -> 지식노트로 내보내기/복사
+  const handleExportDiaryToNote = async (diary: DiaryType) => {
+    try {
+      setSaveStatus("saving");
+      const primaryItem =
+        diary.items && diary.items.length > 0
+          ? diary.items[0]
+          : { title: diary.title || "오늘의 일기", content: diary.content || "" };
+      const dateFormatted = new Date(diary.createdAt).toLocaleDateString("ko-KR", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      const noteTitle = primaryItem.title
+        ? `[일기 요약] ${primaryItem.title}`
+        : `${dateFormatted} 오늘의 일기`;
+
+      let combinedContent = "";
+      if (diary.items && diary.items.length > 0) {
+        combinedContent = diary.items
+          .map((it) => {
+            let itemText = `### ${it.title}\n\n${it.content}`;
+            if (it.images && it.images.length > 0) {
+              itemText += `\n\n> 📷 첨부 사진 ${it.images.length}장 포함\n` + it.images.map((url) => `![](${url})`).join("\n");
+            }
+            return itemText;
+          })
+          .join("\n\n---\n\n");
+      } else {
+        combinedContent = diary.content || "";
+      }
+
+      const fullContent = `> 📅 원본 일기 작성일: ${dateFormatted} (${diary.weather || "맑음"})\n\n${combinedContent}`;
+
+      const res = await fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: noteTitle,
+          content: fullContent,
+          folder: "오늘의 일기",
+          tags: ["일기", "일상기록"],
+          sourceDiaryId: diary._id,
+        }),
+      });
+
+      if (res.ok) {
+        const { note } = await res.json();
+        setNotes((prev) => [note, ...prev]);
+        setSelectedFolder("오늘의 일기");
+        setSelectedNote(note);
+        markSaved();
+        toast.success("일기가 지식노트('오늘의 일기' 폴더)로 복사되었습니다!", 3500);
+      } else {
+        toast.error("지식노트 저장에 실패했습니다.");
+      }
+    } catch {
+      toast.error("통신 오류가 발생했습니다.");
+    }
+  };
 
   // 일기 데이터 로드
   const fetchDiaries = async () => {
@@ -403,7 +652,7 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
                   : "text-on-surface-variant hover:text-on-surface font-light"
               }`}
             >
-              학습 일기
+              오늘의 일기
             </button>
             <button
               onClick={() => setActiveTab("notes")}
@@ -427,7 +676,7 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
             <Search className="w-4 h-4 absolute left-2.5 text-on-surface-variant pointer-events-none" />
             <input
               type="text"
-              placeholder="일기 검색..."
+              placeholder={activeTab === "diary" ? "일기 검색..." : "지식노트 검색..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-surface-container-low pl-8 pr-3 py-2 rounded-md border border-outline-variant text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary w-40 sm:w-48 font-medium"
@@ -471,24 +720,12 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
             </>
           ) : (
             <button
-              onClick={() => {
-                const titlePrompt = prompt("새 노트 제목을 입력하세요:");
-                if (titlePrompt) {
-                  const newN: NoteItem = {
-                    id: Date.now().toString(),
-                    folder: selectedFolder === "전체" ? "일반" : selectedFolder,
-                    title: titlePrompt,
-                    content: "내용을 입력하세요...",
-                    updatedAt: "2026-11-04",
-                  };
-                  setNotes([newN, ...notes]);
-                  setSelectedNote(newN);
-                }
-              }}
+              type="button"
+              onClick={handleOpenCreateNoteModal}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-on-primary text-sm font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer"
             >
-              <FilePlus className="w-4 h-4" />
-              <span>새 노트</span>
+              <Plus className="w-4 h-4" />
+              <span>새 지식노트 작성</span>
             </button>
           )}
         </div>
@@ -503,7 +740,7 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
               <Lock className="w-12 h-12 text-on-surface-variant opacity-40" />
               <p className="font-headline-sm font-bold text-on-surface">로그인이 필요한 기능입니다</p>
               <p className="text-body-sm text-on-surface-variant">
-                하루 1회 나만의 학습 일기를 기록하고 회고해보세요.
+                하루 1회 나만의 소중한 하루와 일상을 기록해보세요.
               </p>
               <button
                 onClick={() => signIn()}
@@ -522,7 +759,7 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
               <BookOpen className="w-12 h-12 text-on-surface-variant opacity-40" />
               <p className="ui-card-title">작성된 일기가 없습니다</p>
               <p className="ui-caption">
-                오늘 공부하며 느낀 점이나 배운 핵심 개념, 스크린샷 사진을 첫 일기로 남겨보세요.
+                오늘 하루를 보내며 느낀 생각이나 소중한 순간, 사진을 첫 일기로 남겨보세요.
               </p>
               <button
                 onClick={() => {
@@ -557,7 +794,7 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
                     ? diary.items
                     : [
                         {
-                          title: diary.title || "오늘의 학습 기록",
+                          title: diary.title || "오늘의 일기",
                           content: diary.content || "",
                           images: [],
                         },
@@ -612,13 +849,26 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
 
                       {/* 카드 하단 메타 및 열기 컨트롤 */}
                       <div className="flex items-center justify-between pt-2 border-t border-outline-variant/60 text-xs text-on-surface-variant">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           {totalImageCount > 0 && (
                             <span className="flex items-center gap-1 text-[10px] bg-surface-container border border-outline-variant px-1.5 py-0.5 rounded font-medium text-on-surface-variant">
                               <ImageIcon size={11} className="text-primary" />
                               <span>사진 {totalImageCount}장</span>
                             </span>
                           )}
+                          {/* 🌟 일기 -> 지식노트로 복사 버튼 */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleExportDiaryToNote(diary);
+                            }}
+                            className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-container hover:bg-primary/10 text-on-surface-variant hover:text-primary text-[10px] font-medium border border-outline-variant hover:border-primary/30 transition-colors cursor-pointer"
+                            title="이 일기를 지식노트로 복사/내보내기"
+                          >
+                            <BookCopy size={10} />
+                            <span>노트로 복사</span>
+                          </button>
                           {isToday && (
                             <button
                               type="button"
@@ -664,7 +914,18 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* 🌟 지식노트로 내보내기 버튼 */}
+                        <button
+                          type="button"
+                          onClick={() => handleExportDiaryToNote(diary)}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded bg-surface-container hover:bg-primary/10 text-on-surface-variant hover:text-primary text-[11px] font-medium border border-outline-variant hover:border-primary/30 transition-colors cursor-pointer"
+                          title="이 일기를 지식노트로 복사/내보내기"
+                        >
+                          <BookCopy size={11} />
+                          <span>지식노트로 내보내기</span>
+                        </button>
+
                         {/* 날씨 뱃지 */}
                         <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-container text-[11px] font-medium text-on-surface-variant border border-outline-variant">
                           <WeatherIcon className="w-3 h-3 text-primary" />
@@ -724,7 +985,7 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
                                   >
                                     <img
                                       src={imgUrl}
-                                      alt={`학습 사진 ${imgIdx + 1}`}
+                                      alt={`첨부 사진 ${imgIdx + 1}`}
                                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                     />
                                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
@@ -757,67 +1018,264 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
           )}
         </div>
       ) : (
-        /* ================= NOTES SECTION (원퀴즈 폴더 스타일) ================= */
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-space-md items-start">
-          {/* Folders List (Col 4) */}
-          <div className="md:col-span-4 p-space-md bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-xs flex flex-col gap-2">
-            <span className="font-label-sm text-on-surface-variant font-bold px-1">폴더 목록</span>
-            {["전체", "일반", "기출 요약", "스터디 노트"].map((folderName) => {
-              const count = folderName === "전체" ? notes.length : notes.filter((n) => n.folder === folderName).length;
-              return (
-                <button
-                  key={folderName}
-                  onClick={() => setSelectedFolder(folderName)}
-                  className={`flex items-center justify-between px-3 py-2 rounded-xl text-body-sm transition-colors cursor-pointer ${
-                    selectedFolder === folderName
-                      ? "bg-surface-container text-on-surface font-bold border border-outline-variant/60 shadow-xs"
-                      : "text-on-surface-variant hover:bg-surface-container-low"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Folder className="w-4 h-4 text-primary" />
-                    <span>{folderName}</span>
-                  </div>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-surface-container-high font-mono">
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
+        /* ================= NOTES SECTION (지식노트 2열 워크스테이션) ================= */
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+          {/* 좌측: 폴더 및 노트 목록 (Col 5) */}
+          <div className="md:col-span-5 flex flex-col gap-3">
+            {/* 1. 폴더 가로 필터 */}
+            <div className="p-3 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-2xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                  폴더 선택
+                </span>
+                <span className="text-[11px] text-on-surface-variant">
+                  총 {notes.length}개의 노트
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {dynamicFolders.map((folderName) => {
+                  const count =
+                    folderName === "전체"
+                      ? notes.length
+                      : notes.filter((n) => n.folder === folderName).length;
+                  const isSelected = selectedFolder === folderName;
+                  return (
+                    <button
+                      key={folderName}
+                      type="button"
+                      onClick={() => setSelectedFolder(folderName)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                        isSelected
+                          ? "bg-primary text-on-primary shadow-xs font-bold"
+                          : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container border border-outline-variant/60"
+                      }`}
+                    >
+                      <Folder className="w-3 h-3" />
+                      <span>{folderName}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                          isSelected
+                            ? "bg-on-primary/20 text-on-primary"
+                            : "bg-surface-container-high text-on-surface-variant"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2. 지식노트 카드 목록 */}
+            <div className="flex flex-col gap-2 max-h-[700px] overflow-y-auto pr-1">
+              {isLoadingNotes ? (
+                <div className="p-8 text-center text-on-surface-variant flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  <span className="text-xs">노트를 불러오는 중...</span>
+                </div>
+              ) : filteredNotes.length === 0 ? (
+                <div className="p-8 text-center bg-surface-container-lowest rounded-xl border border-dashed border-outline-variant flex flex-col items-center gap-2">
+                  <FilePlus className="w-8 h-8 text-on-surface-variant opacity-40 mb-1" />
+                  <p className="font-semibold text-xs text-on-surface">작성된 지식노트가 없습니다</p>
+                  <p className="text-[11px] text-on-surface-variant">
+                    {searchQuery
+                      ? `"${searchQuery}"에 일치하는 노트가 없습니다.`
+                      : selectedFolder !== "전체"
+                      ? `"${selectedFolder}" 폴더에 노트가 없습니다.`
+                      : "일기에서 복사하거나 새 지식노트를 작성해보세요."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleOpenCreateNoteModal}
+                    className="mt-2 px-3 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-bold shadow-xs cursor-pointer hover:opacity-90 transition-opacity"
+                  >
+                    + 새 지식노트 만들기
+                  </button>
+                </div>
+              ) : (
+                filteredNotes.map((note) => {
+                  const isSelected = selectedNote?._id === note._id;
+                  const dateStr = note.updatedAt
+                    ? new Date(note.updatedAt).toLocaleDateString("ko-KR", {
+                        month: "short",
+                        day: "numeric",
+                      })
+                    : "";
+
+                  return (
+                    <div
+                      key={note._id}
+                      onClick={() => setSelectedNote(note)}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-1.5 group ${
+                        isSelected
+                          ? "bg-surface-container-low border-primary ring-1 ring-primary/30 shadow-xs"
+                          : "bg-surface-container-lowest border-outline-variant hover:border-primary/40 hover:bg-surface-container-lowest/80"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 shrink-0">
+                            {note.folder}
+                          </span>
+                          {note.sourceDiaryId && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-surface-container text-on-surface-variant border border-outline-variant shrink-0 flex items-center gap-1">
+                              <BookCopy size={9} className="text-primary" />
+                              <span>일기연동</span>
+                            </span>
+                          )}
+                          <h4
+                            className={`text-xs sm:text-sm font-semibold truncate ${
+                              isSelected ? "text-primary" : "text-on-surface group-hover:text-primary"
+                            }`}
+                          >
+                            {note.title}
+                          </h4>
+                        </div>
+                        {dateStr && (
+                          <span className="text-[10px] text-on-surface-variant/70 shrink-0 font-mono">
+                            {dateStr}
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-[11px] text-on-surface-variant line-clamp-2 leading-relaxed font-light">
+                        {note.content}
+                      </p>
+
+                      {note.tags && note.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {note.tags.map((t, idx) => (
+                            <span
+                              key={idx}
+                              className="text-[9px] px-1.5 py-0.2 rounded bg-surface-container text-on-surface-variant border border-outline-variant/60"
+                            >
+                              #{t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
 
-          {/* Notes List & Editor (Col 8) */}
-          <div className="md:col-span-8 flex flex-col gap-space-sm">
-            {notes.filter((n) => selectedFolder === "전체" || n.folder === selectedFolder).length === 0 ? (
-              <div className="p-12 text-center bg-surface-container-lowest rounded-xl border border-dashed border-outline-variant flex flex-col items-center gap-2">
-                <FilePlus className="w-8 h-8 text-on-surface-variant opacity-40 mb-1" />
-                <p className="ui-card-title">작성된 지식 노트가 없습니다</p>
-                <p className="ui-caption">
-                  {selectedFolder !== "전체" ? `"${selectedFolder}" 폴더에 노트가 없습니다.` : "학습한 핵심 개념이나 요약 노트를 기록해보세요."}
-                </p>
+          {/* 우측: 선택된 노트 상세 뷰어 & 액션 (Col 7) */}
+          <div className="md:col-span-7 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-2xs p-4 sm:p-5 flex flex-col min-h-[500px]">
+            {selectedNote ? (
+              <div className="flex flex-col h-full gap-3">
+                {/* 헤더 & 컨트롤 */}
+                <div className="flex items-start justify-between border-b border-outline-variant/60 pb-3 gap-2">
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                        {selectedNote.folder}
+                      </span>
+                      {selectedNote.sourceDiaryId && (
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-surface-container text-on-surface-variant border border-outline-variant flex items-center gap-1">
+                          <BookCopy size={11} className="text-primary" />
+                          <span>일기에서 가져온 노트</span>
+                        </span>
+                      )}
+                      <span className="text-[11px] text-on-surface-variant font-mono">
+                        {selectedNote.updatedAt
+                          ? `수정일: ${new Date(selectedNote.updatedAt).toLocaleDateString("ko-KR", {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}`
+                          : ""}
+                      </span>
+                    </div>
+                    <h3 className="text-base sm:text-lg font-bold text-on-surface mt-1">
+                      {selectedNote.title}
+                    </h3>
+                  </div>
+
+                  {/* 액션 버튼들 */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* 본문 복사 버튼 */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(selectedNote.content);
+                        setCopiedNoteId(selectedNote._id);
+                        toast.success("노트 내용이 클립보드에 복사되었습니다.");
+                        setTimeout(() => setCopiedNoteId(null), 2000);
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface text-xs font-medium border border-outline-variant transition-colors cursor-pointer"
+                      title="내용 클립보드 복사"
+                    >
+                      {copiedNoteId === selectedNote._id ? (
+                        <>
+                          <Check size={12} className="text-primary" />
+                          <span className="text-primary font-semibold">복사됨</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={12} />
+                          <span>복사</span>
+                        </>
+                      )}
+                    </button>
+
+                    {/* 수정 버튼 */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditNoteModal(selectedNote)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface text-xs font-medium border border-outline-variant transition-colors cursor-pointer"
+                      title="노트 수정"
+                    >
+                      <Edit3 size={12} />
+                      <span>수정</span>
+                    </button>
+
+                    {/* 삭제 버튼 */}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteNote(selectedNote._id)}
+                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-error/10 hover:bg-error/20 text-error text-xs font-medium border border-error/30 transition-colors cursor-pointer"
+                      title="노트 삭제"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 태그 리스트 */}
+                {selectedNote.tags && selectedNote.tags.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    <Tag size={12} className="text-on-surface-variant" />
+                    {selectedNote.tags.map((t, idx) => (
+                      <span
+                        key={idx}
+                        className="text-xs px-2 py-0.5 rounded-md bg-surface-container text-on-surface-variant border border-outline-variant font-medium"
+                      >
+                        #{t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* 본문 뷰어 */}
+                <div className="flex-1 mt-2 p-3 sm:p-4 rounded-xl bg-surface-container-low/60 border border-outline-variant/60 overflow-y-auto max-h-[550px]">
+                  <p className="text-xs sm:text-sm text-on-surface font-normal whitespace-pre-wrap leading-relaxed select-text">
+                    {selectedNote.content}
+                  </p>
+                </div>
               </div>
             ) : (
-              notes
-                .filter((n) => selectedFolder === "전체" || n.folder === selectedFolder)
-                .map((note) => (
-                  <div
-                    key={note.id}
-                    onClick={() => setSelectedNote(note)}
-                    className={`p-space-md rounded-2xl border transition-all cursor-pointer ${
-                      selectedNote?.id === note.id
-                        ? "bg-surface-container-low border-primary ring-1 ring-primary/20"
-                        : "bg-surface-container-lowest border-outline-variant hover:bg-surface-container-low/50"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-headline-sm font-bold text-on-surface">{note.title}</span>
-                      <span className="text-[11px] text-on-surface-variant font-mono">{note.updatedAt}</span>
-                    </div>
-                    <p className="text-body-sm text-on-surface-variant line-clamp-2 whitespace-pre-wrap">
-                      {note.content}
-                    </p>
-                  </div>
-                ))
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-on-surface-variant gap-2.5">
+                <BookOpen className="w-10 h-10 opacity-30 text-primary" />
+                <p className="text-sm font-semibold text-on-surface">노트를 선택해주세요</p>
+                <p className="text-xs max-w-xs leading-relaxed">
+                  좌측 목록에서 노트를 클릭하여 상세 내용을 보거나, 상단의 새 지식노트 작성 버튼을 눌러보세요.
+                </p>
+              </div>
             )}
           </div>
         </div>
@@ -828,7 +1286,7 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
           <div className="w-full max-w-lg bg-surface-container-lowest border border-outline-variant rounded-lg shadow-xl p-5 sm:p-6 flex flex-col gap-4 text-on-surface">
             <div className="flex items-center justify-between border-b border-outline-variant pb-2.5">
-              <span className="font-semibold text-base text-on-surface">오늘의 학습 일기</span>
+              <span className="font-semibold text-base text-on-surface">오늘의 일기 쓰기</span>
               <button
                 onClick={() => setShowWriteModal(false)}
                 className="p-1 rounded-md hover:bg-surface-container text-on-surface-variant cursor-pointer transition-colors"
@@ -871,7 +1329,7 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
                 <input
                   type="text"
                   required
-                  placeholder="예: 기출 30문제 풀이 및 취약점 분석"
+                  placeholder="예: 오늘 하루의 소중한 순간과 생각"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="bg-surface-container-low p-2 rounded-md border border-outline-variant text-on-surface focus:outline-none focus:border-primary font-medium text-xs sm:text-sm"
@@ -881,12 +1339,12 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
               {/* 내용 */}
               <div className="flex flex-col gap-1">
                 <label className="font-semibold text-on-surface text-xs">
-                  오늘의 회고 내용 <span className="text-destructive">*</span>
+                  오늘의 일기 내용 <span className="text-destructive">*</span>
                 </label>
                 <textarea
                   required
                   rows={4}
-                  placeholder="오늘 어떤 내용을 학습했고, 어떤 점을 보완해야 할지 기록하세요..."
+                  placeholder="오늘 하루 있었던 일, 생각과 느낌, 기록하고 싶은 순간을 자유롭게 적어보세요..."
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   className="bg-surface-container-low p-2 rounded-md border border-outline-variant text-on-surface focus:outline-none focus:border-primary resize-none font-normal leading-relaxed text-xs sm:text-sm"
@@ -896,7 +1354,7 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
               {/* 🌟 Cloudinary 사진 업로드 컨트롤 */}
               <div className="space-y-2 pt-1 border-t border-outline-variant/60">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-on-surface text-xs">학습 사진 첨부</span>
+                  <span className="font-semibold text-on-surface text-xs">사진 첨부</span>
                   <label className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-md text-xs font-medium transition-colors cursor-pointer">
                     <UploadCloud size={13} className="text-primary" />
                     <span>사진 추가 (Cloudinary)</span>
@@ -1016,7 +1474,7 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
 
               {/* 내용 */}
               <div className="flex flex-col gap-1">
-                <label className="font-semibold text-on-surface text-xs">회고 내용</label>
+                <label className="font-semibold text-on-surface text-xs">일기 내용</label>
                 <textarea
                   required
                   rows={4}
@@ -1117,6 +1575,161 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
               alt="확대 이미지"
               className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
             />
+          </div>
+        </div>
+      )}
+
+      {/* 6. 🌟 지식노트 작성 / 수정 모달 */}
+      {showNoteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="w-full max-w-lg bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl p-5 sm:p-6 flex flex-col gap-4 text-on-surface">
+            {/* 모달 헤더 */}
+            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
+              <span className="font-semibold text-base text-on-surface">
+                {editingNote ? "지식노트 수정" : "새 지식노트 작성"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowNoteModal(false)}
+                className="p-1 rounded-md hover:bg-surface-container text-on-surface-variant cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNote} className="flex flex-col gap-3.5 text-xs sm:text-sm">
+              {/* 폴더 선택 */}
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold text-on-surface text-xs">폴더 선택</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={noteFolder}
+                    onChange={(e) => setNoteFolder(e.target.value)}
+                    className="bg-surface-container-low p-2 rounded-md border border-outline-variant text-on-surface focus:outline-none focus:border-primary font-medium text-xs sm:text-sm"
+                  >
+                    {dynamicFolders
+                      .filter((f) => f !== "전체")
+                      .map((f) => (
+                        <option key={f} value={f}>
+                          {f}
+                        </option>
+                      ))}
+                    <option value="__new__">+ 새 폴더 직접 입력</option>
+                  </select>
+
+                  {noteFolder === "__new__" && (
+                    <input
+                      type="text"
+                      placeholder="새 폴더 이름"
+                      value={noteCustomFolder}
+                      onChange={(e) => setNoteCustomFolder(e.target.value)}
+                      className="bg-surface-container-low p-2 rounded-md border border-outline-variant text-on-surface focus:outline-none focus:border-primary font-medium text-xs sm:text-sm"
+                      required
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* 제목 */}
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold text-on-surface text-xs">노트 제목</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="예: JavaScript 비동기 처리 핵심 요약"
+                  value={noteTitle}
+                  onChange={(e) => setNoteTitle(e.target.value)}
+                  className="bg-surface-container-low p-2 rounded-md border border-outline-variant text-on-surface focus:outline-none focus:border-primary font-medium text-xs sm:text-sm"
+                />
+              </div>
+
+              {/* 태그 입력 */}
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold text-on-surface text-xs">태그 (선택)</label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="태그 입력 후 Enter 또는 추가 버튼"
+                    value={noteTagInput}
+                    onChange={(e) => setNoteTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const val = noteTagInput.trim().replace(/^#/, "");
+                        if (val && !noteTags.includes(val)) {
+                          setNoteTags((prev) => [...prev, val]);
+                          setNoteTagInput("");
+                        }
+                      }
+                    }}
+                    className="flex-1 bg-surface-container-low p-2 rounded-md border border-outline-variant text-on-surface focus:outline-none focus:border-primary font-medium text-xs sm:text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const val = noteTagInput.trim().replace(/^#/, "");
+                      if (val && !noteTags.includes(val)) {
+                        setNoteTags((prev) => [...prev, val]);
+                        setNoteTagInput("");
+                      }
+                    }}
+                    className="px-3 py-2 rounded-md bg-surface-container-high hover:bg-surface-container text-on-surface text-xs font-semibold border border-outline-variant cursor-pointer"
+                  >
+                    추가
+                  </button>
+                </div>
+                {noteTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1.5">
+                    {noteTags.map((tag, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 text-xs font-medium"
+                      >
+                        #{tag}
+                        <button
+                          type="button"
+                          onClick={() => setNoteTags((prev) => prev.filter((_, i) => i !== idx))}
+                          className="hover:text-error cursor-pointer"
+                        >
+                          <X size={10} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 내용 */}
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold text-on-surface text-xs">노트 내용</label>
+                <textarea
+                  required
+                  rows={8}
+                  placeholder="기록하고 싶은 지식, 아이디어, 정리한 내용이나 마크다운 메모를 자유롭게 입력하세요..."
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  className="bg-surface-container-low p-2.5 rounded-md border border-outline-variant text-on-surface focus:outline-none focus:border-primary resize-none font-normal leading-relaxed text-xs sm:text-sm"
+                />
+              </div>
+
+              {/* 모달 하단 버튼 */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-outline-variant">
+                <button
+                  type="button"
+                  onClick={() => setShowNoteModal(false)}
+                  className="px-3.5 py-1.5 rounded-md text-on-surface-variant hover:bg-surface-container font-medium text-xs cursor-pointer"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={isNoteSubmitting}
+                  className="px-4 py-1.5 rounded-md bg-primary text-on-primary font-bold text-xs hover:opacity-90 disabled:opacity-50 shadow-xs cursor-pointer"
+                >
+                  {isNoteSubmitting ? "저장 중..." : editingNote ? "수정 완료" : "노트 저장"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

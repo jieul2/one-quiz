@@ -4,10 +4,12 @@ import mongoose from 'mongoose';
 import { withAudit } from '@/lib/withAudit';
 
 const UserSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true },
+  email: { type: String, sparse: true },
   name: { type: String },
   image: { type: String },
   role: { type: String, default: 'user' }, // 'admin' 또는 'user'
+  provider: { type: String }, // 'google' | 'kakao'
+  providerAccountId: { type: String },
   lastLoginAt: { type: Date, default: Date.now },
 });
 

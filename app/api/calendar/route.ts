@@ -82,9 +82,20 @@ async function handlePut(req: Request) {
     return NextResponse.json({ success: false, error: "권한이 없습니다." }, { status: 403 });
   }
 
+  const toUpdate: Record<string, unknown> = {
+    ...updateData,
+    updatedAt: new Date(),
+  };
+  if (updateData.startDate) {
+    toUpdate.startDate = new Date(updateData.startDate);
+  }
+  if (updateData.endDate) {
+    toUpdate.endDate = new Date(updateData.endDate);
+  }
+
   const updated = await CalendarEvent.findByIdAndUpdate(
     _id,
-    { ...updateData, updatedAt: new Date() },
+    toUpdate,
     { returnDocument: "after" },
   );
 

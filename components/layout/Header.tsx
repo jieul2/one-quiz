@@ -9,20 +9,26 @@ interface HeaderProps {
 }
 
 const PAGE_TITLES: Record<string, { title: string; subtitle?: string }> = {
-  "/": { title: "대시보드", subtitle: "학습 현황과 일정을 한눈에 확인하세요" },
-  "/exam": { title: "기출문제 풀이", subtitle: "자가 학습 및 문제 풀이" },
-  "/exam/subject": { title: "과목 선택", subtitle: "응시할 과목을 선택하세요" },
-  "/exam/type": { title: "회차 선택", subtitle: "응시할 기출 회차를 선택하세요" },
-  "/calendar": { title: "캘린더", subtitle: "개인 일정 및 학습 플랜" },
-  "/diary": { title: "일기", subtitle: "오늘 하루의 배움과 회고" },
+  "/": { title: "대시보드", subtitle: "일정과 주요 업무, 워크스페이스 현황을 한눈에 확인하세요" },
+  "/calendar": { title: "캘린더", subtitle: "일정 및 프로젝트 마일스톤 관리" },
+  "/tasks": { title: "할일 플래너", subtitle: "오늘의 우선순위 체크리스트" },
+  "/diary": { title: "오늘의 일기", subtitle: "하루의 생각과 소중한 일상 기록" },
+  "/board": { title: "커뮤니티 광장", subtitle: "자유로운 소통과 토론, 질문 및 정보 공유" },
+  "/blog": { title: "인사이트 블로그", subtitle: "기술 아티클과 인사이트 기록" },
+  "/chat": { title: "라운지 채팅", subtitle: "실시간 대화와 소통" },
+  "/canvas": { title: "아이디어 캔버스", subtitle: "포스트잇과 회의를 위한 자유로운 2D 공간" },
+  "/mindmap": { title: "2D 마인드맵", subtitle: "생각 정리 및 브레인스토밍 구조화" },
+  "/projects": { title: "프로젝트 로드맵", subtitle: "프로젝트 진행 상황 및 마일스톤 관리" },
+  "/ideas": { title: "기능 백로그", subtitle: "아이디어와 백로그 보드" },
+  "/running": { title: "러닝(달리기) 기록", subtitle: "달리기 인증 및 AI 러닝 코치 피드백" },
+  "/drive": { title: "클라우드 드라이브", subtitle: "문서 및 파일 보관함" },
+  "/bookmarks": { title: "웹 북마크", subtitle: "자주 찾는 유용한 웹 링크 모음" },
+  "/groups": { title: "스터디 그룹", subtitle: "함께 공부하고 기능을 공유하는 그룹 공간" },
+  "/exam": { title: "기출문제 풀이", subtitle: "자가 진단 및 문제 풀이" },
+  "/exam/subject": { title: "기출문제 학습 설정", subtitle: "응시할 과목과 기출 회차를 선택하여 맞춤 모의고사를 시작하세요" },
+  "/exam/type": { title: "기출문제 회차 선택", subtitle: "과목 및 회차 선택 페이지로 연결됩니다" },
+  "/learning": { title: "학습 성장 리포트", subtitle: "180일 활동 잔디와 학습 통계" },
   "/notes": { title: "노트", subtitle: "나만의 지식 보관함" },
-  "/tasks": { title: "할일 관리", subtitle: "오늘의 우선순위 체크리스트" },
-  "/drive": { title: "드라이브", subtitle: "문서 및 학습 자료 보관함" },
-  "/bookmarks": { title: "북마크", subtitle: "자주 찾는 학습 링크 모음" },
-  "/contacts": { title: "연락처", subtitle: "스터디원 및 멘토 연락처" },
-  "/mindmap": { title: "마인드맵", subtitle: "생각 정리 및 개념도 구조화" },
-  "/ideas": { title: "프로젝트 & 로드맵", subtitle: "스터디 프로젝트 및 기능 아이디어 보드" },
-  "/chat": { title: "채팅", subtitle: "스터디원 및 동료와의 1:1 대화" },
   "/admin": { title: "관리자 허브", subtitle: "시스템 설정 및 기출문제 관리" },
 };
 
@@ -36,7 +42,8 @@ export function Header({
   if (!pageInfo) {
     if (pathname.startsWith("/exam")) pageInfo = PAGE_TITLES["/exam"];
     else if (pathname.startsWith("/admin")) pageInfo = PAGE_TITLES["/admin"];
-    else pageInfo = { title: "원퀴즈", subtitle: "나혼자 공부하는 플랫폼" };
+    else if (pathname.startsWith("/settings")) pageInfo = { title: "환경 설정", subtitle: "개인화 및 시스템 옵션 관리" };
+    else pageInfo = { title: "원퀴즈", subtitle: "올인원 통합 워크스페이스" };
   }
 
   const toggleFullScreen = () => {

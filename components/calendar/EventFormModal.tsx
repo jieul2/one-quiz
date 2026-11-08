@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { X, Calendar as CalendarIcon, Trash2 } from "lucide-react";
-import { CalendarEvent, DEFAULT_CATEGORIES } from "./calendarTypes";
+import { CalendarEvent, DEFAULT_CATEGORIES, getLocalDateKey, formatDateKey, getLocalTimeStr } from "./calendarTypes";
 import { toast } from "@/lib/toast";
 
 interface EventFormModalProps {
@@ -20,19 +20,21 @@ export function EventFormModal({
   onSave,
   onDelete,
 }: EventFormModalProps) {
-  const defaultDateStr = initialDate
-    ? `${initialDate.getFullYear()}-${String(initialDate.getMonth() + 1).padStart(2, "0")}-${String(initialDate.getDate()).padStart(2, "0")}`
-    : new Date().toISOString().slice(0, 10);
+  const defaultDateStr = initialDate ? formatDateKey(initialDate) : formatDateKey(new Date());
 
   const [title, setTitle] = useState(event?.title || "");
   const [description, setDescription] = useState(event?.description || "");
-  const [startDate, setStartDate] = useState(event?.startDate ? event.startDate.slice(0, 10) : defaultDateStr);
-  const [startTime, setStartTime] = useState(
-    event && !event.allDay && event.startDate.includes("T") ? event.startDate.slice(11, 16) : "09:00"
+  const [startDate, setStartDate] = useState(
+    event?.startDate ? getLocalDateKey(event.startDate) : defaultDateStr
   );
-  const [endDate, setEndDate] = useState(event?.endDate ? event.endDate.slice(0, 10) : defaultDateStr);
+  const [startTime, setStartTime] = useState(
+    event && !event.allDay ? getLocalTimeStr(event.startDate) || "09:00" : "09:00"
+  );
+  const [endDate, setEndDate] = useState(
+    event?.endDate ? getLocalDateKey(event.endDate) : defaultDateStr
+  );
   const [endTime, setEndTime] = useState(
-    event && !event.allDay && event.endDate.includes("T") ? event.endDate.slice(11, 16) : "10:00"
+    event && !event.allDay ? getLocalTimeStr(event.endDate) || "10:00" : "10:00"
   );
   const [allDay, setAllDay] = useState(event?.allDay ?? true);
   const [category, setCategory] = useState(event?.category || "work");
@@ -50,8 +52,12 @@ export function EventFormModal({
 
     setIsSubmitting(true);
     try {
-      const payloadStartDate = allDay ? `${startDate}T00:00:00` : `${startDate}T${startTime}:00`;
-      const payloadEndDate = allDay ? `${endDate}T23:59:59` : `${endDate}T${endTime}:00`;
+      const payloadStartDate = allDay
+        ? new Date(`${startDate}T00:00:00`).toISOString()
+        : new Date(`${startDate}T${startTime}:00`).toISOString();
+      const payloadEndDate = allDay
+        ? new Date(`${endDate}T23:59:59`).toISOString()
+        : new Date(`${endDate}T${endTime}:00`).toISOString();
 
       await onSave({
         ...(event?._id ? { _id: event._id } : {}),
@@ -123,59 +129,81 @@ export function EventFormModal({
             />
           </div>
 
-          {/* 종일 여부 체크박스 */}
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 cursor-pointer text-on-surface text-sm">
-              <input
-                type="checkbox"
-                checked={allDay}
-                onChange={(e) => setAllDay(e.target.checked)}
-                className="accent-primary w-4 h-4 cursor-pointer"
-              />
-              <span className="font-medium">종일 일정 (다중 일 기간 선택 가능)</span>
-            </label>
-          </div>
-
-          {/* 시작일 ~ 종료일 */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div>
-              <label className="block font-medium text-on-surface mb-1 text-xs">시작일</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-sm font-mono"
-                required
-              />
-              {!allDay && (
+          {/* 일정 일시 및 종일 체크박스 설정 */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block font-medium text-on-surface text-xs">일정 일시</label>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none group">
                 <input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full mt-1.5 p-2 bg-surface-container-low border border-outline-variant rounded-md text-sm font-mono"
-                  required
+                  type="checkbox"
+                  checked={allDay}
+                  onChange={(e) => setAllDay(e.target.checked)}
+                  className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary/20 accent-primary cursor-pointer transition-all"
                 />
-              )}
+                <span
+                  className={`text-xs font-semibold transition-colors ${
+                    allDay ? "text-primary" : "text-on-surface-variant group-hover:text-on-surface"
+                  }`}
+                >
+                  종일
+                </span>
+              </label>
             </div>
 
-            <div>
-              <label className="block font-medium text-on-surface mb-1 text-xs">종료일</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-sm font-mono"
-                required
-              />
-              {!allDay && (
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[11px] text-on-surface-variant mb-1 font-medium">
+                  시작일
+                </label>
                 <input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full mt-1.5 p-2 bg-surface-container-low border border-outline-variant rounded-md text-sm font-mono"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-sm font-mono text-on-surface focus:outline-none focus:border-primary"
                   required
                 />
-              )}
+                {!allDay && (
+                  <div className="mt-1.5">
+                    <label className="block text-[11px] text-on-surface-variant mb-0.5 font-medium">
+                      시작 시간
+                    </label>
+                    <input
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-sm font-mono text-on-surface focus:outline-none focus:border-primary"
+                      required
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-on-surface-variant mb-1 font-medium">
+                  종료일
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-sm font-mono text-on-surface focus:outline-none focus:border-primary"
+                  required
+                />
+                {!allDay && (
+                  <div className="mt-1.5">
+                    <label className="block text-[11px] text-on-surface-variant mb-0.5 font-medium">
+                      종료 시간
+                    </label>
+                    <input
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="w-full p-2 bg-surface-container-low border border-outline-variant rounded-md text-sm font-mono text-on-surface focus:outline-none focus:border-primary"
+                      required
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

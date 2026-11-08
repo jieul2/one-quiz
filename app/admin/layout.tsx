@@ -30,11 +30,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { data: session, status } = useSession();
 
   const adminNav: AdminNavItem[] = [
-    { label: "콘솔 개요", href: "/admin", icon: ShieldAlert },
-    { label: "문항 관리", href: "/admin/questions", icon: Database },
-    { label: "계정 관리", href: "/admin/accounts", icon: Users },
-    { label: "감사 로그", href: "/admin/logs", icon: Terminal },
-    { label: "운영 설정", href: "/admin/settings", icon: Settings },
+    { label: "문항 관리", href: "/settings/questions", icon: Database },
+    { label: "계정 관리", href: "/settings/accounts", icon: Users },
+    { label: "감사 로그", href: "/settings/logs", icon: Terminal },
+    { label: "운영 설정", href: "/settings/system", icon: Settings },
   ];
 
   if (status === "loading") {
@@ -133,14 +132,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div>
             <div className="flex items-center gap-2">
               <h1 className="ui-page-title">
-                관리자 콘솔
+                문항 관리
               </h1>
               <span className="ui-badge px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
                 Admin
               </span>
             </div>
             <p className="ui-page-subtitle mt-0.5">
-              원퀴즈 시스템 및 데이터 관리 허브
+              원퀴즈 기출문제 및 출제 관리 워크스페이스
             </p>
           </div>
 
@@ -149,7 +148,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             className="flex items-center gap-1.5 text-xs text-on-surface-variant hover:text-on-surface font-medium px-2.5 py-1.5 rounded-md bg-surface-container-low border border-outline-variant w-max transition-colors"
           >
             <User size={13} className="text-primary" />
-            <span>개인 설정으로 이동</span>
+            <span>설정으로 돌아가기</span>
             <ChevronRight size={12} />
           </Link>
         </div>

@@ -2,12 +2,13 @@
 
 import React, { useEffect, useRef } from "react";
 import { X, Plus } from "lucide-react";
-import { CalendarEvent, getEventColorStyles } from "./calendarTypes";
+import { CalendarEvent, getEventColorStyles, getLocalDateKey, getEventTimeDisplay } from "./calendarTypes";
 
 interface CalendarDayModalProps {
   date: Date;
   events: CalendarEvent[];
   anchorRect?: DOMRect | null;
+  isDark?: boolean;
   onClose: () => void;
   onSelectEvent: (event: CalendarEvent) => void;
   onAddNewEvent: (date: Date) => void;
@@ -17,6 +18,7 @@ export function CalendarDayModal({
   date,
   events,
   anchorRect,
+  isDark = false,
   onClose,
   onSelectEvent,
   onAddNewEvent,
@@ -46,14 +48,14 @@ export function CalendarDayModal({
 
   // 다중일(기간) 일정과 단일/시간제 일정 분류 (사진3 레이아웃)
   const multiDayEvents = events.filter((e) => {
-    const startStr = e.startDate.slice(0, 10);
-    const endStr = e.endDate.slice(0, 10);
+    const startStr = getLocalDateKey(e.startDate);
+    const endStr = getLocalDateKey(e.endDate);
     return startStr !== endStr;
   });
 
   const singleDayEvents = events.filter((e) => {
-    const startStr = e.startDate.slice(0, 10);
-    const endStr = e.endDate.slice(0, 10);
+    const startStr = getLocalDateKey(e.startDate);
+    const endStr = getLocalDateKey(e.endDate);
     return startStr === endStr;
   });
 
@@ -86,11 +88,16 @@ export function CalendarDayModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] flex items-center justify-center sm:block">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 bg-black/10 dark:bg-black/25 sm:bg-transparent flex items-center justify-center sm:block"
+    >
       <div
         ref={popoverRef}
         style={popoverStyle}
-        className="w-[90vw] max-w-[320px] bg-surface-container-lowest border border-outline-variant hover:border-primary/40 ring-1 ring-primary/15 rounded-2xl p-4 shadow-xl text-on-surface space-y-3 animate-in fade-in zoom-in-95 duration-150 select-none"
+        className="w-[90vw] max-w-[320px] bg-surface-container-lowest border border-outline-variant hover:border-primary/40 ring-1 ring-primary/15 rounded-2xl p-4 shadow-2xl text-on-surface space-y-3 animate-in fade-in zoom-in-95 duration-150 select-none"
       >
         {/* 상단 헤더: 날짜 + X 닫기 버튼 (테마 색상 Primary 반영) */}
         <div className="flex items-center justify-between pb-2 border-b border-outline-variant/60">
@@ -115,10 +122,11 @@ export function CalendarDayModal({
             </div>
           ) : (
             <>
-              {/* 1. 상단 다중일 기간 바 */}
+              {/* 1. 상단 다중일 기간 바 (모던 악센트 필 스타일) */}
               {multiDayEvents.map((evt) => {
-                const styles = getEventColorStyles(evt.color, true);
+                const styles = getEventColorStyles(evt.color, isDark);
                 const endFormatted = evt.endDate ? evt.endDate.slice(5, 10).replace("-", "/") : "";
+                const { isAllDay, timeText } = getEventTimeDisplay(evt, true);
 
                 return (
                   <div
@@ -127,12 +135,18 @@ export function CalendarDayModal({
                     style={{
                       backgroundColor: styles.bgRgba,
                       borderColor: styles.borderRgba,
+                      borderLeftColor: styles.accentColor,
                       color: styles.textColor,
                     }}
-                    className="flex items-center justify-between px-3 py-2 rounded-lg border text-sm font-semibold cursor-pointer hover:brightness-115 transition-all shadow-xs"
+                    className="flex items-center justify-between px-3 py-2 rounded-lg border border-l-[3.5px] text-xs sm:text-sm font-semibold cursor-pointer hover:brightness-105 transition-all shadow-2xs"
                     title={`${evt.title} 편집`}
                   >
-                    <span className="truncate flex-1 leading-none">{evt.title}</span>
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 shrink-0">
+                        {isAllDay ? "종일" : timeText}
+                      </span>
+                      <span className="truncate leading-none">{evt.title}</span>
+                    </div>
                     <span className="text-xs font-mono opacity-80 shrink-0 ml-2">
                       ~ {endFormatted}
                     </span>
@@ -141,42 +155,45 @@ export function CalendarDayModal({
               })}
 
               {/* 2. 단일 / 시간별 일정 목록 */}
-              <div className="space-y-1 pt-1">
+              <div className="space-y-1.5 pt-1">
                 {singleDayEvents.map((evt) => {
-                  const styles = getEventColorStyles(evt.color, true);
-                  const timeStr =
-                    !evt.allDay && evt.startDate.includes("T")
-                      ? evt.startDate.slice(11, 16)
-                      : null;
+                  const styles = getEventColorStyles(evt.color, isDark);
+                  const { isAllDay, timeText } = getEventTimeDisplay(evt, true);
 
                   return (
                     <div
                       key={evt._id || evt.title}
                       onClick={() => onSelectEvent(evt)}
-                      className="group flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-surface-container-low cursor-pointer text-sm transition-colors"
+                      className="group flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl hover:bg-surface-container-low border border-transparent hover:border-outline-variant/60 cursor-pointer text-sm transition-all"
                       title={`${evt.title} 편집`}
                     >
-                      {/* 불릿 도트 */}
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: styles.dotColor }}
-                      />
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {/* 불릿 도트 */}
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: styles.dotColor }}
+                        />
 
-                      {/* 시간 */}
-                      {timeStr && (
-                        <span className="font-mono text-xs text-on-surface-variant shrink-0 font-light">
-                          {timeStr}
+                        {/* 제목 */}
+                        <span
+                          className={`truncate text-on-surface group-hover:text-primary font-medium leading-none ${
+                            evt.isCompleted ? "line-through opacity-50" : ""
+                          }`}
+                        >
+                          {evt.title}
+                        </span>
+                      </div>
+
+                      {/* 시간 / 종일 뱃지 */}
+                      {isAllDay ? (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">
+                          종일
+                        </span>
+                      ) : (
+                        <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded-md bg-surface-container text-on-surface shrink-0">
+                          {timeText}
                         </span>
                       )}
-
-                      {/* 제목 */}
-                      <span
-                        className={`truncate text-on-surface group-hover:text-primary leading-none ${
-                          evt.isCompleted ? "line-through opacity-50" : ""
-                        }`}
-                      >
-                        {evt.title}
-                      </span>
                     </div>
                   );
                 })}
