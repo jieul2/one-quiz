@@ -42,6 +42,7 @@ yarn-error.log*
 next-env.d.ts
 
 # AI Assistant & Local Context
+AGENTS.md
 PROJECT_CONTEXT.md
 *.context.md
 .antigravity/
