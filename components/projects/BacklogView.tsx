@@ -869,7 +869,7 @@ export function BacklogView() {
                           )}
 
                           {/* 태그 목록 */}
-                          {item.tags.length > 0 && (
+                          {Array.isArray(item.tags) && item.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 pt-0.5">
                               {item.tags.slice(0, 3).map((t) => (
                                 <span

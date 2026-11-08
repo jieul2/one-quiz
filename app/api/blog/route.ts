@@ -82,7 +82,7 @@ export async function POST(req: Request) {
       authorName,
       title: title.trim(),
       slug,
-      excerpt: excerpt.trim() || content.slice(0, 120),
+      excerpt: excerpt.trim() || (typeof content === "string" ? content.slice(0, 120) : ""),
       content: content.trim(),
       category,
       tags: Array.isArray(tags) ? tags : [],

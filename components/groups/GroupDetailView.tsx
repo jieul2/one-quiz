@@ -491,7 +491,7 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
               <div key={m.email} className="py-2.5 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center font-bold text-xs text-primary">
-                    {m.name.slice(0, 1)}
+                    {(m.name || m.email || "U").slice(0, 1)}
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">

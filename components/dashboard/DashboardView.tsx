@@ -31,7 +31,7 @@ import {
   Send,
   GripVertical,
 } from "lucide-react";
-import { CalendarEvent, getLocalDateKey, getEventTimeDisplay } from "@/components/calendar/calendarTypes";
+import { CalendarEvent, getLocalDateKey, getEventTimeDisplay, getLocalTimeStr } from "@/components/calendar/calendarTypes";
 import { toast } from "@/lib/toast";
 import { CustomScrollArea } from "@/components/common/CustomScrollArea";
 
@@ -810,7 +810,7 @@ function getWidgetLink(id: string) {
 
 // 1. 오늘 일정 위젯 (DB 연동, 더미 데이터 제거, 카드 전체 공간 100% 활용)
 function TodayScheduleWidget({ events }: { events: CalendarEvent[] }) {
-  if (events.length === 0) {
+  if (!events || events.length === 0) {
     return (
       <div className="h-full flex items-center justify-center ui-empty-state">
         오늘 일정이 없습니다.
@@ -821,21 +821,25 @@ function TodayScheduleWidget({ events }: { events: CalendarEvent[] }) {
   return (
     <CustomScrollArea className="h-full flex-1" viewportClassName="space-y-1.5 pr-1.5">
       {events.map((item, idx) => {
-        const isAllDay = item.allDay;
-        const timeStr = isAllDay ? "종일" : item.startDate.slice(11, 16);
+        const isAllDay = Boolean(item?.allDay);
+        const startKey = getLocalDateKey(item?.startDate);
+        const endKey = getLocalDateKey(item?.endDate);
+        const startTime = getLocalTimeStr(item?.startDate);
+        const endTime = getLocalTimeStr(item?.endDate);
+        const timeStr = isAllDay ? "종일" : (startTime || "시간 미정");
         const tagStr = isAllDay
-          ? `${getLocalDateKey(item.startDate).slice(5)}~${getLocalDateKey(item.endDate).slice(5)}`
-          : `~${item.endDate.slice(11, 16)}`;
+          ? (startKey && endKey && startKey !== endKey ? `${startKey.slice(5)}~${endKey.slice(5)}` : "")
+          : (endTime ? `~${endTime}` : "");
 
         return (
           <div
-            key={item._id || idx}
+            key={item?._id || idx}
             className="flex items-center justify-between py-2 border-b border-outline-variant/40 last:border-b-0 text-xs sm:text-sm"
           >
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <span className="font-mono text-on-surface-variant text-[11px] w-9 shrink-0">{timeStr}</span>
               <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-              <span className="truncate text-on-surface font-medium">{item.title}</span>
+              <span className="truncate text-on-surface font-medium">{item?.title || "무제 일정"}</span>
             </div>
             {tagStr && (
               <span className="text-[11px] font-mono text-on-surface-variant shrink-0 ml-1.5">
@@ -1257,7 +1261,7 @@ function MiniCalendarWidget({ events = [] }: { events?: CalendarEvent[] }) {
 
 // 3. 다가오는 일정 위젯 (카드 전체 공간 100% 활용)
 function UpcomingScheduleWidget({ events }: { events: CalendarEvent[] }) {
-  if (events.length === 0) {
+  if (!events || events.length === 0) {
     return (
       <div className="h-full flex items-center justify-center ui-empty-state">
         다가오는 일정이 없습니다.
@@ -1267,17 +1271,22 @@ function UpcomingScheduleWidget({ events }: { events: CalendarEvent[] }) {
 
   return (
     <CustomScrollArea className="h-full flex-1" viewportClassName="space-y-1.5 pr-1.5">
-      {events.map((evt, idx) => (
-        <div key={idx} className="flex items-center justify-between text-xs sm:text-sm py-2 border-b border-outline-variant/30 last:border-b-0">
-          <div className="flex items-center gap-2 truncate">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-            <span className="truncate text-on-surface font-medium">{evt.title}</span>
+      {events.map((evt, idx) => {
+        const startKey = getLocalDateKey(evt?.startDate);
+        return (
+          <div key={idx} className="flex items-center justify-between text-xs sm:text-sm py-2 border-b border-outline-variant/30 last:border-b-0">
+            <div className="flex items-center gap-2 truncate">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+              <span className="truncate text-on-surface font-medium">{evt?.title || "무제 일정"}</span>
+            </div>
+            {startKey && (
+              <span className="text-[11px] font-mono text-on-surface-variant shrink-0">
+                {startKey.slice(5)}
+              </span>
+            )}
           </div>
-          <span className="text-[11px] font-mono text-on-surface-variant shrink-0">
-            {getLocalDateKey(evt.startDate).slice(5)}
-          </span>
-        </div>
-      ))}
+        );
+      })}
     </CustomScrollArea>
   );
 }
@@ -1405,7 +1414,7 @@ function DdayWidget({ events = [] }: { events?: CalendarEvent[] }) {
               <span className="truncate text-on-surface font-semibold">{item.title}</span>
             </div>
             <span className="text-[11px] font-mono text-on-surface-variant shrink-0 ml-1.5">
-              {item.dateStr.slice(5)}
+              {item.dateStr ? item.dateStr.slice(5) : ""}
             </span>
           </div>
         );
@@ -1529,7 +1538,16 @@ function WeatherWidget() {
 
 // 8. 즐겨찾기 노트 위젯 (실제 /api/diary DB 실시간 연동, 카드 전체 공간 100% 활용)
 function FavoriteNotesWidget() {
-  const [diaries, setDiaries] = useState<Array<{ _id: string; title?: string; content: string; date: string }>>([]);
+  const [diaries, setDiaries] = useState<
+    Array<{
+      _id: string;
+      title?: string;
+      content?: string;
+      date?: string;
+      createdAt?: string;
+      items?: Array<{ title?: string; content?: string }>;
+    }>
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -1572,24 +1590,41 @@ function FavoriteNotesWidget() {
 
   return (
     <CustomScrollArea className="h-full flex-1" viewportClassName="space-y-1.5 pr-1.5">
-      {diaries.map((d) => {
-        const dObj = new Date(d.date);
-        const dateStr = `${dObj.getMonth() + 1}/${dObj.getDate()}`;
+      {diaries.map((d, idx) => {
+        const firstItem = Array.isArray(d.items) && d.items.length > 0 ? d.items[0] : null;
+        const displayTitle =
+          d.title ||
+          firstItem?.title ||
+          (firstItem?.content ? String(firstItem.content).slice(0, 30) : "") ||
+          (d.content ? String(d.content).slice(0, 30) : "") ||
+          "기록된 일기";
+
+        const rawDate = d.date || d.createdAt;
+        let dateStr = "";
+        if (rawDate) {
+          const dObj = new Date(rawDate);
+          if (!isNaN(dObj.getTime())) {
+            dateStr = `${dObj.getMonth() + 1}/${dObj.getDate()}`;
+          }
+        }
+
         return (
           <Link
-            key={d._id}
+            key={d._id || idx}
             href="/diary"
             className="flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-container-low transition-colors group text-xs sm:text-sm"
           >
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
               <span className="truncate text-on-surface font-medium group-hover:text-primary transition-colors">
-                {d.title || d.content.slice(0, 30)}
+                {displayTitle}
               </span>
             </div>
-            <span className="text-[11px] font-mono text-on-surface-variant shrink-0 ml-1.5">
-              {dateStr}
-            </span>
+            {dateStr && (
+              <span className="text-[11px] font-mono text-on-surface-variant shrink-0 ml-1.5">
+                {dateStr}
+              </span>
+            )}
           </Link>
         );
       })}
@@ -1599,7 +1634,9 @@ function FavoriteNotesWidget() {
 
 // 9. 최근 파일 위젯 (실제 /api/drive DB 실시간 연동, 카드 전체 공간 100% 활용)
 function RecentFilesWidget() {
-  const [files, setFiles] = useState<Array<{ id: string; title: string; folder?: string; updatedAt?: string }>>([]);
+  const [files, setFiles] = useState<
+    Array<{ id: string; name?: string; title?: string; folder?: string; updatedAt?: string }>
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -1642,16 +1679,16 @@ function RecentFilesWidget() {
 
   return (
     <CustomScrollArea className="h-full flex-1" viewportClassName="space-y-1.5 pr-1.5">
-      {files.map((f) => (
+      {files.map((f, idx) => (
         <Link
-          key={f.id}
+          key={f.id || idx}
           href="/drive"
           className="flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-container-low transition-colors group text-xs sm:text-sm"
         >
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <Folder className="w-3.5 h-3.5 text-primary shrink-0" />
             <span className="truncate text-on-surface font-medium group-hover:text-primary transition-colors">
-              {f.title}
+              {f.name || f.title || "무제 문서"}
             </span>
           </div>
           {f.folder && (

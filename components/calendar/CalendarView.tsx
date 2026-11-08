@@ -290,13 +290,15 @@ export function CalendarView() {
       const hasChanged = newStartKey !== origStartKey || newEndKey !== origEndKey;
 
       if (hasChanged && newStartKey <= newEndKey) {
+        const startStr = typeof resizingEvent.startDate === "string" ? resizingEvent.startDate : "";
+        const endStr = typeof resizingEvent.endDate === "string" ? resizingEvent.endDate : "";
         const startTimePart =
-          !resizingEvent.allDay && resizingEvent.startDate.includes("T")
-            ? resizingEvent.startDate.slice(11, 19)
+          !resizingEvent.allDay && startStr.includes("T")
+            ? startStr.slice(11, 19)
             : "00:00:00";
         const endTimePart =
-          !resizingEvent.allDay && resizingEvent.endDate.includes("T")
-            ? resizingEvent.endDate.slice(11, 19)
+          !resizingEvent.allDay && endStr.includes("T")
+            ? endStr.slice(11, 19)
             : "23:59:59";
 
         const localStartDate = new Date(`${newStartKey}T${startTimePart.slice(0, 5) || "00:00"}:00`);
@@ -430,13 +432,15 @@ export function CalendarView() {
     if (newStartKey === origStartKey && newEndKey === origEndKey) return;
 
     // 시간 성분 보존 및 ISO Date 변환 (로컬 타임존 일치 보장)
+    const startStr = typeof eventToMove.startDate === "string" ? eventToMove.startDate : "";
+    const endStr = typeof eventToMove.endDate === "string" ? eventToMove.endDate : "";
     const startTimePart =
-      !eventToMove.allDay && eventToMove.startDate.includes("T")
-        ? eventToMove.startDate.slice(11, 19)
+      !eventToMove.allDay && startStr.includes("T")
+        ? startStr.slice(11, 19)
         : "00:00:00";
     const endTimePart =
-      !eventToMove.allDay && eventToMove.endDate.includes("T")
-        ? eventToMove.endDate.slice(11, 19)
+      !eventToMove.allDay && endStr.includes("T")
+        ? endStr.slice(11, 19)
         : "23:59:59";
 
     const localStartDate = new Date(`${newStartKey}T${startTimePart.slice(0, 5) || "00:00"}:00`);
@@ -1074,7 +1078,7 @@ export function CalendarView() {
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
                               <span className="px-1.5 py-0.5 rounded text-[9px] font-bold font-mono bg-primary text-on-primary shrink-0 shadow-xs">
-                                {dragPreview?.startKey.slice(5)} ~ {dragPreview?.endKey.slice(5)}
+                                {dragPreview?.startKey ? dragPreview.startKey.slice(5) : ""} ~ {dragPreview?.endKey ? dragPreview.endKey.slice(5) : ""}
                               </span>
                               {skeletonSeg.isContinuationToNext && <span className="text-[9px]">▶</span>}
                             </div>
@@ -1138,7 +1142,7 @@ export function CalendarView() {
                                     </div>
                                     <div className="flex items-center gap-1 shrink-0">
                                       <span className="px-1.5 py-0.5 rounded text-[9px] font-bold font-mono bg-primary text-on-primary shrink-0 shadow-xs">
-                                        {curDuration}일 ({curStartKey.slice(5)}~{curEndKey.slice(5)})
+                                        {curDuration}일 ({curStartKey ? curStartKey.slice(5) : ""}~{curEndKey ? curEndKey.slice(5) : ""})
                                       </span>
                                       {seg.isContinuationToNext && <span className="text-[9px]">▶</span>}
                                     </div>
@@ -1196,7 +1200,7 @@ export function CalendarView() {
                                       ? "opacity-25 border-dashed scale-95"
                                       : "opacity-100"
                                   }`}
-                                  title={`${seg.evt.title} (${seg.evt.allDay ? "종일" : getEventTimeDisplay(seg.evt, true).timeText}, ${getLocalDateKey(seg.evt.startDate).slice(5)} ~ ${getLocalDateKey(seg.evt.endDate).slice(5)}) - 드래그하여 이동 또는 양 끝을 조절할 수 있습니다`}
+                                  title={`${seg.evt.title} (${seg.evt.allDay ? "종일" : getEventTimeDisplay(seg.evt, true).timeText}, ${getLocalDateKey(seg.evt.startDate)?.slice(5) || ""} ~ ${getLocalDateKey(seg.evt.endDate)?.slice(5) || ""}) - 드래그하여 이동 또는 양 끝을 조절할 수 있습니다`}
                                 >
                                   {/* 좌측 가장자리 리사이즈 핸들 (시작일 조정) */}
                                   {!seg.isContinuationFromPrev && (
@@ -1348,7 +1352,7 @@ export function CalendarView() {
                     <span className="font-semibold text-xs sm:text-sm">{evt.title}</span>
                   </div>
                   <span className="text-[11px] font-mono opacity-80">
-                    {getLocalDateKey(evt.startDate).slice(5)} ~ {getLocalDateKey(evt.endDate).slice(5)}
+                    {getLocalDateKey(evt.startDate)?.slice(5) || ""} ~ {getLocalDateKey(evt.endDate)?.slice(5) || ""}
                   </span>
                 </div>
               );
@@ -1380,7 +1384,7 @@ export function CalendarView() {
                     <span className="font-medium text-on-surface truncate">{evt.title}</span>
                   </div>
                   <span className="text-[11px] font-mono text-on-surface-variant shrink-0">
-                    {getLocalDateKey(evt.startDate).slice(5)} ~ {getLocalDateKey(evt.endDate).slice(5)}
+                    {getLocalDateKey(evt.startDate)?.slice(5) || ""} ~ {getLocalDateKey(evt.endDate)?.slice(5) || ""}
                   </span>
                 </div>
               );

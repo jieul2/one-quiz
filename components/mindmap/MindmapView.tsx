@@ -670,7 +670,7 @@ export function MindmapView() {
                 </p>
 
                 {/* 서브 브랜치 칩 프리뷰 */}
-                {m.branches && m.branches.length > 0 && (
+                {Array.isArray(m.branches) && m.branches.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-3">
                     {m.branches.slice(0, 3).map((branch, idx) => (
                       <span

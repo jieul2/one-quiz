@@ -398,7 +398,7 @@ export function BoardView() {
                   <div className="flex flex-wrap items-center gap-3 text-[11px] text-on-surface-variant pt-1">
                     <span className="font-semibold text-on-surface">{post.authorName}</span>
                     <span>{new Date(post.createdAt).toLocaleDateString()}</span>
-                    {post.tags?.length > 0 && (
+                    {Array.isArray(post.tags) && post.tags.length > 0 && (
                       <div className="flex items-center gap-1">
                         {post.tags.slice(0, 3).map((tg) => (
                           <span key={tg} className="text-primary font-mono">

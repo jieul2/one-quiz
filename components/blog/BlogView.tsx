@@ -295,7 +295,7 @@ export function BlogView() {
                 </h3>
 
                 <p className="ui-caption text-on-surface-variant line-clamp-3 leading-relaxed">
-                  {item.excerpt || item.content.slice(0, 120)}
+                  {item.excerpt || (item.content ? item.content.slice(0, 120) : "")}
                 </p>
               </div>
 
