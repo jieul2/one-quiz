@@ -21,8 +21,9 @@ function SignInContent() {
     <AppShell>
       <div className="min-h-[70vh] flex items-center justify-center p-4">
         <div className="bg-surface-container-lowest p-8 md:p-10 rounded-3xl shadow-xl border border-outline-variant w-full max-w-md text-center space-y-6">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
-            <Lock size={30} />
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-surface-container-high/60 border border-outline-variant/60 flex items-center justify-center p-2.5 shadow-md">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/favicon.ico" alt="원퀴즈 로고" className="w-full h-full object-contain" />
           </div>
 
           <div className="space-y-1.5">

@@ -91,9 +91,9 @@ export function DrawingToolbar({
   ];
 
   return (
-    <div className="flex flex-wrap items-center gap-2 p-2 bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-xs">
+    <div className="flex items-center gap-2 p-2 bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-xs overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap max-w-full">
       {/* 1. 기본 그리기 도구 모음 */}
-      <div className="flex items-center gap-1 bg-surface-container-low border border-outline-variant/60 rounded-xl p-1">
+      <div className="flex items-center gap-1 bg-surface-container-low border border-outline-variant/60 rounded-xl p-1 shrink-0">
         {tools.map((t) => {
           const Icon = t.icon;
           const isActive = tool === t.id;
@@ -115,12 +115,12 @@ export function DrawingToolbar({
       </div>
 
       {/* 2. 굵기 조절 */}
-      <div className="flex items-center gap-1 bg-surface-container-low border border-outline-variant/60 rounded-xl p-1">
+      <div className="flex items-center gap-1 bg-surface-container-low border border-outline-variant/60 rounded-xl p-1 shrink-0">
         {STROKE_WIDTHS.map((s) => (
           <button
             key={s.value}
             onClick={() => onSelectStrokeWidth(s.value)}
-            className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 ${
               strokeWidth === s.value
                 ? "bg-primary text-on-primary font-bold shadow-2xs"
                 : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
@@ -136,7 +136,7 @@ export function DrawingToolbar({
       {(tool === "rect" || tool === "circle") && (
         <button
           onClick={onToggleFilled}
-          className={`px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
+          className={`px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
             isFilled
               ? "bg-primary/10 border-primary text-primary"
               : "bg-surface-container-low border-outline-variant/60 text-on-surface-variant hover:text-on-surface"
@@ -147,17 +147,17 @@ export function DrawingToolbar({
       )}
 
       {/* 4. 색상 팔레트 드롭다운 */}
-      <div className="relative">
+      <div className="relative shrink-0">
         <button
           onClick={() => setIsColorMenuOpen((prev) => !prev)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container-low border border-outline-variant/60 rounded-xl text-xs font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container-low border border-outline-variant/60 rounded-xl text-xs font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer shrink-0"
         >
           <div
-            className="w-4 h-4 rounded-full border border-outline-variant shadow-2xs"
+            className="w-4 h-4 rounded-full border border-outline-variant shadow-2xs shrink-0"
             style={{ backgroundColor: color }}
           />
-          <Palette size={13} className="text-on-surface-variant" />
-          <ChevronDown size={11} className="text-on-surface-variant" />
+          <Palette size={13} className="text-on-surface-variant shrink-0" />
+          <ChevronDown size={11} className="text-on-surface-variant shrink-0" />
         </button>
 
         {isColorMenuOpen && (
@@ -198,13 +198,13 @@ export function DrawingToolbar({
       </div>
 
       {/* 5. 배경 패턴 선택 드롭다운 */}
-      <div className="relative">
+      <div className="relative shrink-0">
         <button
           onClick={() => setIsPatternMenuOpen((prev) => !prev)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container-low border border-outline-variant/60 rounded-xl text-xs font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container-low border border-outline-variant/60 rounded-xl text-xs font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer shrink-0"
         >
           <span>{BG_PATTERNS.find((p) => p.id === bgPattern)?.label || "배경"}</span>
-          <ChevronDown size={11} className="text-on-surface-variant" />
+          <ChevronDown size={11} className="text-on-surface-variant shrink-0" />
         </button>
 
         {isPatternMenuOpen && (
@@ -237,7 +237,7 @@ export function DrawingToolbar({
       </div>
 
       {/* 6. 우측 실행 취소, 다시 실행, 화면 줌 & 리셋 */}
-      <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+      <div className="flex items-center gap-1.5 sm:ml-auto shrink-0">
         {/* 실행 취소 / 다시 실행 / 지우기 */}
         <div className="flex items-center gap-0.5 bg-surface-container-low border border-outline-variant/60 rounded-xl p-0.5">
           <button

@@ -1146,16 +1146,16 @@ export function CanvasView() {
       </div>
 
       {/* ================= 2. 인터랙티브 툴바 ================= */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-surface-container-lowest border border-outline-variant rounded-lg overflow-x-auto scrollbar-none">
+      <div className="flex items-center justify-between gap-2 p-2 bg-surface-container-lowest border border-outline-variant rounded-lg overflow-x-auto no-scrollbar scrollbar-none flex-nowrap max-w-full">
         {/* 좌측 도구 버튼들 */}
         <div className="flex items-center gap-2 shrink-0">
           {/* 포스트잇 색상 선택 칩 */}
-          <div className="flex items-center gap-1 bg-surface-container-low px-2 py-1 rounded-md border border-outline-variant">
+          <div className="flex items-center gap-1 bg-surface-container-low px-2 py-1 rounded-md border border-outline-variant shrink-0">
             {COLOR_PRESETS.map((c) => (
               <button
                 key={c.id}
                 onClick={() => setSelectedColor(c.id)}
-                className={`w-5 h-5 rounded-full transition-transform cursor-pointer ${
+                className={`w-5 h-5 rounded-full transition-transform cursor-pointer shrink-0 ${
                   c.id === "yellow"
                     ? "bg-amber-300"
                     : c.id === "pink"
@@ -1174,27 +1174,27 @@ export function CanvasView() {
           {/* 포스트잇 추가 버튼 */}
           <button
             onClick={handleAddSticky}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-on-primary font-medium ui-button hover:opacity-90 transition-all cursor-pointer shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-on-primary font-medium ui-button hover:opacity-90 transition-all cursor-pointer shadow-xs shrink-0 whitespace-nowrap"
           >
-            <Plus size={13} />
-            <span>포스트잇 메모지 붙이기</span>
+            <Plus size={13} className="shrink-0" />
+            <span>포스트잇 메모지</span>
           </button>
 
           {/* 회의 안건 카드 추가 */}
           <button
             onClick={handleAddMeetingCard}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container hover:bg-surface-container-high border border-outline-variant text-on-surface font-medium ui-button transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container hover:bg-surface-container-high border border-outline-variant text-on-surface font-medium ui-button transition-colors cursor-pointer shrink-0 whitespace-nowrap"
           >
-            <CheckSquare size={13} className="text-secondary" />
+            <CheckSquare size={13} className="text-secondary shrink-0" />
             <span>회의 안건 카드</span>
           </button>
 
-          <div className="h-4 w-px bg-outline-variant mx-1" />
+          <div className="h-4 w-px bg-outline-variant mx-1 shrink-0" />
 
           {/* 스티커 반응 도장 */}
-          <div className="flex items-center gap-1">
-            <span className="ui-caption text-on-surface-variant flex items-center gap-1 pr-1 font-semibold">
-              <Smile size={12} />
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="ui-caption text-on-surface-variant flex items-center gap-1 pr-1 font-semibold shrink-0">
+              <Smile size={12} className="shrink-0" />
               스티커:
             </span>
             {STICKER_PALETTE.map((stk) => (
@@ -1208,7 +1208,7 @@ export function CanvasView() {
                     toast.info(`'${stk}' 스티커 도장이 선택되었습니다. 원하는 메모지를 클릭하세요!`);
                   }
                 }}
-                className={`p-1 text-sm rounded hover:bg-surface-container transition-transform cursor-pointer ${
+                className={`p-1 text-sm rounded hover:bg-surface-container transition-transform cursor-pointer shrink-0 ${
                   activeSticker === stk ? "bg-primary/20 scale-125 ring-1 ring-primary" : ""
                 }`}
                 title={`${stk} 도장 선택`}
@@ -1220,7 +1220,7 @@ export function CanvasView() {
         </div>
 
         {/* 우측 줌 & 화면 이동 도구 */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
           <div className="flex items-center bg-surface-container-low p-0.5 rounded-lg border border-outline-variant mr-1">
             <button
               type="button"

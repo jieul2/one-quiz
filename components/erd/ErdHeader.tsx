@@ -101,7 +101,7 @@ export function ErdHeader({
         </div>
 
         {/* 액션 버튼군 */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0">
           {/* Rule 51: 너비 고정 저장 인디케이터 (w-[118px]) */}
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 
@@ -109,7 +109,7 @@ export function ErdHeader({
           <button
             type="button"
             onClick={onOpenNewProjectModal}
-            className="ui-button px-3 py-1.5 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary flex items-center gap-1.5 transition-colors font-medium shadow-xs"
+            className="ui-button px-3 py-1.5 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary flex items-center gap-1.5 transition-colors font-medium shadow-xs shrink-0 whitespace-nowrap"
             title="새로운 프로젝트 명세서 생성"
           >
             <Plus size={15} />
@@ -120,7 +120,7 @@ export function ErdHeader({
           <button
             type="button"
             onClick={onOpenProjectListModal}
-            className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors"
+            className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors shrink-0 whitespace-nowrap"
             title="프로젝트 목록 열기"
           >
             <FolderGit2 size={15} />
@@ -131,7 +131,7 @@ export function ErdHeader({
           <button
             type="button"
             onClick={onOpenCommitModal}
-            className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors font-medium"
+            className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors font-medium shrink-0 whitespace-nowrap"
             title="현재 스키마 및 명세서를 새로운 버전 스냅샷으로 커밋"
           >
             <GitBranch size={15} />
@@ -142,7 +142,7 @@ export function ErdHeader({
           <button
             type="button"
             onClick={onOpenExportModal}
-            className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors"
+            className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors shrink-0 whitespace-nowrap"
           >
             <Download size={15} />
             <span>내보내기</span>
@@ -152,7 +152,7 @@ export function ErdHeader({
           <button
             type="button"
             onClick={onLoadSampleTemplate}
-            className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors"
+            className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors shrink-0 whitespace-nowrap"
             title="기본 샘플 엔티티(User, Post, Comment) 불러오기"
           >
             <Sparkles size={15} className="text-amber-500" />
@@ -163,11 +163,11 @@ export function ErdHeader({
 
       {/* ================= 탭 네비게이션 툴바 ================= */}
       <div className="flex items-center justify-between gap-3 pt-1">
-        <div className="flex items-center gap-1.5 p-1 bg-surface-container-low rounded-xl border border-outline-variant/60">
+        <div className="flex items-center gap-1.5 p-1 bg-surface-container-low rounded-xl border border-outline-variant/60 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap max-w-full">
           <button
             type="button"
             onClick={() => onChangeTab("erd")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
               activeTab === "erd"
                 ? "bg-primary text-on-primary shadow-xs"
                 : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
@@ -180,7 +180,7 @@ export function ErdHeader({
           <button
             type="button"
             onClick={() => onChangeTab("specs")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
               activeTab === "specs"
                 ? "bg-primary text-on-primary shadow-xs"
                 : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
@@ -193,7 +193,7 @@ export function ErdHeader({
           <button
             type="button"
             onClick={() => onChangeTab("history")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
               activeTab === "history"
                 ? "bg-primary text-on-primary shadow-xs"
                 : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"

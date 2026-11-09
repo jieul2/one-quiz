@@ -12,59 +12,69 @@ async function handlePost(request: Request) {
     }
 
     const body = await request.json();
-    const { imageUrl, mockSample } = body;
+    const { imageUrl, mockSample, receiptType } = body;
 
     // 모의 샘플 영수증 또는 이미지 기반 자동 파싱
     const samples = [
       {
         merchant: "스타벅스 강남대로점",
-        amount: 11400,
+        amount: 12300,
+        totalAmount: 12300,
         date: new Date().toISOString().slice(0, 10),
         category: "카페/간식",
-        tags: ["#커피", "#스타벅스", "#직장인"],
-        items: ["아메리카노 T (4,500원)", "바닐라라떼 G (6,900원)"],
-        paymentMethod: "신용카드",
+        tags: ["#커피", "#스타벅스", "#디저트"],
+        items: ["아이스 아메리카노 T (4,500원)", "클라우드 치즈케이크 (7,800원)"],
+        paymentMethod: "카드",
         confidence: 0.98,
       },
       {
         merchant: "이마트 역삼점",
-        amount: 48900,
+        amount: 45800,
+        totalAmount: 45800,
         date: new Date().toISOString().slice(0, 10),
         category: "식비",
         tags: ["#장보기", "#이마트", "#생필품"],
-        items: ["신선 계란 30구 (7,980원)", "서울우유 1L (2,980원)", "삼겹살 600g (16,800원)", "채소/라면류 (21,140원)"],
-        paymentMethod: "신용카드",
+        items: ["서울우유 1L (2,980원)", "포스트 아몬드 후레이크 (6,800원)", "신선 삼겹살 (18,900원)", "친환경 주방세제 (4,120원)"],
+        paymentMethod: "카드",
         confidence: 0.95,
       },
       {
-        merchant: "GS칼텍스 주유소",
+        merchant: "맛있는 삼겹살 역삼점",
+        amount: 38000,
+        totalAmount: 38000,
+        date: new Date().toISOString().slice(0, 10),
+        category: "식비",
+        tags: ["#저녁외식", "#삼겹살", "#회식"],
+        items: ["생삼겹살 2인분 (32,000원)", "차돌된장찌개 (6,000원)"],
+        paymentMethod: "카드",
+        confidence: 0.96,
+      },
+      {
+        merchant: "GS칼텍스 셀프주유소",
         amount: 70000,
+        totalAmount: 70000,
         date: new Date().toISOString().slice(0, 10),
         category: "교통",
         tags: ["#주유", "#교통비", "#고정비"],
         items: ["휘발유 42.16L (70,000원)"],
-        paymentMethod: "신용카드",
+        paymentMethod: "카드",
         confidence: 0.99,
-      },
-      {
-        merchant: "배달의민족 (BBQ치킨)",
-        amount: 27000,
-        date: new Date().toISOString().slice(0, 10),
-        category: "식비",
-        tags: ["#야식", "#배달", "#치킨"],
-        items: ["황금올리브치킨 (23,000원)", "배달팁 (4,000원)"],
-        paymentMethod: "카카오페이",
-        confidence: 0.97,
       },
     ];
 
-    const randomIndex = Math.floor(Math.random() * samples.length);
-    const result = samples[mockSample !== undefined ? Number(mockSample) % samples.length : randomIndex];
+    let result = samples[0];
+    if (receiptType === "cafe") result = samples[0];
+    else if (receiptType === "mart") result = samples[1];
+    else if (receiptType === "restaurant") result = samples[2];
+    else if (receiptType === "fuel") result = samples[3];
+    else if (mockSample !== undefined) result = samples[Number(mockSample) % samples.length];
+    else result = samples[Math.floor(Math.random() * samples.length)];
 
     return NextResponse.json(
       {
         success: true,
         extracted: result,
+        ocrResult: result,
         imageUrl: imageUrl || "",
         message: `'${result.merchant}' 영수증 분석이 완료되었습니다. (인식 신뢰도: ${Math.round(result.confidence * 100)}%)`,
       },

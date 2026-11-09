@@ -89,16 +89,22 @@ export function AppShell({ children }: AppShellProps) {
         />
       </Suspense>
 
-      {/* 2. 모바일 전용 플로팅 메뉴 버튼 */}
-      <div className="fixed top-4 left-4 z-40 md:hidden">
-        <button
-          onClick={() => setIsMobileNavOpen(true)}
-          className="p-2.5 bg-surface-container-lowest/90 backdrop-blur-md border border-outline-variant rounded-2xl shadow-md text-on-surface hover:text-primary transition-all cursor-pointer"
-          title="메뉴 열기"
+      {/* 2. 모바일 전용 하단 플로팅 메뉴 버튼 (헤더 제목 가림 원천 차단 & 한손 엄지 조작 편의성 극대화) */}
+      {!isMobileNavOpen && (
+        <div
+          className="fixed left-4 z-40 md:hidden pointer-events-auto"
+          style={{ bottom: "max(1.25rem, calc(env(safe-area-inset-bottom, 0px) + 0.75rem))" }}
         >
-          <Menu size={20} />
-        </button>
-      </div>
+          <button
+            onClick={() => setIsMobileNavOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-surface-container-lowest/95 backdrop-blur-md border border-outline-variant rounded-full shadow-xl text-on-surface hover:text-primary active:scale-95 transition-all cursor-pointer"
+            title="사이드바 메뉴 열기"
+          >
+            <Menu size={18} className="text-primary shrink-0" />
+            <span className="text-xs font-bold text-on-surface">메뉴</span>
+          </button>
+        </div>
+      )}
 
       {/* 2-1. PC 데스크톱에서 사이드바가 아예 없을 때(hidden) 즉시 꺼낼 수 있는 플로팅 토글러 */}
       {sidebarMode === "hidden" && (
@@ -133,7 +139,7 @@ export function AppShell({ children }: AppShellProps) {
             : "md:pl-60"
         }`}
       >
-        <main className="p-4 sm:p-6 md:p-8 w-full flex flex-col gap-6 transition-all duration-200">
+        <main className="p-3.5 sm:p-6 md:p-8 w-full flex flex-col gap-4 sm:gap-6 transition-all duration-200">
           {children}
         </main>
       </div>

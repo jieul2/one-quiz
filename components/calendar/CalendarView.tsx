@@ -744,7 +744,7 @@ export function CalendarView() {
           <h1 className="ui-page-title">캘린더</h1>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-0.5 shrink-0">
           {/* 저장 상태 인디케이터 */}
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 
@@ -752,7 +752,7 @@ export function CalendarView() {
           <button
             onClick={fetchEvents}
             disabled={isLoading}
-            className="p-1.5 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer border border-outline-variant"
+            className="p-1.5 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer border border-outline-variant shrink-0"
             title="일정 새로고침"
           >
             <RefreshCw size={15} className={isLoading ? "animate-spin text-primary" : ""} />
@@ -761,9 +761,9 @@ export function CalendarView() {
           {/* + 일정 추가 버튼 */}
           <button
             onClick={() => handleOpenCreateModal()}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary hover:opacity-90 text-on-primary font-semibold rounded-md text-sm transition-all shadow-xs cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary hover:opacity-90 text-on-primary font-semibold rounded-md text-sm transition-all shadow-xs cursor-pointer shrink-0 whitespace-nowrap"
           >
-            <Plus size={15} />
+            <Plus size={15} className="shrink-0" />
             <span>일정 추가</span>
           </button>
         </div>
@@ -772,13 +772,13 @@ export function CalendarView() {
       {/* ================= 2. 서브 컨트롤 툴바 (사진1) ================= */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-sm">
         {/* 좌측: 카테고리 필터 + 이전/다음 월 + 오늘 버튼 */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-0.5 max-w-full shrink-0">
+          <div className="relative shrink-0">
             <button
               onClick={() => setIsCategoryFilterOpen(!isCategoryFilterOpen)}
-              className="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-md font-medium transition-colors cursor-pointer flex items-center gap-1.5 text-sm"
+              className="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-md font-medium transition-colors cursor-pointer flex items-center gap-1.5 text-sm shrink-0 whitespace-nowrap"
             >
-              <FolderPlus size={15} className="text-primary" />
+              <FolderPlus size={15} className="text-primary shrink-0" />
               <span>
                 {selectedCategoryFilter === "all"
                   ? "카테고리"
@@ -822,17 +822,17 @@ export function CalendarView() {
             )}
           </div>
 
-          <div className="flex items-center bg-surface-container-low rounded-md border border-outline-variant p-0.5">
+          <div className="flex items-center bg-surface-container-low rounded-md border border-outline-variant p-0.5 shrink-0 whitespace-nowrap">
             <button
               onClick={goPrevMonth}
-              className="p-1 hover:bg-surface-container rounded transition-colors cursor-pointer text-on-surface"
+              className="p-1 hover:bg-surface-container rounded transition-colors cursor-pointer text-on-surface shrink-0"
               title="이전 달"
             >
               <ChevronLeft size={16} />
             </button>
             <button
               onClick={goNextMonth}
-              className="p-1 hover:bg-surface-container rounded transition-colors cursor-pointer text-on-surface"
+              className="p-1 hover:bg-surface-container rounded transition-colors cursor-pointer text-on-surface shrink-0"
               title="다음 달"
             >
               <ChevronRight size={16} />
@@ -841,21 +841,21 @@ export function CalendarView() {
 
           <button
             onClick={goToday}
-            className="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-md font-medium transition-colors cursor-pointer text-sm"
+            className="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-md font-medium transition-colors cursor-pointer text-sm shrink-0 whitespace-nowrap"
           >
             오늘
           </button>
         </div>
 
         {/* 중앙: 2026년 10월 / 11월 (사진1 & 사진2) */}
-        <div className="text-center">
+        <div className="text-center shrink-0 whitespace-nowrap">
           <h2 className="ui-section-title font-mono">
             {year}년 {month + 1}월
           </h2>
         </div>
 
         {/* 우측: 월 / 주 / 일 / 목록 뷰 스위처 */}
-        <div className="flex items-center bg-surface-container-low p-0.5 rounded-md border border-outline-variant self-start md:self-auto">
+        <div className="flex items-center bg-surface-container-low p-0.5 rounded-md border border-outline-variant self-start md:self-auto shrink-0 whitespace-nowrap overflow-x-auto no-scrollbar scrollbar-none">
           {(["month", "week", "day", "list"] as ViewMode[]).map((mode) => {
             const labels: Record<ViewMode, string> = {
               month: "월",

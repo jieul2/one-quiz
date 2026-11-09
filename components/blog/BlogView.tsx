@@ -231,12 +231,12 @@ export function BlogView() {
       {/* ================= 2. 카테고리 & 검색 필터 ================= */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-3">
         {/* 카테고리 칩 */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0">
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors shrink-0 whitespace-nowrap ${
                 selectedCategory === cat
                   ? "bg-primary text-on-primary shadow-xs"
                   : "bg-surface-container text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"

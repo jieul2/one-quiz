@@ -461,12 +461,12 @@ export function TasksView() {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0 text-sm">
           {/* 저장 상태 인디케이터 (로그인 시 실시간 DB 상태, 비로그인 시 로컬 모드) */}
           {session?.user ? (
             <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
           ) : (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-low text-on-surface-variant text-xs font-mono border border-outline-variant">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-low text-on-surface-variant text-xs font-mono border border-outline-variant shrink-0 whitespace-nowrap">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
               <span>게스트 모드</span>
             </div>
@@ -475,7 +475,7 @@ export function TasksView() {
           {/* 완료 보드 표시 토글 버튼 (Default: false) */}
           <button
             onClick={handleToggleShowDone}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer border ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer border shrink-0 whitespace-nowrap ${
               showDoneColumn
                 ? "bg-primary text-on-primary border-primary font-semibold"
                 : "bg-surface-container-low text-on-surface border-outline-variant font-light hover:bg-surface-container"
@@ -489,10 +489,10 @@ export function TasksView() {
           </button>
 
           {/* 뷰 모드 토글: 칸반 보드 / 스윔레인 */}
-          <div className="flex items-center bg-surface-container-low p-0.5 rounded-md border border-outline-variant">
+          <div className="flex items-center bg-surface-container-low p-0.5 rounded-md border border-outline-variant shrink-0 whitespace-nowrap">
             <button
               onClick={() => handleChangeViewMode("kanban")}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm transition-colors cursor-pointer ${
+              className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
                 viewMode === "kanban"
                   ? "bg-surface-container text-on-surface font-semibold"
                   : "text-on-surface-variant font-light hover:text-on-surface"
@@ -503,7 +503,7 @@ export function TasksView() {
             </button>
             <button
               onClick={() => handleChangeViewMode("swimlane")}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm transition-colors cursor-pointer ${
+              className={`flex items-center gap-1 px-3 py-1.5 rounded text-sm transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
                 viewMode === "swimlane"
                   ? "bg-surface-container text-on-surface font-semibold"
                   : "text-on-surface-variant font-light hover:text-on-surface"
@@ -517,7 +517,7 @@ export function TasksView() {
           {/* 카테고리 관리 버튼 */}
           <button
             onClick={() => setIsCategoryModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-low hover:bg-surface-container border border-outline-variant font-medium text-on-surface transition-colors cursor-pointer text-sm"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-low hover:bg-surface-container border border-outline-variant font-medium text-on-surface transition-colors cursor-pointer text-sm shrink-0 whitespace-nowrap"
           >
             <FolderPlus size={15} className="text-primary" />
             <span>카테고리 관리</span>

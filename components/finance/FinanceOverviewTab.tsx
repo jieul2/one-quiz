@@ -90,81 +90,81 @@ export function FinanceOverviewTab({
   return (
     <div className="w-full space-y-6">
       {/* 1. 상단 핵심 요약 4대 지표 카드 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* 총 수입 */}
-        <div className="bg-surface-container-lowest border border-outline-variant p-4 rounded-2xl shadow-xs space-y-2">
+        <div className="bg-surface-container-lowest border border-outline-variant p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
           <div className="flex items-center justify-between text-xs text-on-surface-variant font-medium">
-            <span>이번 달 총 수입</span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-              <TrendingUp size={16} />
+            <span className="whitespace-nowrap">이번 달 총 수입</span>
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+              <TrendingUp size={15} />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+          <div className="text-base sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400 truncate">
             +₩{stats.income.toLocaleString()}
           </div>
-          <p className="text-[11px] text-on-surface-variant">
+          <p className="text-[11px] text-on-surface-variant truncate">
             {transactions.filter((t) => t.type === "income").length}건 입금 기록됨
           </p>
         </div>
 
         {/* 총 지출 */}
-        <div className="bg-surface-container-lowest border border-outline-variant p-4 rounded-2xl shadow-xs space-y-2">
+        <div className="bg-surface-container-lowest border border-outline-variant p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
           <div className="flex items-center justify-between text-xs text-on-surface-variant font-medium">
-            <span>이번 달 총 지출</span>
-            <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center">
-              <TrendingDown size={16} />
+            <span className="whitespace-nowrap">이번 달 총 지출</span>
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+              <TrendingDown size={15} />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-black font-mono text-rose-600 dark:text-rose-400">
+          <div className="text-base sm:text-2xl font-black font-mono text-rose-600 dark:text-rose-400 truncate">
             -₩{stats.expense.toLocaleString()}
           </div>
-          <div className="flex items-center justify-between text-[11px] text-on-surface-variant font-mono">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between text-[10px] sm:text-[11px] text-on-surface-variant font-mono">
             <span>고정: ₩{stats.fixedExpense.toLocaleString()}</span>
             <span>변동: ₩{stats.variableExpense.toLocaleString()}</span>
           </div>
         </div>
 
         {/* 순수익 / 잉여금 */}
-        <div className="bg-surface-container-lowest border border-outline-variant p-4 rounded-2xl shadow-xs space-y-2">
+        <div className="bg-surface-container-lowest border border-outline-variant p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
           <div className="flex items-center justify-between text-xs text-on-surface-variant font-medium">
-            <span>당월 잔여 잉여금</span>
-            <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-              <Wallet size={16} />
+            <span className="whitespace-nowrap">당월 잔여 잉여금</span>
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Wallet size={15} />
             </div>
           </div>
           <div
-            className={`text-xl sm:text-2xl font-black font-mono ${
+            className={`text-base sm:text-2xl font-black font-mono truncate ${
               stats.net >= 0 ? "text-primary" : "text-rose-500"
             }`}
           >
             {stats.net >= 0 ? `+₩${stats.net.toLocaleString()}` : `-₩${Math.abs(stats.net).toLocaleString()}`}
           </div>
-          <p className="text-[11px] text-on-surface-variant">
-            {stats.net >= 0 ? "저축 및 투자 여력 확보" : "지출이 수입을 초과했습니다"}
+          <p className="text-[11px] text-on-surface-variant truncate">
+            {stats.net >= 0 ? "저축 및 투자 여력 확보" : "지출이 수입 초과"}
           </p>
         </div>
 
         {/* 예산 진행률 요약 */}
-        <div className="bg-surface-container-lowest border border-outline-variant p-4 rounded-2xl shadow-xs space-y-2">
+        <div className="bg-surface-container-lowest border border-outline-variant p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-xs space-y-2">
           <div className="flex items-center justify-between text-xs text-on-surface-variant font-medium">
-            <span>예산 대비 소진율</span>
+            <span className="whitespace-nowrap">예산 대비 소진율</span>
             <button
               onClick={onOpenBudgetModal}
-              className="text-[11px] text-primary hover:underline font-semibold"
+              className="text-[11px] text-primary hover:underline font-semibold shrink-0 cursor-pointer"
             >
               예산 수정
             </button>
           </div>
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-baseline gap-1.5 truncate">
             <span
-              className={`text-xl sm:text-2xl font-black font-mono ${
+              className={`text-base sm:text-2xl font-black font-mono ${
                 isOverBudget ? "text-rose-500" : budgetRatio >= 80 ? "text-amber-500" : "text-primary"
               }`}
             >
               {totalBudget > 0 ? `${budgetRatio}%` : "미설정"}
             </span>
             {totalBudget > 0 && (
-              <span className="text-xs text-on-surface-variant font-mono">
+              <span className="text-[10px] sm:text-xs text-on-surface-variant font-mono truncate">
                 / ₩{totalBudget.toLocaleString()}
               </span>
             )}

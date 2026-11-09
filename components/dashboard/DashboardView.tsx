@@ -539,14 +539,14 @@ export function DashboardView() {
         </div>
 
         {/* 우측 통계 칩 3개 + '위젯' 단일 버튼 (사진 1) */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0">
           {/* 오늘 일정 */}
           <Link
             href="/calendar"
-            className="flex flex-col items-center justify-center px-4 py-2 bg-surface-container-low hover:bg-surface-container border border-outline-variant/70 rounded-xl min-w-[72px] transition-colors"
+            className="flex flex-col items-center justify-center px-3.5 py-2 bg-surface-container-low hover:bg-surface-container border border-outline-variant/70 rounded-xl min-w-[68px] sm:min-w-[72px] transition-colors shrink-0 whitespace-nowrap"
           >
             <span
-              className="text-lg sm:text-xl font-black text-on-surface font-mono leading-none"
+              className="text-base sm:text-xl font-black text-on-surface font-mono leading-none"
               suppressHydrationWarning
             >
               {mounted ? todayEventCount : 0}
@@ -557,10 +557,10 @@ export function DashboardView() {
           {/* 할일 */}
           <Link
             href="/tasks"
-            className="flex flex-col items-center justify-center px-4 py-2 bg-surface-container-low hover:bg-surface-container border border-outline-variant/70 rounded-xl min-w-[72px] transition-colors"
+            className="flex flex-col items-center justify-center px-3.5 py-2 bg-surface-container-low hover:bg-surface-container border border-outline-variant/70 rounded-xl min-w-[68px] sm:min-w-[72px] transition-colors shrink-0 whitespace-nowrap"
           >
             <span
-              className="text-lg sm:text-xl font-black text-on-surface font-mono leading-none"
+              className="text-base sm:text-xl font-black text-on-surface font-mono leading-none"
               suppressHydrationWarning
             >
               {mounted ? taskCount : 0}
@@ -569,9 +569,9 @@ export function DashboardView() {
           </Link>
 
           {/* 완료율 */}
-          <div className="flex flex-col items-center justify-center px-4 py-2 bg-surface-container-low border border-outline-variant/70 rounded-xl min-w-[72px]">
+          <div className="flex flex-col items-center justify-center px-3.5 py-2 bg-surface-container-low border border-outline-variant/70 rounded-xl min-w-[68px] sm:min-w-[72px] shrink-0 whitespace-nowrap">
             <span
-              className="text-lg sm:text-xl font-black text-on-surface font-mono leading-none"
+              className="text-base sm:text-xl font-black text-on-surface font-mono leading-none"
               suppressHydrationWarning
             >
               {mounted ? `${completionRate}%` : "0%"}
@@ -580,10 +580,10 @@ export function DashboardView() {
           </div>
 
           {/* 🌟 '위젯' 버튼 (대시보드의 유일한 컨트롤 버튼) */}
-          <div className="relative" ref={widgetMenuRef}>
+          <div className="relative shrink-0" ref={widgetMenuRef}>
             <button
               onClick={() => setIsWidgetMenuOpen(!isWidgetMenuOpen)}
-              className="flex items-center gap-2 px-3.5 py-2.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant/70 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer shadow-xs active:scale-98"
+              className="flex items-center gap-2 px-3.5 py-2.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant/70 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer shadow-xs active:scale-98 shrink-0 whitespace-nowrap"
             >
               <LayoutGrid size={15} />
               <span>위젯</span>

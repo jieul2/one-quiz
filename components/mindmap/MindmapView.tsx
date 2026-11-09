@@ -1130,11 +1130,11 @@ export function MindmapView() {
         </div>
 
         {/* 우측 도구: 저장 상태 & 줌 컨트롤 & 액션 버튼 */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0">
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 
           {/* 줌 컨트롤 & 화면 이동 도구 */}
-          <div className="flex items-center gap-0.5 bg-surface-container rounded-xl p-1 border border-outline-variant shadow-xs">
+          <div className="flex items-center gap-0.5 bg-surface-container rounded-xl p-1 border border-outline-variant shadow-xs shrink-0 whitespace-nowrap">
             <button
               onClick={() => setZoomLevel((z) => Math.max(0.4, Number((z - 0.1).toFixed(1))))}
               className="p-1 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer"
@@ -1162,14 +1162,14 @@ export function MindmapView() {
           </div>
 
           {/* 선택 (V) vs 잡기/화면 이동 (H / Space) 모드 세그먼트 도구 */}
-          <div className="flex items-center bg-surface-container-low p-0.5 rounded-xl border border-outline-variant">
+          <div className="flex items-center bg-surface-container-low p-0.5 rounded-xl border border-outline-variant shrink-0">
             <button
               type="button"
               onClick={() => {
                 setIsHandToolActive(false);
                 setIsSpaceHeld(false);
               }}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 !isHandToolActive && !isSpaceHeld
                   ? "bg-primary text-on-primary shadow-xs font-bold"
                   : "text-on-surface-variant hover:text-on-surface"
@@ -1182,7 +1182,7 @@ export function MindmapView() {
             <button
               type="button"
               onClick={() => setIsHandToolActive((prev) => !prev)}
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 isHandToolActive || isSpaceHeld
                   ? "bg-primary text-on-primary shadow-xs font-bold"
                   : "text-on-surface-variant hover:text-on-surface"
@@ -1196,7 +1196,7 @@ export function MindmapView() {
 
           <button
             onClick={() => handleAddRootNode()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container border border-outline-variant hover:border-primary text-on-surface text-xs font-semibold shadow-xs transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container border border-outline-variant hover:border-primary text-on-surface text-xs font-semibold shadow-xs transition-all cursor-pointer shrink-0 whitespace-nowrap"
           >
             <Plus size={14} className="text-primary" />
             <span>새 노드</span>
@@ -1204,7 +1204,7 @@ export function MindmapView() {
 
           <button
             onClick={() => setIsCreateMapModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-xs hover:opacity-90 transition-opacity cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-xs hover:opacity-90 transition-opacity cursor-pointer shrink-0 whitespace-nowrap"
           >
             <Sparkles size={14} />
             <span>새 맵</span>

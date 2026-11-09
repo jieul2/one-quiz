@@ -207,10 +207,10 @@ export function Sidebar({
       {/* 사이드바 본체 */}
       <aside
         className={`fixed left-0 top-0 h-screen h-[100dvh] max-h-[100dvh] bg-surface-container-lowest z-50 flex flex-col justify-between overflow-hidden md:overflow-visible border-r border-outline-variant shadow-xs transition-all duration-300 ${
-          /* 모바일: 서랍식 슬라이드 (아이콘 모드 시 컴팩트 w-20, 펼침 모드 시 w-72) */
+          /* 모바일: 서랍식 슬라이드 (아이콘 모드 시 컴팩트 w-24, 펼침 모드 시 w-72) */
           isMobileOpen
             ? isIconOnly
-              ? "translate-x-0 w-20 pointer-events-auto"
+              ? "translate-x-0 w-24 pointer-events-auto"
               : "translate-x-0 w-72 pointer-events-auto"
             : isHidden
             ? "-translate-x-full md:-translate-x-full w-0 pointer-events-none opacity-0"
@@ -220,45 +220,78 @@ export function Sidebar({
           isIconOnly ? "md:w-[72px]" : currentMode === "full" ? "md:w-60" : "md:w-0"
         }`}
       >
-        {/* 상단 고정 헤더 & 검색바 (shrink-0) */}
-        <div className="p-3 shrink-0 flex flex-col gap-2.5">
+        {/* 상단 고정 헤더 & 검색바 (아이폰 노치 및 다이내믹 아일랜드 safe-area-inset-top 자동 대응) */}
+        <div className="p-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] shrink-0 flex flex-col gap-2.5">
           {/* 브랜드 로고 & 닫기/숨기기 컨트롤 */}
-          <div className="flex items-center justify-between pt-1">
-            <Link
-              href="/"
-              onClick={onCloseMobile}
-              className="flex items-center gap-2.5 group overflow-hidden"
-              title="원퀴즈 홈으로 이동"
-            >
-              <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-xs shrink-0 group-hover:scale-105 transition-transform">
-                <Sparkles className="w-4.5 h-4.5 text-on-primary" />
+          {isIconOnly ? (
+            <div className="flex flex-col items-center gap-2 pt-1 w-full">
+              {/* 모바일 전용 닫기 (X) 버튼 (아이콘 모드일 때는 로고 위에 단독 배치하여 절대 가리지 않음) */}
+              <div className="w-full flex justify-end md:hidden">
+                <button
+                  type="button"
+                  onClick={onCloseMobile}
+                  className="p-1 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container cursor-pointer"
+                  title="메뉴 닫기"
+                >
+                  <X size={18} />
+                </button>
               </div>
 
-              {!isIconOnly && (
-                <div className="flex flex-col transition-opacity duration-200 overflow-hidden">
-                  <span className="text-[17px] font-black tracking-tight text-on-surface leading-tight whitespace-nowrap">
+              <Link
+                href="/"
+                onClick={onCloseMobile}
+                className="flex items-center justify-center group"
+                title="원퀴즈 홈으로 이동"
+              >
+                <div className="w-8 h-8 rounded-xl bg-surface-container-high/60 flex items-center justify-center shadow-xs shrink-0 p-1 group-hover:scale-105 transition-transform border border-outline-variant/60">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/favicon.ico"
+                    alt="원퀴즈 로고"
+                    className="w-full h-full object-contain rounded-lg"
+                  />
+                </div>
+              </Link>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between min-w-0 w-full gap-2 pt-1">
+              <Link
+                href="/"
+                onClick={onCloseMobile}
+                className="flex items-center gap-2.5 min-w-0 flex-1 group"
+                title="원퀴즈 홈으로 이동"
+              >
+                <div className="w-8 h-8 rounded-xl bg-surface-container-high/60 flex items-center justify-center shadow-xs shrink-0 p-1 group-hover:scale-105 transition-transform border border-outline-variant/60">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/favicon.ico"
+                    alt="원퀴즈 로고"
+                    className="w-full h-full object-contain rounded-lg"
+                  />
+                </div>
+
+                <div className="flex flex-col min-w-0 overflow-hidden">
+                  <span className="text-[17px] font-black tracking-tight text-on-surface leading-tight truncate">
                     원퀴즈
                   </span>
-                  <span className="text-[10px] text-on-surface-variant font-medium tracking-wide whitespace-nowrap">
+                  <span className="text-[10px] text-on-surface-variant font-medium tracking-wide truncate">
                     All-in-One Workspace
                   </span>
                 </div>
-              )}
-            </Link>
+              </Link>
 
-            {/* 모바일 전용 닫기 (X) 버튼 (항상 노출되어 바로 닫기 가능) */}
-            <button
-              type="button"
-              onClick={onCloseMobile}
-              className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container md:hidden cursor-pointer"
-              title="메뉴 닫기"
-            >
-              <X size={18} />
-            </button>
+              {/* 모바일 전용 닫기 (X) 버튼 (shrink-0으로 로고와 절대 겹치지 않고 우측에 독립 배치) */}
+              <button
+                type="button"
+                onClick={onCloseMobile}
+                className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container md:hidden cursor-pointer shrink-0"
+                title="메뉴 닫기"
+              >
+                <X size={20} />
+              </button>
 
-            {/* PC 데스크톱 컨트롤: 완전히 숨기기(EyeOff) */}
-            {!isIconOnly && (
-              <div className="hidden md:flex items-center gap-0.5 bg-surface-container-low p-0.5 rounded-lg border border-outline-variant/60">
+              {/* PC 데스크톱 컨트롤: 완전히 숨기기(EyeOff) */}
+              <div className="hidden md:flex items-center gap-0.5 bg-surface-container-low p-0.5 rounded-lg border border-outline-variant/60 shrink-0">
                 <button
                   type="button"
                   onClick={() => handleModeSelect("hidden")}
@@ -268,8 +301,8 @@ export function Sidebar({
                   <EyeOff size={13} />
                 </button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* 🌟 모바일 & 데스크톱 네브바 뷰 모드 선택기 (아이콘만 vs 글씨 포함) */}
           <div

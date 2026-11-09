@@ -2,6 +2,8 @@
 
 import { useState, useMemo } from "react";
 import Image from "next/image";
+import { toast } from "@/lib/toast";
+import { alertModal } from "@/lib/alert";
 import {
   FinanceTransaction,
   FinanceCategory,
@@ -192,26 +194,50 @@ export function FinanceTransactionsTab({
       });
       if (res.ok) {
         const result = await res.json();
-        const ocr = result.ocrResult;
-        setFormTitle(ocr.merchant || "영수증 지출");
-        setFormAmount(String(ocr.totalAmount || 0));
-        setFormDate(ocr.date || new Date().toISOString().slice(0, 10));
-        setFormCategory(ocr.category || "식비");
-        setFormTags(ocr.tags || ["영수증인식"]);
+        const ocr = result.ocrResult || result.extracted || result.data || result;
+        if (!ocr) {
+          toast.error("영수증 분석 결과를 불러오지 못했습니다.");
+          return;
+        }
+
+        const merchantName = ocr.merchant || ocr.name || "영수증 지출";
+        const totalAmountNum = Number(ocr.totalAmount ?? ocr.amount ?? 0);
+        const parsedDate = ocr.date || new Date().toISOString().slice(0, 10);
+        const parsedCategory = ocr.category || "식비";
+        const parsedTags = Array.isArray(ocr.tags) && ocr.tags.length > 0 ? ocr.tags : ["#영수증인식"];
+
+        setFormTitle(merchantName);
+        setFormAmount(String(totalAmountNum));
+        setFormDate(parsedDate);
+        setFormCategory(parsedCategory);
+        setFormTags(parsedTags);
         setFormType("expense");
-        setFormPaymentMethod("카드");
-        setFormMemo(`[AI OCR 자동분석] 품목: ${ocr.items?.map((it: { name: string }) => it.name).join(", ")}`);
+        setFormPaymentMethod(ocr.paymentMethod || "카드");
+
+        const itemsList = Array.isArray(ocr.items)
+          ? ocr.items
+              .map((it: any) => (typeof it === "string" ? it : it.name || it.item || String(it)))
+              .filter(Boolean)
+              .join(", ")
+          : "";
+        setFormMemo(itemsList ? `[AI OCR 자동분석] 품목: ${itemsList}` : `[AI OCR 자동분석] ${merchantName}`);
+
         setFormReceiptUrl(
-          receiptType === "cafe"
-            ? "https://images.unsplash.com/photo-1559925393-8be0ec4767c8?w=500&auto=format&fit=crop&q=80"
-            : "https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=500&auto=format&fit=crop&q=80"
+          ocr.imageUrl ||
+            (receiptType === "cafe"
+              ? "https://images.unsplash.com/photo-1559925393-8be0ec4767c8?w=500&auto=format&fit=crop&q=80"
+              : "https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=500&auto=format&fit=crop&q=80")
         );
         setIsOcrModalOpen(false);
         setIsModalOpen(true);
+        toast.success(`'${merchantName}' 영수증 분석 완료! ₩${totalAmountNum.toLocaleString()}`);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        toast.error(errData.error || "영수증 OCR 분석에 실패했습니다.");
       }
     } catch (err) {
       console.error(err);
-      alert("OCR 영수증 분석 중 오류가 발생했습니다.");
+      toast.error("OCR 영수증 분석 중 오류가 발생했습니다.");
     } finally {
       setIsOcrProcessing(false);
     }
@@ -238,36 +264,36 @@ export function FinanceTransactionsTab({
           </div>
 
           {/* 액션 버튼 그룹 */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-0.5">
             <button
               type="button"
               onClick={() => setIsOcrModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-all font-bold text-xs cursor-pointer shadow-2xs"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-all font-bold text-xs cursor-pointer shadow-2xs shrink-0 whitespace-nowrap"
               title="영수증 사진을 분석하여 자동 입력합니다"
             >
-              <Camera size={14} />
+              <Camera size={14} className="shrink-0" />
               <span>영수증 AI OCR 인식</span>
             </button>
 
             <button
               type="button"
               onClick={handleOpenAdd}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-on-primary font-bold text-xs sm:text-sm hover:opacity-95 transition-all shadow-xs cursor-pointer active:scale-[0.98]"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-on-primary font-bold text-xs sm:text-sm hover:opacity-95 transition-all shadow-xs cursor-pointer active:scale-[0.98] shrink-0 whitespace-nowrap"
             >
-              <Plus size={15} />
+              <Plus size={15} className="shrink-0" />
               <span>내역 추가</span>
             </button>
           </div>
         </div>
 
         {/* 2차 필터 바 (유형 + 고정비 여부 + #태그 칩) */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-outline-variant/50 text-xs">
+        <div className="flex items-center gap-2 pt-2 border-t border-outline-variant/50 text-xs overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full">
           {/* 유형 탭 버튼 */}
-          <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-xl border border-outline-variant/60">
+          <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-xl border border-outline-variant/60 shrink-0">
             <button
               type="button"
               onClick={() => setTypeFilter("all")}
-              className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 typeFilter === "all"
                   ? "bg-surface-container-lowest text-on-surface shadow-xs"
                   : "text-on-surface-variant hover:text-on-surface"
@@ -278,7 +304,7 @@ export function FinanceTransactionsTab({
             <button
               type="button"
               onClick={() => setTypeFilter("expense")}
-              className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 typeFilter === "expense"
                   ? "bg-rose-500 text-white shadow-xs"
                   : "text-rose-500 hover:bg-rose-500/10"
@@ -289,7 +315,7 @@ export function FinanceTransactionsTab({
             <button
               type="button"
               onClick={() => setTypeFilter("income")}
-              className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 typeFilter === "income"
                   ? "bg-emerald-500 text-white shadow-xs"
                   : "text-emerald-500 hover:bg-emerald-500/10"
@@ -300,7 +326,7 @@ export function FinanceTransactionsTab({
             <button
               type="button"
               onClick={() => setTypeFilter("transfer")}
-              className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 typeFilter === "transfer"
                   ? "bg-sky-500 text-white shadow-xs"
                   : "text-sky-500 hover:bg-sky-500/10"
@@ -311,11 +337,11 @@ export function FinanceTransactionsTab({
           </div>
 
           {/* 고정비 vs 변동비 필터 */}
-          <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-xl border border-outline-variant/60">
+          <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-xl border border-outline-variant/60 shrink-0">
             <button
               type="button"
               onClick={() => setRecurringFilter("all")}
-              className={`px-2 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+              className={`px-2 py-1 rounded-lg font-semibold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 recurringFilter === "all"
                   ? "bg-surface-container-lowest text-on-surface shadow-xs"
                   : "text-on-surface-variant"
@@ -326,7 +352,7 @@ export function FinanceTransactionsTab({
             <button
               type="button"
               onClick={() => setRecurringFilter("fixed")}
-              className={`px-2 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+              className={`px-2 py-1 rounded-lg font-semibold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 recurringFilter === "fixed"
                   ? "bg-primary text-on-primary shadow-xs"
                   : "text-on-surface-variant"
@@ -337,7 +363,7 @@ export function FinanceTransactionsTab({
             <button
               type="button"
               onClick={() => setRecurringFilter("variable")}
-              className={`px-2 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+              className={`px-2 py-1 rounded-lg font-semibold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 recurringFilter === "variable"
                   ? "bg-primary text-on-primary shadow-xs"
                   : "text-on-surface-variant"
@@ -520,8 +546,15 @@ export function FinanceTransactionsTab({
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (confirm(`"${tx.title}" 내역을 삭제하시겠습니까?`)) {
+                        onClick={async () => {
+                          const confirmed = await alertModal.confirm({
+                            title: "가계 내역 삭제",
+                            message: `"${tx.title}" 내역을 삭제하시겠습니까?`,
+                            confirmText: "삭제",
+                            cancelText: "취소",
+                            isDestructive: true,
+                          });
+                          if (confirmed) {
                             onDeleteTransaction(tx._id);
                           }
                         }}

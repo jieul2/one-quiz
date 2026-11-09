@@ -122,7 +122,7 @@ export function DrawingHeader({
       </div>
 
       {/* 액션 버튼군 */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0">
         {/* Rule 51: 너비 고정 저장 인디케이터 (w-[118px]) */}
         <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 
@@ -130,7 +130,7 @@ export function DrawingHeader({
         <button
           onClick={onSaveAsNewCard}
           disabled={isSavingCard}
-          className="ui-button px-3 py-1.5 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary flex items-center gap-1.5 transition-colors font-medium shadow-xs"
+          className="ui-button px-3 py-1.5 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary flex items-center gap-1.5 transition-colors font-medium shadow-xs shrink-0 whitespace-nowrap"
           title="현재 스케치를 내 계정의 새 카드로 보관함에 저장"
         >
           {isSavingCard ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
@@ -141,7 +141,7 @@ export function DrawingHeader({
         <button
           onClick={onAddToTodayDiary}
           disabled={isAddingToDiary}
-          className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors font-medium"
+          className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors font-medium shrink-0 whitespace-nowrap"
           title="현재 캔버스 그림을 Cloudinary에 업로드하여 오늘 일기에 첨부"
         >
           {isAddingToDiary ? (
@@ -154,7 +154,7 @@ export function DrawingHeader({
 
         <button
           onClick={onNewDrawing}
-          className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors"
+          className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors shrink-0 whitespace-nowrap"
         >
           <Plus size={15} />
           <span>새 스케치</span>
@@ -162,7 +162,7 @@ export function DrawingHeader({
 
         <button
           onClick={onCopyClipboard}
-          className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors"
+          className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors shrink-0 whitespace-nowrap"
           title="클립보드에 이미지 복사"
         >
           <Copy size={15} />
@@ -170,10 +170,10 @@ export function DrawingHeader({
         </button>
 
         {/* 다운로드 드롭다운 */}
-        <div className="relative">
+        <div className="relative shrink-0">
           <button
             onClick={onToggleDownload}
-            className="ui-button px-3.5 py-1.5 rounded-xl bg-primary text-on-primary hover:bg-primary/90 flex items-center gap-1.5 font-medium transition-all shadow-xs"
+            className="ui-button px-3.5 py-1.5 rounded-xl bg-primary text-on-primary hover:bg-primary/90 flex items-center gap-1.5 font-medium transition-all shadow-xs shrink-0 whitespace-nowrap"
           >
             <Download size={15} />
             <span>내보내기</span>

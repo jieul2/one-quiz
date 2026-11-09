@@ -668,18 +668,18 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
         </div>
 
         {/* 우측 도구 버튼들 */}
-        <div className="flex items-center gap-2 flex-wrap text-sm">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0 text-sm">
           {/* 저장 상태 인디케이터 */}
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 
-          <div className="relative flex items-center">
+          <div className="relative flex items-center shrink-0">
             <Search className="w-4 h-4 absolute left-2.5 text-on-surface-variant pointer-events-none" />
             <input
               type="text"
               placeholder={activeTab === "diary" ? "일기 검색..." : "지식노트 검색..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-surface-container-low pl-8 pr-3 py-2 rounded-md border border-outline-variant text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary w-40 sm:w-48 font-medium"
+              className="bg-surface-container-low pl-8 pr-3 py-2 rounded-md border border-outline-variant text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary w-36 sm:w-48 font-medium shrink-0"
             />
           </div>
 
@@ -695,10 +695,10 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
                       setExpandedDiaryIds(new Set(filteredDiaries.map((d) => d._id)));
                     }
                   }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-sm font-medium border border-outline-variant transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-sm font-medium border border-outline-variant transition-colors cursor-pointer shrink-0 whitespace-nowrap"
                   title={expandedDiaryIds.size === filteredDiaries.length ? "모든 일기 접기" : "모든 일기 펼치기"}
                 >
-                  <ChevronsUpDown className="w-4 h-4 text-primary" />
+                  <ChevronsUpDown className="w-4 h-4 text-primary shrink-0" />
                   <span>
                     {expandedDiaryIds.size === filteredDiaries.length ? "모두 접기" : "모두 펼치기"}
                   </span>
@@ -712,9 +712,9 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
                   setImages([]);
                   setShowWriteModal(true);
                 }}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-on-primary text-sm font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-on-primary text-sm font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer shrink-0 whitespace-nowrap"
               >
-                <PenSquare className="w-4 h-4" />
+                <PenSquare className="w-4 h-4 shrink-0" />
                 <span>오늘의 일기 쓰기</span>
               </button>
             </>
@@ -722,9 +722,9 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
             <button
               type="button"
               onClick={handleOpenCreateNoteModal}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-on-primary text-sm font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-on-primary text-sm font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer shrink-0 whitespace-nowrap"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 shrink-0" />
               <span>새 지식노트 작성</span>
             </button>
           )}

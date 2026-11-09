@@ -222,19 +222,19 @@ export function RunningView() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0">
           <button
             onClick={() => setIsAiSyncModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-container border border-outline-variant hover:border-primary text-on-surface text-xs font-semibold shadow-xs transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-container border border-outline-variant hover:border-primary text-on-surface text-xs font-semibold shadow-xs transition-all cursor-pointer shrink-0 whitespace-nowrap"
           >
-            <Sparkles className="w-4 h-4 text-primary" />
+            <Sparkles className="w-4 h-4 text-primary shrink-0" />
             <span>AI 자동 연동</span>
           </button>
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-xs hover:opacity-90 transition-opacity cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-xs hover:opacity-90 transition-opacity cursor-pointer shrink-0 whitespace-nowrap"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span>러닝 인증 및 기록</span>
           </button>
         </div>

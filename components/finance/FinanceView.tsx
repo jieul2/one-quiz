@@ -275,24 +275,24 @@ export function FinanceView() {
         </div>
 
         {/* 월 변경 컨트롤 & 액션 버튼 */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 shrink-0">
           {/* 년월 선택기 */}
-          <div className="flex items-center bg-surface-container-low border border-outline-variant rounded-xl p-1 gap-1">
+          <div className="flex items-center bg-surface-container-low border border-outline-variant rounded-xl p-1 gap-1 shrink-0 whitespace-nowrap">
             <button
               type="button"
               onClick={handlePrevMonth}
-              className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer shrink-0"
               title="이전 달"
             >
               <ChevronLeft size={16} />
             </button>
-            <span className="font-mono font-bold text-xs sm:text-sm px-2 text-on-surface">
+            <span className="font-mono font-bold text-xs sm:text-sm px-2 text-on-surface shrink-0 whitespace-nowrap">
               {monthKey}
             </span>
             <button
               type="button"
               onClick={handleNextMonth}
-              className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer shrink-0"
               title="다음 달"
             >
               <ChevronRight size={16} />
@@ -303,17 +303,17 @@ export function FinanceView() {
           <button
             type="button"
             onClick={() => setIsBudgetModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container-high border border-outline-variant text-on-surface font-semibold text-xs hover:bg-surface-container transition-colors cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container-high border border-outline-variant text-on-surface font-semibold text-xs hover:bg-surface-container transition-colors cursor-pointer shadow-2xs shrink-0 whitespace-nowrap"
             title="이번 달 목표 예산 설정"
           >
-            <SlidersHorizontal size={14} />
-            <span className="hidden sm:inline">예산 설정</span>
+            <SlidersHorizontal size={14} className="shrink-0" />
+            <span>예산 설정</span>
           </button>
         </div>
       </div>
 
       {/* 2. 6대 탭 내비게이션 바 */}
-      <div className="flex items-center gap-1 overflow-x-auto p-1 bg-surface-container-low border border-outline-variant rounded-2xl text-xs sm:text-sm font-semibold select-none scrollbar-none">
+      <div className="flex items-center gap-1 overflow-x-auto p-1 bg-surface-container-low border border-outline-variant rounded-2xl text-xs sm:text-sm font-semibold select-none scrollbar-none no-scrollbar flex-nowrap max-w-full">
         {(
           [
             { id: "overview", label: "대시보드 개요", icon: LayoutDashboard },
@@ -331,14 +331,14 @@ export function FinanceView() {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all shrink-0 cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition-all shrink-0 whitespace-nowrap cursor-pointer ${
                 isActive
                   ? "bg-primary text-on-primary font-bold shadow-xs"
                   : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
               }`}
             >
-              <Icon size={15} />
-              <span>{tab.label}</span>
+              <Icon size={15} className="shrink-0" />
+              <span className="shrink-0 whitespace-nowrap">{tab.label}</span>
             </button>
           );
         })}

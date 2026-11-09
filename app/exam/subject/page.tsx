@@ -198,22 +198,22 @@ function SubjectSelectionContent() {
         </div>
 
         {/* 우측 상단 액션 버튼군 */}
-        <div className="flex items-center gap-2 flex-wrap self-start md:self-auto shrink-0">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0">
           {(selectedSubjects.length > 0 || effectiveSelectedExamTypes.length > 0) && (
             <button
               type="button"
               onClick={handleResetAll}
-              className="px-3 py-2 rounded-xl border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-destructive text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="px-3 py-2 rounded-xl border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-destructive text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
               title="과목 및 회차 선택 모두 초기화"
             >
-              <RotateCcw size={14} />
+              <RotateCcw size={14} className="shrink-0" />
               <span>전체 초기화</span>
             </button>
           )}
 
           <Link
             href="/"
-            className="px-3 py-2 rounded-xl border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold transition-colors"
+            className="px-3 py-2 rounded-xl border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold transition-colors shrink-0 whitespace-nowrap"
           >
             ← 메인으로
           </Link>
@@ -228,7 +228,7 @@ function SubjectSelectionContent() {
               effectiveSelectedExamTypes.length === 0 ||
               finalSelectedQuestions.length === 0
             }
-            className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-primary hover:opacity-90 disabled:opacity-40 text-on-primary font-bold text-xs sm:text-sm shadow-xs transition-all flex items-center gap-2 disabled:cursor-not-allowed cursor-pointer"
+            className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-primary hover:opacity-90 disabled:opacity-40 text-on-primary font-bold text-xs sm:text-sm shadow-xs transition-all flex items-center gap-2 disabled:cursor-not-allowed cursor-pointer shrink-0 whitespace-nowrap"
             title={
               selectedSubjects.length === 0
                 ? "과목을 1개 이상 선택해주세요"
@@ -237,14 +237,14 @@ function SubjectSelectionContent() {
                 : "선택한 과목 및 회차 기출문제 풀이 시작"
             }
           >
-            <GraduationCap size={16} />
-            <span>기출문제 풀이 시작하기</span>
+            <GraduationCap size={16} className="shrink-0" />
+            <span className="shrink-0 whitespace-nowrap">기출문제 풀이 시작하기</span>
             {finalSelectedQuestions.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-md bg-white/20 text-white text-[11px] font-mono font-bold">
+              <span className="px-1.5 py-0.5 rounded-md bg-white/20 text-white text-[11px] font-mono font-bold shrink-0">
                 {finalSelectedQuestions.length}문제
               </span>
             )}
-            <ArrowRight size={15} />
+            <ArrowRight size={15} className="shrink-0" />
           </button>
         </div>
       </div>
