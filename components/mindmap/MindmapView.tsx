@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   Network,
@@ -16,6 +17,10 @@ import {
   Search,
   Calendar,
   X,
+  Hand,
+  Move,
+  Edit3,
+  Maximize2,
 } from "lucide-react";
 import { SaveStatusIndicator, SaveStatus } from "@/components/common/SaveStatusIndicator";
 import { toast } from "@/lib/toast";
@@ -90,9 +95,13 @@ const DEFAULT_STARTER_NODES: MindmapNode[] = [
 ];
 
 export function MindmapView() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryId = searchParams.get("id");
+
   const { data: session } = useSession();
   const [mindmaps, setMindmaps] = useState<MindmapItem[]>([]);
-  const [selectedMapId, setSelectedMapId] = useState<string | null>(null);
+  const [selectedMapId, setSelectedMapId] = useState<string | null>(queryId);
   const [activeMapId, setActiveMapId] = useState<string>("");
   const [nodes, setNodes] = useState<MindmapNode[]>(DEFAULT_STARTER_NODES);
   const [mapTitle, setMapTitle] = useState("새 마인드맵");
@@ -121,11 +130,31 @@ export function MindmapView() {
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
 
-  // 캔버스 드래그 및 노드 드래그
+  // 캔버스 패닝(화면 이동) & 노드 드래그 상태
   const canvasRef = useRef<HTMLDivElement>(null);
+  const canvasRectRef = useRef<DOMRect | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [isHandToolActive, setIsHandToolActive] = useState(false);
+  const [isSpaceHeld, setIsSpaceHeld] = useState(false);
+  const panStartRef = useRef({ x: 0, y: 0, initialPanX: 0, initialPanY: 0 });
+  const pinchDistRef = useRef<number | null>(null);
+
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
   const idCounterRef = useRef(1);
+
+  // 최신 상태 ref (이벤트 리스너용)
+  const selectedNodeIdRef = useRef<string | null>(null);
+  selectedNodeIdRef.current = selectedNodeId;
+  const nodesRef = useRef<MindmapNode[]>(nodes);
+  nodesRef.current = nodes;
+  const isHandToolActiveRef = useRef(isHandToolActive);
+  isHandToolActiveRef.current = isHandToolActive;
+  const isSpaceHeldRef = useRef(isSpaceHeld);
+  isSpaceHeldRef.current = isSpaceHeld;
 
   const markSaved = useCallback(() => {
     const now = new Date();
@@ -197,7 +226,22 @@ export function MindmapView() {
     };
   }, [session, markSaved]);
 
-  // 🌟 2. Ctrl + 휠 & 키보드 브라우저 줌 100% 방지 및 마인드맵 자체 줌
+  // 🌟 URL 쿼리 파라미터(?id=...) 동기화
+  useEffect(() => {
+    setSelectedMapId(queryId || null);
+    if (queryId && mindmaps.length > 0) {
+      const found = mindmaps.find((m) => m.id === queryId || m._id === queryId);
+      if (found) {
+        setActiveMapId(found.id);
+        setMapTitle(found.title);
+        if (found.nodes && found.nodes.length > 0) {
+          setNodes(found.nodes);
+        }
+      }
+    }
+  }, [queryId, mindmaps]);
+
+  // 🌟 2. PC 단축키 & 휠 줌 (스페이스바 잡기, V 선택, H 핸드툴, Del 삭제, Tab 하위추가 등)
   useEffect(() => {
     if (!selectedMapId) return;
 
@@ -213,25 +257,130 @@ export function MindmapView() {
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInputActive =
+        activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement;
+
+      // 1) 줌 단축키 (Ctrl / Meta + = / - / 0)
       if (e.ctrlKey || e.metaKey) {
         if (e.key === "=" || e.key === "+") {
           e.preventDefault();
           setZoomLevel((prev) => Math.min(2.0, Number((prev + 0.1).toFixed(2))));
+          return;
         } else if (e.key === "-" || e.key === "_") {
           e.preventDefault();
           setZoomLevel((prev) => Math.max(0.4, Number((prev - 0.1).toFixed(2))));
+          return;
         } else if (e.key === "0") {
           e.preventDefault();
           setZoomLevel(1);
+          setPanOffset({ x: 0, y: 0 });
+          return;
         }
+      }
+
+      // 텍스트 인라인 수정 중일 때에는 텍스트 입력 우선
+      if (isInputActive) {
+        if (e.key === "Escape") {
+          setEditingNodeId(null);
+        }
+        return;
+      }
+
+      // 2) 스페이스바 홀드: 화면 이동(잡기/Hand) 모드 즉시 활성화
+      if (e.code === "Space" && !e.repeat) {
+        e.preventDefault();
+        setIsSpaceHeld(true);
+        return;
+      }
+
+      // 3) V키: 선택 도구 전환
+      if (e.key === "v" || e.key === "V") {
+        e.preventDefault();
+        setIsHandToolActive(false);
+        toast.info("선택 도구로 전환되었습니다 (V)");
+        return;
+      }
+
+      // 4) H키: 화면 이동(잡기) 도구 토글
+      if (e.key === "h" || e.key === "H") {
+        e.preventDefault();
+        setIsHandToolActive((prev) => {
+          const next = !prev;
+          toast.info(next ? "잡기 도구로 전환되었습니다 (H)" : "선택 도구로 전환되었습니다 (V)");
+          return next;
+        });
+        return;
+      }
+
+      // 5) Escape키: 선택 해제 및 모드 리셋
+      if (e.key === "Escape") {
+        setIsHandToolActive(false);
+        setIsSpaceHeld(false);
+        setSelectedNodeId(null);
+        setEditingNodeId(null);
+        setContextMenu({ visible: false, x: 0, y: 0, targetNodeId: null });
+        return;
+      }
+
+      // 6) Delete / Backspace: 선택된 노드 삭제
+      if (e.key === "Delete" || e.key === "Backspace") {
+        const curSelected = selectedNodeIdRef.current;
+        if (curSelected) {
+          e.preventDefault();
+          handleDeleteNode(curSelected);
+          setSelectedNodeId(null);
+        }
+        return;
+      }
+
+      // 7) Tab: 선택된 노드에 하위 가지 노드 추가
+      if (e.key === "Tab") {
+        const curSelected = selectedNodeIdRef.current;
+        if (curSelected) {
+          e.preventDefault();
+          handleAddChildNode(curSelected);
+        }
+        return;
+      }
+
+      // 8) Enter: 선택된 노드 이름 수정
+      if (e.key === "Enter") {
+        const curSelected = selectedNodeIdRef.current;
+        if (curSelected) {
+          e.preventDefault();
+          const target = nodesRef.current.find((n) => n.id === curSelected);
+          if (target) {
+            startEditingNode(target);
+          }
+        }
+        return;
+      }
+
+      // 9) C키: 색상 테마 순환 변경
+      if (e.key === "c" || e.key === "C") {
+        const curSelected = selectedNodeIdRef.current;
+        if (curSelected) {
+          e.preventDefault();
+          handleCycleNodeColor(curSelected);
+        }
+        return;
+      }
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        setIsSpaceHeld(false);
       }
     };
 
     window.addEventListener("wheel", onWheel, { passive: false, capture: true });
     window.addEventListener("keydown", onKeyDown, { capture: true });
+    window.addEventListener("keyup", onKeyUp, { capture: true });
     return () => {
       window.removeEventListener("wheel", onWheel, { capture: true });
       window.removeEventListener("keydown", onKeyDown, { capture: true });
+      window.removeEventListener("keyup", onKeyUp, { capture: true });
     };
   }, [selectedMapId]);
 
@@ -272,6 +421,7 @@ export function MindmapView() {
           if (resData.data?._id && !mapId) {
             setActiveMapId(resData.data._id);
             setSelectedMapId(resData.data._id);
+            router.push(`/mindmap?id=${resData.data._id}`);
           }
           markSaved();
         } else {
@@ -284,20 +434,28 @@ export function MindmapView() {
     [session, markSaved]
   );
 
-  // 4. 노드 드래그 핸들러
+  // 4. 노드 드래그 및 패닝 핸들러 (모바일 터치 & PC 마우스 통합 지원 - 60fps RAF 최적화)
   const handleMouseDownNode = (e: React.MouseEvent, nodeId: string) => {
     e.stopPropagation();
     if (e.button !== 0) return; // 좌클릭만 허용
-    // 🌟 마인드맵 노드를 잡고 이동할 때 기존 텍스트 선택 영역 즉시 해제 (잔상 방지)
+
+    // 화면 이동(핸드) 모드 또는 스페이스바 홀드 중이면 노드 드래그 대신 화면 이동 수행
+    if (isHandToolActive || isSpaceHeld) {
+      handleMouseDownCanvas(e);
+      return;
+    }
+
     if (typeof window !== "undefined") {
       window.getSelection()?.removeAllRanges();
     }
     const targetNode = nodes.find((n) => n.id === nodeId);
     if (!targetNode || !canvasRef.current) return;
 
-    const canvasRect = canvasRef.current.getBoundingClientRect();
-    const mouseX = (e.clientX - canvasRect.left) / zoomLevel;
-    const mouseY = (e.clientY - canvasRect.top) / zoomLevel;
+    canvasRectRef.current = canvasRef.current.getBoundingClientRect();
+    setSelectedNodeId(nodeId);
+    const canvasRect = canvasRectRef.current;
+    const mouseX = (e.clientX - canvasRect.left - panOffset.x) / zoomLevel;
+    const mouseY = (e.clientY - canvasRect.top - panOffset.y) / zoomLevel;
 
     dragOffsetRef.current = {
       x: mouseX - targetNode.x,
@@ -306,25 +464,184 @@ export function MindmapView() {
     setDraggingNodeId(nodeId);
   };
 
+  const handleTouchStartNode = (e: React.TouchEvent, nodeId: string) => {
+    e.stopPropagation();
+    if (e.touches.length !== 1) return;
+    if (isHandToolActive) {
+      handleTouchStartCanvas(e);
+      return;
+    }
+    const targetNode = nodes.find((n) => n.id === nodeId);
+    if (!targetNode || !canvasRef.current) return;
+
+    canvasRectRef.current = canvasRef.current.getBoundingClientRect();
+    setSelectedNodeId(nodeId);
+    const touch = e.touches[0];
+    const canvasRect = canvasRectRef.current;
+    const touchX = (touch.clientX - canvasRect.left - panOffset.x) / zoomLevel;
+    const touchY = (touch.clientY - canvasRect.top - panOffset.y) / zoomLevel;
+
+    dragOffsetRef.current = {
+      x: touchX - targetNode.x,
+      y: touchY - targetNode.y,
+    };
+    setDraggingNodeId(nodeId);
+  };
+
+  // 캔버스 배경 드래그(화면 이동 / Pan) 시작
+  const handleMouseDownCanvas = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    canvasRectRef.current = canvasRef.current?.getBoundingClientRect() || null;
+    setSelectedNodeId(null);
+    setIsPanning(true);
+    panStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      initialPanX: panOffset.x,
+      initialPanY: panOffset.y,
+    };
+  };
+
+  const handleTouchStartCanvas = (e: React.TouchEvent) => {
+    canvasRectRef.current = canvasRef.current?.getBoundingClientRect() || null;
+    if (e.touches.length === 1) {
+      setSelectedNodeId(null);
+      setIsPanning(true);
+      panStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        initialPanX: panOffset.x,
+        initialPanY: panOffset.y,
+      };
+      pinchDistRef.current = null;
+    } else if (e.touches.length === 2) {
+      setIsPanning(false);
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchDistRef.current = Math.hypot(dx, dy);
+    }
+  };
+
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!draggingNodeId || !canvasRef.current) return;
-    const canvasRect = canvasRef.current.getBoundingClientRect();
-    const mouseX = (e.clientX - canvasRect.left) / zoomLevel;
-    const mouseY = (e.clientY - canvasRect.top) / zoomLevel;
+    if (draggingNodeId) {
+      const canvasRect = canvasRectRef.current || canvasRef.current?.getBoundingClientRect();
+      if (!canvasRect) return;
+      const clientX = e.clientX;
+      const clientY = e.clientY;
 
-    const newX = Math.round(mouseX - dragOffsetRef.current.x);
-    const newY = Math.round(mouseY - dragOffsetRef.current.y);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        const mouseX = (clientX - canvasRect.left - panOffset.x) / zoomLevel;
+        const mouseY = (clientY - canvasRect.top - panOffset.y) / zoomLevel;
+        const newX = Math.round(mouseX - dragOffsetRef.current.x);
+        const newY = Math.round(mouseY - dragOffsetRef.current.y);
 
-    setNodes((prev) =>
-      prev.map((n) => (n.id === draggingNodeId ? { ...n, x: newX, y: newY } : n))
-    );
+        setNodes((prev) =>
+          prev.map((n) => (n.id === draggingNodeId ? { ...n, x: newX, y: newY } : n))
+        );
+      });
+      return;
+    }
+
+    if (isPanning) {
+      const dx = e.clientX - panStartRef.current.x;
+      const dy = e.clientY - panStartRef.current.y;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        setPanOffset({
+          x: panStartRef.current.initialPanX + dx,
+          y: panStartRef.current.initialPanY + dy,
+        });
+      });
+    }
+  };
+
+  const handleTouchMoveCanvas = (e: React.TouchEvent) => {
+    if (draggingNodeId) {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const canvasRect = canvasRectRef.current || canvasRef.current?.getBoundingClientRect();
+        if (!canvasRect) return;
+        const touchClientX = touch.clientX;
+        const touchClientY = touch.clientY;
+
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(() => {
+          const touchX = (touchClientX - canvasRect.left - panOffset.x) / zoomLevel;
+          const touchY = (touchClientY - canvasRect.top - panOffset.y) / zoomLevel;
+          const newX = Math.round(touchX - dragOffsetRef.current.x);
+          const newY = Math.round(touchY - dragOffsetRef.current.y);
+
+          setNodes((prev) =>
+            prev.map((n) => (n.id === draggingNodeId ? { ...n, x: newX, y: newY } : n))
+          );
+        });
+      }
+      return;
+    }
+
+    if (isPanning && e.touches.length === 1) {
+      const touch = e.touches[0];
+      const dx = touch.clientX - panStartRef.current.x;
+      const dy = touch.clientY - panStartRef.current.y;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        setPanOffset({
+          x: panStartRef.current.initialPanX + dx,
+          y: panStartRef.current.initialPanY + dy,
+        });
+      });
+    } else if (e.touches.length === 2 && pinchDistRef.current) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const ratio = dist / pinchDistRef.current;
+      if (Math.abs(ratio - 1) > 0.05) {
+        setZoomLevel((z) => Math.min(2.0, Math.max(0.4, Number((z * (ratio > 1 ? 1.05 : 0.95)).toFixed(2)))));
+        pinchDistRef.current = dist;
+      }
+    }
   };
 
   const handleMouseUp = () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
     if (draggingNodeId) {
       setDraggingNodeId(null);
-      saveToServer(nodes, mapTitle, activeMapId);
+      setNodes((currentNodes) => {
+        saveToServer(currentNodes, mapTitle, activeMapId);
+        return currentNodes;
+      });
     }
+    if (isPanning) {
+      setIsPanning(false);
+    }
+  };
+
+  const handleTouchEndCanvas = () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (draggingNodeId) {
+      setDraggingNodeId(null);
+      setNodes((currentNodes) => {
+        saveToServer(currentNodes, mapTitle, activeMapId);
+        return currentNodes;
+      });
+    }
+    setIsPanning(false);
+    pinchDistRef.current = null;
+  };
+
+  const handleResetView = () => {
+    setPanOffset({ x: 0, y: 0 });
+    setZoomLevel(1);
+  };
+
+  const COLOR_KEYS = ["primary", "emerald", "amber", "rose", "violet", "slate"];
+  const handleCycleNodeColor = (nodeId: string) => {
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    const curIdx = COLOR_KEYS.indexOf(node.color || "primary");
+    const nextColor = COLOR_KEYS[(curIdx + 1) % COLOR_KEYS.length];
+    handleChangeNodeColor(nodeId, nextColor);
   };
 
   // 5. 우클릭 컨텍스트 메뉴 핸들러
@@ -390,8 +707,12 @@ export function MindmapView() {
     let spawnY = 300;
     if (clickX !== undefined && clickY !== undefined && canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect();
-      spawnX = Math.round((clickX - rect.left) / zoomLevel);
-      spawnY = Math.round((clickY - rect.top) / zoomLevel);
+      spawnX = Math.round((clickX - rect.left - panOffset.x) / zoomLevel);
+      spawnY = Math.round((clickY - rect.top - panOffset.y) / zoomLevel);
+    } else if (canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      spawnX = Math.round((rect.width / 2 - panOffset.x) / zoomLevel);
+      spawnY = Math.round((rect.height / 2 - panOffset.y) / zoomLevel);
     }
 
     const nextSeq = idCounterRef.current++;
@@ -492,8 +813,9 @@ export function MindmapView() {
       if (res.ok) {
         toast.success("마인드맵이 삭제되었습니다.");
         setMindmaps((prev) => prev.filter((m) => m.id !== mapId));
-        if (selectedMapId === mapId) {
+        if (selectedMapId === mapId || queryId === mapId) {
           setSelectedMapId(null);
+          router.push("/mindmap");
         }
       } else {
         toast.error("삭제 실패");
@@ -507,6 +829,7 @@ export function MindmapView() {
   const handleSelectMindmap = (item: MindmapItem) => {
     setActiveMapId(item.id);
     setSelectedMapId(item.id);
+    router.push(`/mindmap?id=${item.id}`);
     setMapTitle(item.title);
     if (item.nodes && item.nodes.length > 0) {
       setNodes(item.nodes);
@@ -529,7 +852,7 @@ export function MindmapView() {
     }
   };
 
-  // 곡선 베지어 커넥터 계산
+  // 곡선 베지어 커넥터 계산 (노드 테두리 가장자리 앵커 연결)
   const renderConnectors = () => {
     return nodes
       .filter((n) => n.parentId)
@@ -537,19 +860,23 @@ export function MindmapView() {
         const parent = nodes.find((p) => p.id === node.parentId);
         if (!parent) return null;
 
-        const startX = parent.x;
-        const startY = parent.y;
-        const endX = node.x;
-        const endY = node.y;
+        const isRight = node.x >= parent.x;
+        // 노드 중심이 아닌 외곽 앵커에서 출발 및 도착 (가로 110px 노드 기준 약 50px 오프셋)
+        const nodeHalfWidth = parent.isRoot ? 65 : 55;
+        const targetHalfWidth = node.isRoot ? 65 : 55;
 
-        // 부드러운 S자 곡선 (Cubic Bezier)
-        const dx = endX - startX;
-        const cp1x = startX + dx * 0.5;
-        const cp1y = startY;
-        const cp2x = startX + dx * 0.5;
-        const cp2y = endY;
+        const sourceX = isRight ? parent.x + nodeHalfWidth : parent.x - nodeHalfWidth;
+        const sourceY = parent.y;
+        const targetX = isRight ? node.x - targetHalfWidth : node.x + targetHalfWidth;
+        const targetY = node.y;
 
-        const pathData = `M ${startX} ${startY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${endX} ${endY}`;
+        // 부드러운 수평 S자 곡선 (Cubic Bezier)
+        const dx = Math.abs(targetX - sourceX);
+        const curvature = Math.max(30, Math.min(140, dx * 0.5));
+        const cp1x = isRight ? sourceX + curvature : sourceX - curvature;
+        const cp2x = isRight ? targetX - curvature : targetX + curvature;
+
+        const pathData = `M ${sourceX} ${sourceY} C ${cp1x} ${sourceY}, ${cp2x} ${targetY}, ${targetX} ${targetY}`;
         const nodeColorDef = COLOR_MAP[node.color || "primary"] || COLOR_MAP.primary;
 
         return (
@@ -777,7 +1104,10 @@ export function MindmapView() {
           {/* 목록으로 돌아가기 버튼 */}
           <button
             type="button"
-            onClick={() => setSelectedMapId(null)}
+            onClick={() => {
+              setSelectedMapId(null);
+              router.push("/mindmap");
+            }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant text-xs font-bold text-on-surface transition-colors cursor-pointer mr-1 shadow-xs"
             title="마인드맵 목록으로 돌아가기"
           >
@@ -803,7 +1133,7 @@ export function MindmapView() {
         <div className="flex items-center gap-2 flex-wrap">
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 
-          {/* 줌 컨트롤 */}
+          {/* 줌 컨트롤 & 화면 이동 도구 */}
           <div className="flex items-center gap-0.5 bg-surface-container rounded-xl p-1 border border-outline-variant shadow-xs">
             <button
               onClick={() => setZoomLevel((z) => Math.max(0.4, Number((z - 0.1).toFixed(1))))}
@@ -823,11 +1153,44 @@ export function MindmapView() {
               <ZoomIn size={14} />
             </button>
             <button
-              onClick={() => setZoomLevel(1)}
+              onClick={handleResetView}
               className="p-1 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer"
-              title="원래 크기 (100%)"
+              title="화면 위치 및 크기 초기화"
             >
               <RotateCcw size={13} />
+            </button>
+          </div>
+
+          {/* 선택 (V) vs 잡기/화면 이동 (H / Space) 모드 세그먼트 도구 */}
+          <div className="flex items-center bg-surface-container-low p-0.5 rounded-xl border border-outline-variant">
+            <button
+              type="button"
+              onClick={() => {
+                setIsHandToolActive(false);
+                setIsSpaceHeld(false);
+              }}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                !isHandToolActive && !isSpaceHeld
+                  ? "bg-primary text-on-primary shadow-xs font-bold"
+                  : "text-on-surface-variant hover:text-on-surface"
+              }`}
+              title="선택 도구 (단축키: V)"
+            >
+              <Move size={13} />
+              <span>선택 (V)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsHandToolActive((prev) => !prev)}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                isHandToolActive || isSpaceHeld
+                  ? "bg-primary text-on-primary shadow-xs font-bold"
+                  : "text-on-surface-variant hover:text-on-surface"
+              }`}
+              title="잡기 / 화면 이동 (단축키: H 또는 Space 홀드)"
+            >
+              <Hand size={13} />
+              <span>잡기 (H/Space)</span>
             </button>
           </div>
 
@@ -849,24 +1212,38 @@ export function MindmapView() {
         </div>
       </div>
 
-      {/* 2. 인터랙티브 2D 캔버스 뷰포트 */}
+      {/* 2. 인터랙티브 2D 캔버스 뷰포트 (화면 드래그/패닝 & 터치 제스처 지원) */}
       <div
         ref={canvasRef}
+        onMouseDown={handleMouseDownCanvas}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        onTouchStart={handleTouchStartCanvas}
+        onTouchMove={handleTouchMoveCanvas}
+        onTouchEnd={handleTouchEndCanvas}
         onContextMenu={handleContextMenuCanvas}
-        className="relative w-full h-[calc(100vh-230px)] min-h-[580px] rounded-3xl border border-outline-variant overflow-hidden shadow-xs cursor-crosshair bg-surface-container-lowest"
+        className={`relative w-full h-[calc(100vh-230px)] min-h-[580px] rounded-3xl border border-outline-variant overflow-hidden shadow-xs bg-surface-container-lowest select-none ${
+          isPanning
+            ? "cursor-grabbing"
+            : isHandToolActive || isSpaceHeld
+            ? "cursor-grab"
+            : "cursor-default"
+        }`}
         style={{
           backgroundImage:
             "radial-gradient(circle, var(--outline-variant) 1px, transparent 1px)",
           backgroundSize: "24px 24px",
+          touchAction: "none",
         }}
       >
-        {/* 확대/축소 스케일 컨테이너 */}
+        {/* 확대/축소 스케일 및 패닝 이동 컨테이너 (패닝/드래그 시 transition 제거로 0ms 즉각 반응) */}
         <div
-          className="absolute inset-0 origin-top-left transition-transform duration-75"
+          className={`absolute inset-0 origin-top-left ${
+            isPanning ? "" : "transition-transform duration-75"
+          }`}
           style={{
-            transform: `scale(${zoomLevel})`,
+            transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
+            transformOrigin: "0 0",
             width: "3000px",
             height: "2400px",
           }}
@@ -880,12 +1257,18 @@ export function MindmapView() {
           {nodes.map((node) => {
             const isDragging = draggingNodeId === node.id;
             const isEditing = editingNodeId === node.id;
+            const isSelected = selectedNodeId === node.id;
             const colorDef = COLOR_MAP[node.color || "primary"] || COLOR_MAP.primary;
 
             return (
               <div
                 key={node.id}
                 onMouseDown={(e) => handleMouseDownNode(e, node.id)}
+                onTouchStart={(e) => handleTouchStartNode(e, node.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedNodeId(node.id);
+                }}
                 onContextMenu={(e) => handleContextMenuNode(e, node.id)}
                 onDoubleClick={() => startEditingNode(node)}
                 style={{
@@ -893,17 +1276,23 @@ export function MindmapView() {
                   top: `${node.y}px`,
                   transform: "translate(-50%, -50%)",
                 }}
-                className={`absolute z-10 px-4 py-2.5 rounded-2xl border-2 transition-shadow shadow-md cursor-grab active:cursor-grabbing backdrop-blur-xs ${
+                className={`absolute z-10 px-4 py-2.5 rounded-2xl border-2 shadow-md cursor-grab active:cursor-grabbing backdrop-blur-xs ${
                   colorDef.bg
                 } ${colorDef.border} ${
-                  isDragging ? "shadow-2xl scale-105 z-30 opacity-90" : "hover:shadow-lg"
-                } ${node.isRoot ? "ring-2 ring-primary/40 px-5 py-3.5" : ""}`}
+                  isDragging
+                    ? "shadow-2xl scale-105 z-30 opacity-90 transition-none"
+                    : "transition-[box-shadow,border-color,background-color] hover:shadow-lg"
+                } ${node.isRoot ? "ring-2 ring-primary/40 px-5 py-3.5" : ""} ${
+                  isSelected ? "ring-2 ring-primary ring-offset-2 ring-offset-background scale-102" : ""
+                }`}
               >
                 {isEditing ? (
                   <input
                     type="text"
                     value={editingText}
                     autoFocus
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
                     onChange={(e) => setEditingText(e.target.value)}
                     onBlur={handleFinishEditing}
                     onKeyDown={(e) => {
@@ -923,6 +1312,7 @@ export function MindmapView() {
                     </span>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleAddChildNode(node.id);
@@ -939,13 +1329,100 @@ export function MindmapView() {
           })}
         </div>
 
-        {/* 캔버스 하단 좌측 안내 팁 */}
-        <div className="absolute left-4 bottom-4 bg-surface-container-lowest/80 backdrop-blur-md border border-outline-variant px-3 py-1.5 rounded-xl ui-caption text-on-surface-variant flex items-center gap-2 shadow-xs pointer-events-none">
-          <span>💡 노드 더블클릭: 텍스트 수정</span>
+        {/* 🌟 모바일 & PC 노드 빠른 제어 독 (선택 시 화면 하단 플로팅 툴바 - 이벤트 버블링 차단) */}
+        {selectedNodeId && (() => {
+          const selNode = nodes.find((n) => n.id === selectedNodeId);
+          if (!selNode) return null;
+          return (
+            <div
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 bg-surface-container-lowest/95 backdrop-blur-md border border-outline-variant rounded-2xl p-1.5 shadow-2xl flex items-center gap-1.5 animate-in fade-in slide-in-from-bottom-2 select-none"
+            >
+              <span className="px-2 text-xs font-bold text-on-surface truncate max-w-[110px] border-r border-outline-variant/60 hidden sm:inline">
+                {selNode.label}
+              </span>
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddChildNode(selNode.id);
+                }}
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-primary text-on-primary rounded-xl text-xs font-bold hover:opacity-90 shadow-xs cursor-pointer"
+                title="하위 가지 추가 (Tab)"
+              >
+                <Plus size={13} />
+                <span>하위 추가</span>
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startEditingNode(selNode);
+                }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-xs font-semibold transition-colors cursor-pointer"
+                title="이름 수정 (Enter)"
+              >
+                <Edit3 size={14} className="text-primary" />
+                <span>이름 수정</span>
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCycleNodeColor(selNode.id);
+                }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-xs font-semibold transition-colors cursor-pointer"
+                title="색상 변경 (C)"
+              >
+                <Palette size={14} className="text-secondary" />
+                <span>색상 변경</span>
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteNode(selNode.id);
+                  setSelectedNodeId(null);
+                }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl hover:bg-error/10 text-on-surface-variant hover:text-error text-xs font-semibold transition-colors cursor-pointer"
+                title="노드 삭제 (Del)"
+              >
+                <Trash2 size={14} />
+                <span>삭제</span>
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedNodeId(null);
+                }}
+                className="p-1.5 rounded-xl hover:bg-surface-container text-on-surface-variant cursor-pointer text-xs"
+                title="선택 해제 (Esc)"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          );
+        })()}
+
+        {/* 캔버스 하단 좌측 단축키 안내 팁 */}
+        <div className="absolute left-4 bottom-4 hidden md:flex bg-surface-container-lowest/80 backdrop-blur-md border border-outline-variant px-3 py-1.5 rounded-xl ui-caption text-on-surface-variant items-center gap-2 shadow-xs pointer-events-none">
+          <span>💡 <strong>V</strong>: 선택</span>
           <span>•</span>
-          <span>우클릭: 속성 및 가지 관리</span>
+          <span><strong>H / Space 홀드</strong>: 화면 이동</span>
           <span>•</span>
-          <span>Ctrl+휠: 캔버스 줌</span>
+          <span><strong>Tab</strong>: 하위 추가</span>
+          <span>•</span>
+          <span><strong>Enter</strong>: 수정</span>
+          <span>•</span>
+          <span><strong>Del</strong>: 삭제</span>
         </div>
       </div>
 

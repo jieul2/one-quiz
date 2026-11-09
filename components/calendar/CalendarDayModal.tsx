@@ -125,7 +125,7 @@ export function CalendarDayModal({
               {/* 1. 상단 다중일 기간 바 (모던 악센트 필 스타일) */}
               {multiDayEvents.map((evt) => {
                 const styles = getEventColorStyles(evt.color, isDark);
-                const endFormatted = evt.endDate ? evt.endDate.slice(5, 10).replace("-", "/") : "";
+                const endFormatted = evt?.endDate ? String(evt.endDate).slice(5, 10).replace("-", "/") : "";
                 const { isAllDay, timeText } = getEventTimeDisplay(evt, true);
 
                 return (

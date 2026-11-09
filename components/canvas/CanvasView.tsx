@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   StickyNote,
@@ -23,6 +24,9 @@ import {
   ArrowLeft,
   Search,
   Users,
+  Hand,
+  Move,
+  Palette,
 } from "lucide-react";
 import { SaveStatusIndicator, SaveStatus } from "@/components/common/SaveStatusIndicator";
 import { toast } from "@/lib/toast";
@@ -75,10 +79,18 @@ export function CanvasView() {
     "코드 아키텍처",
     "자유 토론",
   ]);
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryId = searchParams.get("id");
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(queryId);
   const [activeRoomId, setActiveRoomId] = useState("default-room");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("전체");
+
+  // 🌟 URL 쿼리 파라미터(?id=...) 동기화
+  useEffect(() => {
+    setSelectedRoomId(queryId || null);
+  }, [queryId]);
 
   // 🌟 관리자 카테고리 설정 연동 (동적 로드)
   useEffect(() => {
@@ -111,8 +123,24 @@ export function CanvasView() {
   const [timerSeconds, setTimerSeconds] = useState(15 * 60); // 기본 15분
   const [isTimerRunning, setIsTimerRunning] = useState(false);
 
-  // 캔버스 드래그 및 마우스 추적
+  // 캔버스 드래그 및 화면 이동(패닝) 추적
   const canvasRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [isHandToolActive, setIsHandToolActive] = useState(false);
+  const [isSpaceHeld, setIsSpaceHeld] = useState(false);
+  const panStartRef = useRef({ x: 0, y: 0, initialPanX: 0, initialPanY: 0 });
+  const pinchDistRef = useRef<number | null>(null);
+
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const selectedItemIdRef = useRef<string | null>(null);
+  selectedItemIdRef.current = selectedItemId;
+  const isHandToolActiveRef = useRef(isHandToolActive);
+  isHandToolActiveRef.current = isHandToolActive;
+  const isSpaceHeldRef = useRef(isSpaceHeld);
+  isSpaceHeldRef.current = isSpaceHeld;
+
   const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
 
@@ -184,7 +212,7 @@ export function CanvasView() {
     };
   }, [selectedRoomId, markSaved]);
 
-  // 🌟 2. Ctrl + 휠 & 키보드 확대/축소 (브라우저 기본 줌 100% 방지 & 캔버스 자체 줌)
+  // 🌟 2. PC 단축키 & 휠 확대/축소 (스페이스바 잡기, V 선택, H 핸드툴, N/S 메모, Del 삭제 등)
   useEffect(() => {
     if (!selectedRoomId) return;
 
@@ -200,25 +228,110 @@ export function CanvasView() {
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInputActive =
+        activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement;
+
+      // 1) 줌 단축키 (Ctrl / Meta + = / - / 0)
       if (e.ctrlKey || e.metaKey) {
         if (e.key === "=" || e.key === "+") {
           e.preventDefault();
           setZoomLevel((prev) => Math.min(2.0, Number((prev + 0.1).toFixed(2))));
+          return;
         } else if (e.key === "-" || e.key === "_") {
           e.preventDefault();
           setZoomLevel((prev) => Math.max(0.4, Number((prev - 0.1).toFixed(2))));
+          return;
         } else if (e.key === "0") {
           e.preventDefault();
           setZoomLevel(1);
+          setPanOffset({ x: 0, y: 0 });
+          return;
         }
+      }
+
+      // 텍스트 타이핑 중일 때는 단축키 실행 방지
+      if (isInputActive) {
+        if (e.key === "Escape") {
+          (activeEl as HTMLElement).blur();
+        }
+        return;
+      }
+
+      // 2) 스페이스바 홀드: 화면 이동(잡기/Hand) 모드 즉시 활성화
+      if (e.code === "Space" && !e.repeat) {
+        e.preventDefault();
+        setIsSpaceHeld(true);
+        return;
+      }
+
+      // 3) V키: 선택 모드 전환
+      if (e.key === "v" || e.key === "V") {
+        e.preventDefault();
+        setIsHandToolActive(false);
+        toast.info("선택 도구로 전환되었습니다 (V)");
+        return;
+      }
+
+      // 4) H키: 잡기 도구 토글
+      if (e.key === "h" || e.key === "H") {
+        e.preventDefault();
+        setIsHandToolActive((prev) => {
+          const next = !prev;
+          toast.info(next ? "잡기 도구로 전환되었습니다 (H)" : "선택 도구로 전환되었습니다 (V)");
+          return next;
+        });
+        return;
+      }
+
+      // 5) N 또는 S: 새 포스트잇 생성
+      if (e.key === "n" || e.key === "N" || e.key === "s" || e.key === "S") {
+        e.preventDefault();
+        handleAddSticky();
+        return;
+      }
+
+      // 6) M: 새 회의 안건 카드 생성
+      if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        handleAddMeetingCard();
+        return;
+      }
+
+      // 7) Delete / Backspace: 선택된 아이템 삭제
+      if (e.key === "Delete" || e.key === "Backspace") {
+        const curSelected = selectedItemIdRef.current;
+        if (curSelected) {
+          e.preventDefault();
+          handleDeleteItem(curSelected);
+          setSelectedItemId(null);
+        }
+        return;
+      }
+
+      // 8) Escape: 선택 해제
+      if (e.key === "Escape") {
+        setSelectedItemId(null);
+        setIsHandToolActive(false);
+        setIsSpaceHeld(false);
+        setActiveSticker(null);
+        return;
+      }
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        setIsSpaceHeld(false);
       }
     };
 
     window.addEventListener("wheel", onWheel, { passive: false, capture: true });
     window.addEventListener("keydown", onKeyDown, { capture: true });
+    window.addEventListener("keyup", onKeyUp, { capture: true });
     return () => {
       window.removeEventListener("wheel", onWheel, { capture: true });
       window.removeEventListener("keydown", onKeyDown, { capture: true });
+      window.removeEventListener("keyup", onKeyUp, { capture: true });
     };
   }, [selectedRoomId]);
 
@@ -264,6 +377,7 @@ export function CanvasView() {
         loadRooms();
         setActiveRoomId(data.room.roomId);
         setSelectedRoomId(data.room.roomId);
+        router.push(`/canvas?id=${data.room.roomId}`);
       }
     } catch {
       toast.error("회의실 개설 실패");
@@ -283,6 +397,7 @@ export function CanvasView() {
         loadRooms();
         if (selectedRoomId === roomId) {
           setSelectedRoomId(null);
+          router.push("/canvas");
         }
       } else {
         const err = await res.json();
@@ -299,8 +414,8 @@ export function CanvasView() {
     const newItemPayload = {
       boardId: activeRoomId,
       type: "sticky",
-      x: 80 + Math.floor(Math.random() * 250),
-      y: 80 + Math.floor(Math.random() * 180),
+      x: Math.max(40, Math.round((140 - panOffset.x) / zoomLevel) + Math.floor(Math.random() * 80)),
+      y: Math.max(40, Math.round((120 - panOffset.y) / zoomLevel) + Math.floor(Math.random() * 60)),
       width: 220,
       height: 190,
       color: selectedColor,
@@ -334,8 +449,8 @@ export function CanvasView() {
     const newCardPayload = {
       boardId: activeRoomId,
       type: "meeting_card",
-      x: 100 + Math.floor(Math.random() * 200),
-      y: 120 + Math.floor(Math.random() * 150),
+      x: Math.max(40, Math.round((160 - panOffset.x) / zoomLevel) + Math.floor(Math.random() * 60)),
+      y: Math.max(40, Math.round((140 - panOffset.y) / zoomLevel) + Math.floor(Math.random() * 50)),
       width: 260,
       height: 160,
       color: "blue",
@@ -481,36 +596,163 @@ export function CanvasView() {
     }
   };
 
-  // 드래그 시작
+  // 드래그 시작 (PC 마우스)
   const handleMouseDown = (e: React.MouseEvent, item: CanvasItemData) => {
     if ((e.target as HTMLElement).tagName === "TEXTAREA" || (e.target as HTMLElement).tagName === "BUTTON") {
       return;
     }
-    // 🌟 캔버스 메모를 잡고 이동할 때 화면 내 텍스트 선택 영역 즉시 해제 (잔상 방지)
+
+    // 화면 이동(잡기) 모드 또는 스페이스바 홀드 중이면 아이템 드래그 대신 캔버스 이동
+    if (isHandToolActive || isSpaceHeld) {
+      handleMouseDownCanvas(e);
+      return;
+    }
+
     if (typeof window !== "undefined") {
       window.getSelection()?.removeAllRanges();
     }
+    setSelectedItemId(item._id);
     setDraggingItemId(item._id);
     dragOffsetRef.current = {
-      x: e.clientX / zoomLevel - item.x,
-      y: e.clientY / zoomLevel - item.y,
+      x: (e.clientX - panOffset.x) / zoomLevel - item.x,
+      y: (e.clientY - panOffset.y) / zoomLevel - item.y,
     };
   };
 
-  // 드래그 중
+  // 터치 드래그 시작 (모바일 터치)
+  const handleTouchStartItem = (e: React.TouchEvent, item: CanvasItemData) => {
+    if ((e.target as HTMLElement).tagName === "TEXTAREA" || (e.target as HTMLElement).tagName === "BUTTON") {
+      return;
+    }
+    if (e.touches.length !== 1) return;
+
+    if (isHandToolActive) {
+      handleTouchStartCanvas(e);
+      return;
+    }
+
+    setSelectedItemId(item._id);
+    setDraggingItemId(item._id);
+    const touch = e.touches[0];
+    dragOffsetRef.current = {
+      x: (touch.clientX - panOffset.x) / zoomLevel - item.x,
+      y: (touch.clientY - panOffset.y) / zoomLevel - item.y,
+    };
+  };
+
+  // 캔버스 배경 드래그(화면 이동 / Pan) 시작
+  const handleMouseDownCanvas = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    setSelectedItemId(null);
+    setIsPanning(true);
+    panStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      initialPanX: panOffset.x,
+      initialPanY: panOffset.y,
+    };
+  };
+
+  const handleTouchStartCanvas = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setSelectedItemId(null);
+      setIsPanning(true);
+      panStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        initialPanX: panOffset.x,
+        initialPanY: panOffset.y,
+      };
+      pinchDistRef.current = null;
+    } else if (e.touches.length === 2) {
+      setIsPanning(false);
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchDistRef.current = Math.hypot(dx, dy);
+    }
+  };
+
+  // 드래그 중 (PC 마우스 - 60fps RAF 최적화)
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!draggingItemId) return;
+    if (draggingItemId) {
+      const clientX = e.clientX;
+      const clientY = e.clientY;
+      const currentDragId = draggingItemId;
 
-    const newX = Math.max(0, Math.round(e.clientX / zoomLevel - dragOffsetRef.current.x));
-    const newY = Math.max(0, Math.round(e.clientY / zoomLevel - dragOffsetRef.current.y));
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        const newX = Math.round((clientX - panOffset.x) / zoomLevel - dragOffsetRef.current.x);
+        const newY = Math.round((clientY - panOffset.y) / zoomLevel - dragOffsetRef.current.y);
 
-    setItems((prev) =>
-      prev.map((it) => (it._id === draggingItemId ? { ...it, x: newX, y: newY } : it))
-    );
+        setItems((prev) =>
+          prev.map((it) => (it._id === currentDragId ? { ...it, x: newX, y: newY } : it))
+        );
+      });
+      return;
+    }
+
+    if (isPanning) {
+      const dx = e.clientX - panStartRef.current.x;
+      const dy = e.clientY - panStartRef.current.y;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        setPanOffset({
+          x: panStartRef.current.initialPanX + dx,
+          y: panStartRef.current.initialPanY + dy,
+        });
+      });
+    }
+  };
+
+  // 터치 드래그 중 (모바일 터치 - 60fps RAF 최적화)
+  const handleTouchMoveCanvas = (e: React.TouchEvent) => {
+    if (draggingItemId && e.touches.length === 1) {
+      const touch = e.touches[0];
+      const touchX = touch.clientX;
+      const touchY = touch.clientY;
+      const currentDragId = draggingItemId;
+
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        const newX = Math.round((touchX - panOffset.x) / zoomLevel - dragOffsetRef.current.x);
+        const newY = Math.round((touchY - panOffset.y) / zoomLevel - dragOffsetRef.current.y);
+
+        setItems((prev) =>
+          prev.map((it) => (it._id === currentDragId ? { ...it, x: newX, y: newY } : it))
+        );
+      });
+      return;
+    }
+
+    if (isPanning && e.touches.length === 1) {
+      const touch = e.touches[0];
+      const dx = touch.clientX - panStartRef.current.x;
+      const dy = touch.clientY - panStartRef.current.y;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        setPanOffset({
+          x: panStartRef.current.initialPanX + dx,
+          y: panStartRef.current.initialPanY + dy,
+        });
+      });
+    } else if (e.touches.length === 2 && pinchDistRef.current) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const ratio = dist / pinchDistRef.current;
+      if (Math.abs(ratio - 1) > 0.05) {
+        setZoomLevel((z) => Math.min(2.0, Math.max(0.4, Number((z * (ratio > 1 ? 1.05 : 0.95)).toFixed(2)))));
+        pinchDistRef.current = dist;
+      }
+    }
   };
 
   // 드래그 종료 & DB 저장
   const handleMouseUp = async () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (isPanning) {
+      setIsPanning(false);
+    }
     if (!draggingItemId) return;
     const target = items.find((it) => it._id === draggingItemId);
     const finishedId = draggingItemId;
@@ -529,6 +771,16 @@ export function CanvasView() {
         setSaveStatus("error");
       }
     }
+  };
+
+  const handleTouchEndCanvas = () => {
+    handleMouseUp();
+    pinchDistRef.current = null;
+  };
+
+  const handleResetView = () => {
+    setPanOffset({ x: 0, y: 0 });
+    setZoomLevel(1);
   };
 
   // 타이머 분:초 포맷
@@ -642,6 +894,7 @@ export function CanvasView() {
                 onClick={() => {
                   setSelectedRoomId(room.roomId);
                   setActiveRoomId(room.roomId);
+                  router.push(`/canvas?id=${room.roomId}`);
                 }}
                 className="group relative bg-surface-container-lowest border border-outline-variant hover:border-primary/60 rounded-2xl p-5 flex flex-col justify-between shadow-xs hover:shadow-lg transition-all cursor-pointer"
               >
@@ -786,7 +1039,10 @@ export function CanvasView() {
           {/* 목록으로 돌아가기 버튼 */}
           <button
             type="button"
-            onClick={() => setSelectedRoomId(null)}
+            onClick={() => {
+              setSelectedRoomId(null);
+              router.push("/canvas");
+            }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant text-xs font-bold text-on-surface transition-colors cursor-pointer mr-1 shadow-xs"
             title="캔버스 목록으로 돌아가기"
           >
@@ -825,6 +1081,7 @@ export function CanvasView() {
                             setActiveRoomId(r.roomId);
                             setSelectedRoomId(r.roomId);
                             setIsRoomMenuOpen(false);
+                            router.push(`/canvas?id=${r.roomId}`);
                             toast.info(`'${r.title}' 회의실로 이동했습니다.`);
                           }}
                           className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center justify-between cursor-pointer transition-colors ${
@@ -889,9 +1146,9 @@ export function CanvasView() {
       </div>
 
       {/* ================= 2. 인터랙티브 툴바 ================= */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-surface-container-lowest border border-outline-variant rounded-lg">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-surface-container-lowest border border-outline-variant rounded-lg overflow-x-auto scrollbar-none">
         {/* 좌측 도구 버튼들 */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {/* 포스트잇 색상 선택 칩 */}
           <div className="flex items-center gap-1 bg-surface-container-low px-2 py-1 rounded-md border border-outline-variant">
             {COLOR_PRESETS.map((c) => (
@@ -962,29 +1219,60 @@ export function CanvasView() {
           </div>
         </div>
 
-        {/* 우측 줌 & 정리 도구 */}
-        <div className="flex items-center gap-1.5">
+        {/* 우측 줌 & 화면 이동 도구 */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center bg-surface-container-low p-0.5 rounded-lg border border-outline-variant mr-1">
+            <button
+              type="button"
+              onClick={() => {
+                setIsHandToolActive(false);
+                setIsSpaceHeld(false);
+              }}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                !isHandToolActive && !isSpaceHeld
+                  ? "bg-primary text-on-primary shadow-xs font-bold"
+                  : "text-on-surface-variant hover:text-on-surface"
+              }`}
+              title="선택 도구 (단축키: V)"
+            >
+              <Move size={12} />
+              <span className="hidden sm:inline">선택 (V)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsHandToolActive((prev) => !prev)}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                isHandToolActive || isSpaceHeld
+                  ? "bg-primary text-on-primary shadow-xs font-bold"
+                  : "text-on-surface-variant hover:text-on-surface"
+              }`}
+              title="잡기 / 화면 이동 (단축키: H 또는 Space 홀드)"
+            >
+              <Hand size={12} />
+              <span className="hidden sm:inline">잡기 (H/Space)</span>
+            </button>
+          </div>
           <button
-            onClick={() => setZoomLevel((z) => Math.max(0.6, z - 0.1))}
+            onClick={() => setZoomLevel((z) => Math.max(0.4, Number((z - 0.1).toFixed(2))))}
             className="p-1.5 rounded-md bg-surface-container hover:bg-surface-container-high text-on-surface-variant cursor-pointer"
             title="축소"
           >
             <ZoomOut size={13} />
           </button>
-          <span className="font-mono text-xs font-semibold px-1 text-on-surface">
+          <span className="font-mono text-xs font-semibold px-1 text-on-surface min-w-[40px] text-center">
             {Math.round(zoomLevel * 100)}%
           </span>
           <button
-            onClick={() => setZoomLevel((z) => Math.min(1.5, z + 0.1))}
+            onClick={() => setZoomLevel((z) => Math.min(2.0, Number((z + 0.1).toFixed(2))))}
             className="p-1.5 rounded-md bg-surface-container hover:bg-surface-container-high text-on-surface-variant cursor-pointer"
             title="확대"
           >
             <ZoomIn size={13} />
           </button>
           <button
-            onClick={() => setZoomLevel(1)}
+            onClick={handleResetView}
             className="p-1.5 rounded-md bg-surface-container hover:bg-surface-container-high text-on-surface-variant cursor-pointer"
-            title="100% 원복"
+            title="화면 위치 및 배율 초기화"
           >
             <Maximize2 size={13} />
           </button>
@@ -1002,12 +1290,27 @@ export function CanvasView() {
       {/* ================= 3. 2D 캔버스 작업 영역 ================= */}
       <div
         ref={canvasRef}
+        onMouseDown={(e) => {
+          if (e.target === canvasRef.current || isHandToolActive || isSpaceHeld) {
+            handleMouseDownCanvas(e);
+          }
+        }}
         onMouseMove={handleMouseMove}
-        className="relative w-full h-[calc(100vh-230px)] min-h-[580px] overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-inner"
+        onTouchStart={(e) => {
+          if (e.target === canvasRef.current || isHandToolActive) {
+            handleTouchStartCanvas(e);
+          }
+        }}
+        onTouchMove={handleTouchMoveCanvas}
+        onTouchEnd={handleTouchEndCanvas}
+        className={`relative w-full h-[calc(100vh-230px)] min-h-[580px] overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-inner touch-none ${
+          isPanning ? "cursor-grabbing" : isHandToolActive || isSpaceHeld ? "cursor-grab" : "cursor-default"
+        }`}
         style={{
           backgroundImage:
             "radial-gradient(var(--outline-variant) 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
+          backgroundSize: `${24 * zoomLevel}px ${24 * zoomLevel}px`,
+          backgroundPosition: `${panOffset.x}px ${panOffset.y}px`,
         }}
       >
         {/* 안내 워터마크 */}
@@ -1018,26 +1321,43 @@ export function CanvasView() {
             </div>
             <h3 className="ui-section-title text-on-surface">캔버스가 비어 있습니다</h3>
             <p className="ui-caption text-on-surface-variant max-w-sm">
-              상단의 [포스트잇 메모지 붙이기] 버튼을 눌러 아이디어를 등록하고, 마우스로 자유롭게 드래그하여 배치하세요.
+              상단의 [포스트잇 메모지 붙이기] 버튼을 눌러 아이디어를 등록하고, 마우스나 터치로 자유롭게 드래그하여 배치하세요.
             </p>
           </div>
         )}
 
-        {/* 캔버스 아이템 렌더링 */}
+        {/* 캔버스 아이템 렌더링 컨테이너 */}
         <div
-          className="w-full h-full relative origin-top-left transition-transform duration-75"
-          style={{ transform: `scale(${zoomLevel})` }}
+          data-canvas-bg="true"
+          onMouseDown={(e) => {
+            if ((e.target as HTMLElement).getAttribute("data-canvas-bg") || isHandToolActive) {
+              handleMouseDownCanvas(e);
+            }
+          }}
+          onTouchStart={(e) => {
+            if ((e.target as HTMLElement).getAttribute("data-canvas-bg") || isHandToolActive) {
+              handleTouchStartCanvas(e);
+            }
+          }}
+          className="w-full h-full relative"
+          style={{
+            transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
+            transformOrigin: "0 0",
+          }}
         >
           {items.map((item) => {
             const colorPreset =
               COLOR_PRESETS.find((c) => c.id === item.color) || COLOR_PRESETS[0];
+            const isSelected = selectedItemId === item._id;
 
             if (item.type === "meeting_card") {
               return (
                 <div
                   key={item._id}
                   onMouseDown={(e) => handleMouseDown(e, item)}
+                  onTouchStart={(e) => handleTouchStartItem(e, item)}
                   onClick={() => {
+                    setSelectedItemId(item._id);
                     if (activeSticker) {
                       handleAddStickerToItem(item._id, activeSticker);
                     }
@@ -1047,7 +1367,11 @@ export function CanvasView() {
                     width: `${item.width}px`,
                   }}
                   className={`absolute p-3 rounded-lg border-2 shadow-md bg-surface-container-low border-secondary/50 cursor-grab active:cursor-grabbing transition-shadow ${
-                    draggingItemId === item._id ? "shadow-2xl ring-2 ring-primary z-50 opacity-90" : "z-10"
+                    draggingItemId === item._id
+                      ? "shadow-2xl ring-2 ring-primary z-50 opacity-90 scale-102"
+                      : isSelected
+                      ? "ring-2 ring-primary z-40 shadow-lg"
+                      : "z-10"
                   }`}
                 >
                   <div className="flex items-center justify-between pb-1.5 border-b border-outline-variant">
@@ -1112,7 +1436,9 @@ export function CanvasView() {
               <div
                 key={item._id}
                 onMouseDown={(e) => handleMouseDown(e, item)}
+                onTouchStart={(e) => handleTouchStartItem(e, item)}
                 onClick={() => {
+                  setSelectedItemId(item._id);
                   if (activeSticker) {
                     handleAddStickerToItem(item._id, activeSticker);
                   }
@@ -1122,7 +1448,11 @@ export function CanvasView() {
                   width: `${item.width}px`,
                 }}
                 className={`absolute p-3 rounded-lg border shadow-md ${colorPreset.bg} cursor-grab active:cursor-grabbing transition-shadow ${
-                  draggingItemId === item._id ? "shadow-2xl ring-2 ring-primary z-50 opacity-95 scale-102" : "z-10"
+                  draggingItemId === item._id
+                    ? "shadow-2xl ring-2 ring-primary z-50 opacity-95 scale-102"
+                    : isSelected
+                    ? "ring-2 ring-primary z-40 shadow-lg"
+                    : "z-10"
                 }`}
               >
                 {/* 상단 핀 & 작성자 & 삭제 */}
@@ -1177,6 +1507,78 @@ export function CanvasView() {
               </div>
             );
           })}
+        </div>
+
+        {/* 📱 모바일/선택 아이템 하단 플로팅 액션 독 */}
+        {selectedItemId && (() => {
+          const selectedItem = items.find((i) => i._id === selectedItemId);
+          if (!selectedItem) return null;
+          return (
+            <div
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-lowest/95 backdrop-blur-md border border-outline-variant rounded-2xl shadow-xl animate-in slide-in-from-bottom-2 duration-150 select-none"
+            >
+              <span className="text-[11px] font-bold text-on-surface truncate max-w-[120px] px-1">
+                {selectedItem.type === "meeting_card" ? "📋 회의 안건" : "📝 메모지"}
+              </span>
+              <div className="h-3.5 w-px bg-outline-variant" />
+              {selectedItem.type === "meeting_card" && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={() => handleToggleMeetingStatus(selectedItem._id)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-container hover:bg-surface-container-high text-[11px] font-bold text-on-surface cursor-pointer"
+                >
+                  상태 변경
+                </button>
+              )}
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => handleVote(selectedItem._id)}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-bold cursor-pointer"
+              >
+                <ThumbsUp size={11} />
+                <span>{selectedItem.votes || 0}</span>
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => {
+                  handleDeleteItem(selectedItem._id);
+                  setSelectedItemId(null);
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-error/10 hover:bg-error/20 text-error text-[11px] font-bold cursor-pointer"
+              >
+                <Trash2 size={11} />
+                <span>삭제</span>
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => setSelectedItemId(null)}
+                className="p-1 rounded-lg hover:bg-surface-container text-on-surface-variant cursor-pointer text-[11px]"
+                title="선택 해제"
+              >
+                ✕
+              </button>
+            </div>
+          );
+        })()}
+
+        {/* PC 단축키 안내 팁 */}
+        <div className="absolute left-4 bottom-3 hidden md:flex bg-surface-container-lowest/80 backdrop-blur-md border border-outline-variant px-3 py-1.5 rounded-xl ui-caption text-on-surface-variant items-center gap-2 shadow-xs pointer-events-none">
+          <span>💡 <strong>V</strong>: 선택</span>
+          <span>•</span>
+          <span><strong>H / Space 홀드</strong>: 잡기</span>
+          <span>•</span>
+          <span><strong>N/S</strong>: 포스트잇</span>
+          <span>•</span>
+          <span><strong>M</strong>: 회의안건</span>
+          <span>•</span>
+          <span><strong>Del</strong>: 삭제</span>
         </div>
       </div>
 

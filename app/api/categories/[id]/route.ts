@@ -7,15 +7,11 @@ import { withAudit } from "@/lib/withAudit";
 
 // 1. 카테고리 정보 수정 (관리자 전용)
 export const PUT = withAudit(
-  async (req: Request, context?: { params: Promise<{ id: string }> }) => {
+  async (req: Request, context: { params: Promise<{ id: string }> }) => {
     try {
       const session = await getServerSession(authOptions);
       if (!session || session.user?.role !== "admin") {
         return NextResponse.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
-      }
-
-      if (!context?.params) {
-        return NextResponse.json({ error: "파라미터가 유효하지 않습니다." }, { status: 400 });
       }
 
       const { id } = await context.params;
@@ -57,15 +53,11 @@ export const PUT = withAudit(
 
 // 2. 카테고리 삭제 (관리자 전용)
 export const DELETE = withAudit(
-  async (req: Request, context?: { params: Promise<{ id: string }> }) => {
+  async (req: Request, context: { params: Promise<{ id: string }> }) => {
     try {
       const session = await getServerSession(authOptions);
       if (!session || session.user?.role !== "admin") {
         return NextResponse.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
-      }
-
-      if (!context?.params) {
-        return NextResponse.json({ error: "파라미터가 유효하지 않습니다." }, { status: 400 });
       }
 
       const { id } = await context.params;

@@ -2,16 +2,16 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { createAuditLog } from "@/lib/logger";
 
-type RouteHandler<TContext = unknown> = (
+type RouteHandler<TContext = any> = (
   request: Request,
-  context?: TContext,
+  context: TContext,
 ) => Promise<Response | NextResponse> | Response | NextResponse;
 
-export function withAudit<TContext = unknown>(
+export function withAudit<TContext = any>(
   handler: RouteHandler<TContext>,
   actionDescription?: string,
 ) {
-  return async function (request: Request, context?: TContext): Promise<Response> {
+  return async function (request: Request, context: TContext): Promise<Response> {
     const startTime = Date.now();
     const session = await getServerSession();
     const email = session?.user?.email || "anonymous";

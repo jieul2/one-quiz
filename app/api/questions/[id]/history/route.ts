@@ -16,7 +16,7 @@ function formatDate(d: Date): string {
 
 async function handlePost(
   req: Request,
-  context?: { params?: Promise<{ id: string }> | { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -31,8 +31,7 @@ async function handlePost(
     const body = await req.json();
     const { isCorrect, userAnswer = "" } = body;
 
-    const resolvedParams = context?.params ? await Promise.resolve(context.params) : null;
-    const questionId = resolvedParams?.id;
+    const { id: questionId } = await context.params;
 
     if (!questionId) {
       return NextResponse.json(

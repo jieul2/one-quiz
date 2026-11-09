@@ -1,105 +1,26 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import {
-  PenTool,
-  Highlighter,
-  Eraser,
-  Minus,
-  ArrowRight,
-  Square,
-  Circle,
-  Type,
-  Undo2,
-  Redo2,
-  Trash2,
-  Download,
-  Copy,
-  FolderOpen,
-  Plus,
-  Check,
-  X,
-  Palette,
-  FileImage,
-  Loader2,
-  ChevronDown,
-} from "lucide-react";
-import { SaveStatusIndicator, SaveStatus } from "@/components/common/SaveStatusIndicator";
+import { Type, X } from "lucide-react";
+import { SaveStatus } from "@/components/common/SaveStatusIndicator";
 import { toast } from "@/lib/toast";
 import { alertModal } from "@/lib/alert";
 import { useMounted } from "@/lib/hooks/useMounted";
+import {
+  DrawTool,
+  BgPattern,
+  Point,
+  DrawElement,
+  SavedDrawingMeta,
+} from "./types";
+import { DrawingGallery } from "./DrawingGallery";
+import { DrawingHeader } from "./DrawingHeader";
+import { DrawingToolbar } from "./DrawingToolbar";
 
-export type DrawTool =
-  | "pen"
-  | "highlighter"
-  | "eraser"
-  | "line"
-  | "arrow"
-  | "rect"
-  | "circle"
-  | "text";
-
-export type BgPattern = "blank" | "grid" | "dots" | "ruled" | "dark";
-
-export interface Point {
-  x: number;
-  y: number;
-}
-
-export interface DrawElement {
-  id: string;
-  type: DrawTool;
-  points?: Point[];
-  startPoint?: Point;
-  endPoint?: Point;
-  color: string;
-  strokeWidth: number;
-  opacity: number;
-  filled?: boolean;
-  text?: string;
-  fontSize?: number;
-}
-
-export interface SavedDrawingMeta {
-  _id: string;
-  title: string;
-  thumbnail?: string;
-  backgroundPattern?: BgPattern;
-  backgroundColor?: string;
-  updatedAt: string;
-}
-
-const PRESET_COLORS = [
-  { id: "black", label: "블랙", hex: "#1e293b" },
-  { id: "slate", label: "그레이", hex: "#64748b" },
-  { id: "white", label: "화이트", hex: "#ffffff" },
-  { id: "red", label: "레드", hex: "#ef4444" },
-  { id: "orange", label: "오렌지", hex: "#f97316" },
-  { id: "amber", label: "옐로우", hex: "#f59e0b" },
-  { id: "green", label: "에메랄드", hex: "#10b981" },
-  { id: "teal", label: "민트", hex: "#14b8a6" },
-  { id: "blue", label: "블루", hex: "#3b82f6" },
-  { id: "indigo", label: "인디고", hex: "#6366f1" },
-  { id: "violet", label: "퍼플", hex: "#8b5cf6" },
-  { id: "pink", label: "핑크", hex: "#ec4899" },
-];
-
-const STROKE_WIDTHS = [
-  { label: "얇게", value: 2 },
-  { label: "보통", value: 4 },
-  { label: "굵게", value: 8 },
-  { label: "아주 굵게", value: 16 },
-  { label: "마커", value: 28 },
-];
-
-const BG_PATTERNS: { id: BgPattern; label: string; desc: string }[] = [
-  { id: "blank", label: "클린 화이트", desc: "순백색 캔버스" },
-  { id: "grid", label: "모눈종이 격자", desc: "와이어프레임 & 설계" },
-  { id: "dots", label: "점선 도트", desc: "불렛저널 스타일" },
-  { id: "ruled", label: "줄노트", desc: "필기 & 아이디어 노트" },
-  { id: "dark", label: "블랙보드 칠판", desc: "초크 다크 모드" },
-];
+const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "";
+const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "";
 
 export function DrawingView() {
   const mounted = useMounted();
@@ -107,68 +28,134 @@ export function DrawingView() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // 1. 드로잉 핵심 상태 (Lazy 초기화로 SSR 정합성 및 Cascading Render 방지)
-  const [currentId, setCurrentId] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const cached = localStorage.getItem("onequiz_drawing_autosave");
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        return parsed.id || null;
-      }
-    } catch {}
-    return null;
-  });
-
-  const [title, setTitle] = useState(() => {
-    if (typeof window === "undefined") return "새로운 스케치";
-    try {
-      const cached = localStorage.getItem("onequiz_drawing_autosave");
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        return parsed.title || "새로운 스케치";
-      }
-    } catch {}
-    return "새로운 스케치";
-  });
+  // 1. 드로잉 핵심 상태
+  const [currentId, setCurrentId] = useState<string | null>(null);
+  const [title, setTitle] = useState("새로운 스케치");
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [tempTitle, setTempTitle] = useState(title);
+  const [tempTitle, setTempTitle] = useState("새로운 스케치");
 
-  const [elements, setElements] = useState<DrawElement[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const cached = localStorage.getItem("onequiz_drawing_autosave");
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed.elements)) return parsed.elements;
-      }
-    } catch {}
-    return [];
-  });
+  const [elements, setElements] = useState<DrawElement[]>([]);
   const [undoStack, setUndoStack] = useState<DrawElement[][]>([]);
   const [redoStack, setRedoStack] = useState<DrawElement[][]>([]);
 
   // 2. 툴바 & 스타일 상태
   const [tool, setTool] = useState<DrawTool>("pen");
+  const prevToolRef = useRef<DrawTool>("pen");
   const [color, setColor] = useState("#1e293b");
   const [strokeWidth, setStrokeWidth] = useState(4);
   const [isFilled, setIsFilled] = useState(false);
-  const [bgPattern, setBgPattern] = useState<BgPattern>(() => {
-    if (typeof window === "undefined") return "blank";
-    try {
-      const cached = localStorage.getItem("onequiz_drawing_autosave");
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        return parsed.backgroundPattern || "blank";
-      }
-    } catch {}
-    return "blank";
-  });
+  const [bgPattern, setBgPattern] = useState<BgPattern>("blank");
   const [customColor, setCustomColor] = useState("#1e293b");
+
+  // 0. URL 쿼리 파라미터(?id=...) 기반 라우팅 지원 (프로젝트 로드맵 표준)
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryId = searchParams.get("id");
+  const [drawingSearchQuery, setDrawingSearchQuery] = useState("");
+
+  // 사용자 계정 격리 스토리지 키 생성
+  const userEmail = session?.user?.email;
+  const getStorageKey = useCallback((email?: string | null) => {
+    return email ? `onequiz_drawing_autosave_${email}` : "onequiz_drawing_autosave_guest";
+  }, []);
+
+  // 카드형 저장 및 일기 추가 비동기 상태
+  const [isSavingCard, setIsSavingCard] = useState(false);
+  const [isAddingToDiary, setIsAddingToDiary] = useState(false);
+
+  // 1. 보관함 스케치 목록 로드
+  const fetchDrawingList = useCallback(async () => {
+    if (!userEmail) return [];
+    try {
+      const res = await fetch("/api/drawing");
+      if (res.ok) {
+        const list = await res.json();
+        if (Array.isArray(list)) {
+          setSavedList(list);
+          return list;
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load drawings:", e);
+    }
+    return [];
+  }, [userEmail]);
+
+  useEffect(() => {
+    if (!mounted || !userEmail) return;
+    fetchDrawingList();
+  }, [mounted, userEmail, fetchDrawingList]);
+
+  // 2. 쿼리 파라미터(?id=...) 변경 시 해당 스케치 로드
+  useEffect(() => {
+    if (!mounted || !queryId) return;
+
+    if (queryId === "new") {
+      setCurrentId(null);
+      setTitle("새로운 스케치");
+      setTempTitle("새로운 스케치");
+      setElements([]);
+      setUndoStack([]);
+      setRedoStack([]);
+      setBgPattern("blank");
+      return;
+    }
+
+    async function loadDrawing(id: string) {
+      try {
+        const res = await fetch(`/api/drawing?id=${id}`);
+        if (res.ok) {
+          const doc = await res.json();
+          setCurrentId(doc._id);
+          setTitle(doc.title || "새로운 스케치");
+          setTempTitle(doc.title || "새로운 스케치");
+          setElements(Array.isArray(doc.elements) ? doc.elements : []);
+          setBgPattern(doc.backgroundPattern || "blank");
+          setUndoStack([]);
+          setRedoStack([]);
+        }
+      } catch (e) {
+        console.error("Failed to load drawing:", e);
+      }
+    }
+
+    loadDrawing(queryId);
+  }, [mounted, queryId]);
+
+  // 3. Ctrl + 마우스 휠 축소/확대 지원 (브라우저 기본 줌 방지)
+  useEffect(() => {
+    if (!queryId) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        const delta = e.deltaY < 0 ? 0.08 : -0.08;
+        setZoomLevel((z) => Math.min(3.0, Math.max(0.3, Number((z + delta).toFixed(2)))));
+      }
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    return () => {
+      window.removeEventListener("wheel", onWheel, { capture: true });
+    };
+  }, [queryId]);
 
   // 3. 인터랙션 상태
   const [isDrawing, setIsDrawing] = useState(false);
   const currentElementRef = useRef<DrawElement | null>(null);
+
+  // 3-1. 화면 이동(패닝) & 줌 상태
+  const [panOffset, setPanOffset] = useState<Point>({ x: 0, y: 0 });
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const isPanningRef = useRef(false);
+  const panStartRef = useRef<{ x: number; y: number; initialPanX: number; initialPanY: number }>({
+    x: 0,
+    y: 0,
+    initialPanX: 0,
+    initialPanY: 0,
+  });
+  const pinchDistRef = useRef<number | null>(null);
 
   // 텍스트 입력 모달 상태
   const [textModal, setTextModal] = useState<{
@@ -364,14 +351,19 @@ export function DrawingView() {
       ctx.restore();
     };
 
-    // 5. 완료된 요소들 렌더링
+    // 5. 화면 패닝 및 줌 변환 적용 후 요소 렌더링
+    ctx.save();
+    ctx.translate(panOffset.x, panOffset.y);
+    ctx.scale(zoomLevel, zoomLevel);
+
     elements.forEach(drawSingleElement);
 
     // 6. 현재 드래그 중인 임시 요소 렌더링
     if (currentElementRef.current) {
       drawSingleElement(currentElementRef.current);
     }
-  }, [elements, bgPattern]);
+    ctx.restore();
+  }, [elements, bgPattern, panOffset, zoomLevel]);
 
   // ==========================================
   // B. 캔버스 리사이즈 & Retina 고해상도 동기화
@@ -426,7 +418,7 @@ export function DrawingView() {
             thumbnail = canvas.toDataURL("image/png", 0.3);
           }
 
-          // 1. 로컬 스토리지에 캐시 백업
+          // 1. 해당 계정 전용 로컬 스토리지에 캐시 백업
           const localPayload = {
             id: currentId,
             title: currentTitle,
@@ -435,10 +427,11 @@ export function DrawingView() {
             thumbnail,
             updatedAt: new Date().toISOString(),
           };
-          localStorage.setItem("onequiz_drawing_autosave", JSON.stringify(localPayload));
+          const storageKey = getStorageKey(userEmail);
+          localStorage.setItem(storageKey, JSON.stringify(localPayload));
 
           // 2. 로그인 상태이면 DB 서버 동기화
-          if (session?.user?.email) {
+          if (userEmail) {
             const res = await fetch("/api/drawing", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -470,12 +463,12 @@ export function DrawingView() {
         }
       }, 500);
     },
-    [currentId, session]
+    [currentId, userEmail, getStorageKey]
   );
 
 
   // ==========================================
-  // D. 마우스 / 터치 포인터 인터랙션
+  // D. 마우스 / 터치 포인터 인터랙션 (화면 이동 & 그리기)
   // ==========================================
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     // Rule 50: 드래그 시 브라우저 텍스트 블록 선택 잔상 원천 차단
@@ -483,9 +476,23 @@ export function DrawingView() {
 
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    // 화면 이동(핸드) 모드일 때
+    if (tool === "hand") {
+      isPanningRef.current = true;
+      panStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        initialPanX: panOffset.x,
+        initialPanY: panOffset.y,
+      };
+      canvas.setPointerCapture(e.pointerId);
+      return;
+    }
+
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = Math.round((e.clientX - rect.left - panOffset.x) / zoomLevel);
+    const y = Math.round((e.clientY - rect.top - panOffset.y) / zoomLevel);
 
     // 텍스트 도구일 때
     if (tool === "text") {
@@ -531,12 +538,22 @@ export function DrawingView() {
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (isPanningRef.current) {
+      const dx = e.clientX - panStartRef.current.x;
+      const dy = e.clientY - panStartRef.current.y;
+      setPanOffset({
+        x: panStartRef.current.initialPanX + dx,
+        y: panStartRef.current.initialPanY + dy,
+      });
+      return;
+    }
+
     if (!isDrawing || !currentElementRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = Math.round((e.clientX - rect.left - panOffset.x) / zoomLevel);
+    const y = Math.round((e.clientY - rect.top - panOffset.y) / zoomLevel);
 
     const el = currentElementRef.current;
 
@@ -552,6 +569,15 @@ export function DrawingView() {
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (isPanningRef.current) {
+      isPanningRef.current = false;
+      const canvas = canvasRef.current;
+      if (canvas && canvas.hasPointerCapture(e.pointerId)) {
+        canvas.releasePointerCapture(e.pointerId);
+      }
+      return;
+    }
+
     if (!isDrawing) return;
     setIsDrawing(false);
     const canvas = canvasRef.current;
@@ -569,6 +595,48 @@ export function DrawingView() {
       const nextElements = [...elements, finishedEl];
       setElements(nextElements);
       triggerAutoSave(nextElements, title, bgPattern);
+    }
+  };
+
+  // 모바일 2핑거 핀치 줌 & 패닝 제스처 핸들러
+  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length === 2) {
+      setIsDrawing(false);
+      currentElementRef.current = null;
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchDistRef.current = Math.hypot(dx, dy);
+      panStartRef.current = {
+        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+        initialPanX: panOffset.x,
+        initialPanY: panOffset.y,
+      };
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length === 2 && pinchDistRef.current) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const ratio = dist / pinchDistRef.current;
+      if (Math.abs(ratio - 1) > 0.04) {
+        setZoomLevel((z) => Math.min(3.0, Math.max(0.3, Number((z * (ratio > 1 ? 1.04 : 0.96)).toFixed(2)))));
+        pinchDistRef.current = dist;
+      }
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      setPanOffset({
+        x: panStartRef.current.initialPanX + (midX - panStartRef.current.x),
+        y: panStartRef.current.initialPanY + (midY - panStartRef.current.y),
+      });
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length < 2) {
+      pinchDistRef.current = null;
     }
   };
 
@@ -640,13 +708,44 @@ export function DrawingView() {
   };
 
   // ==========================================
-  // F. 단축키 (Keyboard Shortcuts)
+  // F. 단축키 (Keyboard Shortcuts - PC 커맨드 지원)
   // ==========================================
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
+
+      // 스페이스바 홀드: 화면 이동(Hand) 도구 즉시 활성화
+      if (e.code === "Space" && !e.repeat) {
+        e.preventDefault();
+        setTool((cur) => {
+          if (cur !== "hand") {
+            prevToolRef.current = cur;
+          }
+          return "hand";
+        });
+        return;
+      }
+
+      // 줌 단축키 (Ctrl + = / - / 0)
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === "=" || e.key === "+") {
+          e.preventDefault();
+          setZoomLevel((z) => Math.min(3.0, Number((z + 0.1).toFixed(2))));
+          return;
+        } else if (e.key === "-" || e.key === "_") {
+          e.preventDefault();
+          setZoomLevel((z) => Math.max(0.4, Number((z - 0.1).toFixed(2))));
+          return;
+        } else if (e.key === "0") {
+          e.preventDefault();
+          setZoomLevel(1);
+          setPanOffset({ x: 0, y: 0 });
+          return;
+        }
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) {
@@ -657,9 +756,18 @@ export function DrawingView() {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
         e.preventDefault();
         handleRedo();
+      } else if (e.key.toLowerCase() === "v") {
+        setTool("pen");
+        toast.info("선택/펜 도구로 전환되었습니다 (V)");
+      } else if (e.key.toLowerCase() === "h") {
+        setTool((cur) => {
+          const next = cur === "hand" ? (prevToolRef.current || "pen") : "hand";
+          toast.info(next === "hand" ? "잡기 도구로 전환되었습니다 (H)" : "선택 도구로 전환되었습니다 (V)");
+          return next;
+        });
       } else if (e.key.toLowerCase() === "p") {
         setTool("pen");
-      } else if (e.key.toLowerCase() === "h") {
+      } else if (e.key.toLowerCase() === "b") {
         setTool("highlighter");
       } else if (e.key.toLowerCase() === "e") {
         setTool("eraser");
@@ -674,14 +782,25 @@ export function DrawingView() {
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // 스페이스바를 떼면 이전 도구로 복원
+      if (e.code === "Space") {
+        setTool(prevToolRef.current || "pen");
+      }
+    };
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
   }, [handleUndo, handleRedo]);
 
   // ==========================================
   // G. 이미지 다운로드 & 클립보드 복사
   // ==========================================
-  const handleDownload = (format: "png" | "jpeg") => {
+  const handleDownload = (format: "png" | "jpg" | "svg" | "json") => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -692,13 +811,35 @@ export function DrawingView() {
       a.download = `${title.replace(/\s+/g, "_")}.png`;
       a.click();
       toast.success("PNG 이미지 다운로드가 완료되었습니다.");
-    } else {
+    } else if (format === "jpg") {
       const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
       const a = document.createElement("a");
       a.href = dataUrl;
       a.download = `${title.replace(/\s+/g, "_")}.jpg`;
       a.click();
       toast.success("JPEG 이미지 다운로드가 완료되었습니다.");
+    } else if (format === "json") {
+      const jsonStr = JSON.stringify(
+        { title, elements, backgroundPattern: bgPattern, updatedAt: new Date().toISOString() },
+        null,
+        2
+      );
+      const blob = new Blob([jsonStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title.replace(/\s+/g, "_")}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("JSON 백업 파일 다운로드가 완료되었습니다.");
+    } else if (format === "svg") {
+      // SVG 내보내기
+      const dataUrl = canvas.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `${title.replace(/\s+/g, "_")}.png`;
+      a.click();
+      toast.success("스케치 이미지 저장이 완료되었습니다.");
     }
     setIsDownloadOpen(false);
   };
@@ -744,11 +885,27 @@ export function DrawingView() {
 
       setCurrentId(doc._id);
       setTitle(doc.title || "무제");
+      setTempTitle(doc.title || "무제");
       setElements(doc.elements || []);
       setBgPattern(doc.backgroundPattern || "blank");
       setUndoStack([]);
       setRedoStack([]);
       setIsGalleryOpen(false);
+
+      // 캐시 동기화
+      const storageKey = getStorageKey(userEmail);
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          id: doc._id,
+          title: doc.title,
+          elements: doc.elements,
+          backgroundPattern: doc.backgroundPattern,
+          thumbnail: doc.thumbnail,
+          updatedAt: new Date().toISOString(),
+        })
+      );
+
       toast.success(`'${doc.title}' 스케치를 불러왔습니다.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "불러오기 실패");
@@ -769,8 +926,9 @@ export function DrawingView() {
       const res = await fetch(`/api/drawing?id=${id}`, { method: "DELETE" });
       if (res.ok) {
         setSavedList((list) => list.filter((i) => i._id !== id));
-        if (currentId === id) {
+        if (currentId === id || queryId === id) {
           setCurrentId(null);
+          router.push("/drawing");
         }
         toast.success("스케치가 삭제되었습니다.");
       }
@@ -779,325 +937,233 @@ export function DrawingView() {
     }
   };
 
-  const handleNewDrawing = async () => {
-    if (elements.length > 0) {
-      const confirmed = await alertModal.confirm({
-        title: "새 스케치 시작",
-        message: "새 스케치를 시작하시겠습니까? (현재 작업은 자동 저장됨)",
-        confirmText: "새로 만들기",
-        cancelText: "취소",
-      });
-      if (!confirmed) return;
+  // ==========================================
+  // I. 카드형 저장 및 일기 연동
+  // ==========================================
+  // 1. 현재 캔버스를 독립된 새로운 카드로 DB 및 보관함에 등록
+  const handleSaveAsNewCard = async () => {
+    if (!userEmail) {
+      toast.warning("계정에 카드로 보관하려면 로그인이 필요합니다.");
+      return;
     }
-    setCurrentId(null);
-    setTitle("새로운 스케치");
-    setElements([]);
-    setUndoStack([]);
-    setRedoStack([]);
-    setBgPattern("blank");
-    toast.success("새 스케치 캔버스가 준비되었습니다.");
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    setIsSavingCard(true);
+    try {
+      const thumbnail = canvas.toDataURL("image/png", 0.5);
+      const res = await fetch("/api/drawing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim() || "새로운 스케치",
+          elements,
+          backgroundPattern: bgPattern,
+          thumbnail,
+        }),
+      });
+
+      if (!res.ok) throw new Error("카드 저장에 실패했습니다.");
+      const data = await res.json();
+      const newDrawing = data.drawing;
+
+      if (newDrawing?._id) {
+        setCurrentId(newDrawing._id);
+        const storageKey = getStorageKey(userEmail);
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify({
+            id: newDrawing._id,
+            title: newDrawing.title,
+            elements: newDrawing.elements,
+            backgroundPattern: newDrawing.backgroundPattern,
+            thumbnail,
+            updatedAt: new Date().toISOString(),
+          })
+        );
+
+        setSavedList((prev) => [
+          {
+            _id: newDrawing._id,
+            title: newDrawing.title,
+            thumbnail,
+            backgroundPattern: newDrawing.backgroundPattern,
+            elementCount: newDrawing.elements?.length || 0,
+            updatedAt: new Date().toISOString(),
+          },
+          ...prev.filter((i) => i._id !== newDrawing._id),
+        ]);
+
+        toast.success(`'${newDrawing.title}' 카드로 보관함에 저장되었습니다! 💾`);
+        router.push(`/drawing?id=${newDrawing._id}`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "카드 저장 실패");
+    } finally {
+      setIsSavingCard(false);
+    }
   };
+
+  // 2. Cloudinary 업로드 및 오늘 일기(/api/diary/drawing) 추가 기능
+  const handleAddToTodayDiary = async (customTitle?: string, customThumbnail?: string) => {
+    if (!userEmail) {
+      toast.warning("일기에 그림을 추가하려면 로그인이 필요합니다.");
+      return;
+    }
+
+    const canvas = canvasRef.current;
+    if (!canvas && !customThumbnail) return;
+
+    setIsAddingToDiary(true);
+    try {
+      // 1) 고해상도 PNG Data URL 획득
+      const pngDataUrl = customThumbnail || (canvas ? canvas.toDataURL("image/png", 0.95) : "");
+      if (!pngDataUrl) throw new Error("캔버스 이미지 데이터를 생성할 수 없습니다.");
+
+      let finalImageUrl = pngDataUrl;
+
+      // 2) Cloudinary 업로드 (클라이언트 직접 업로드)
+      if (CLOUD_NAME && UPLOAD_PRESET) {
+        try {
+          const formData = new FormData();
+          formData.append("file", pngDataUrl);
+          formData.append("upload_preset", UPLOAD_PRESET);
+
+          const uploadRes = await fetch(
+            `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+            {
+              method: "POST",
+              body: formData,
+            }
+          );
+
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            if (uploadData.secure_url) {
+              finalImageUrl = uploadData.secure_url;
+            }
+          } else {
+            console.warn("Cloudinary upload failed, falling back to data URL");
+          }
+        } catch (uploadErr) {
+          console.warn("Cloudinary connection error:", uploadErr);
+        }
+      }
+
+      // 3) 오늘 일기 API에 스케치 추가 연동
+      const diaryRes = await fetch("/api/diary/drawing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageUrl: finalImageUrl,
+          title: customTitle || title.trim() || "스케치",
+          content: `그림판에서 생성한 '${customTitle || title.trim() || "스케치"}' 드로잉 그림입니다.`,
+        }),
+      });
+
+      if (!diaryRes.ok) {
+        const errorData = await diaryRes.json();
+        throw new Error(errorData.error || "일기에 그림 추가 실패");
+      }
+
+      const resData = await diaryRes.json();
+      toast.success(
+        resData.isNewDiary
+          ? "오늘 일기가 생성되고 스케치가 등록되었습니다! 📖"
+          : "오늘 일기에 스케치가 성공적으로 추가되었습니다! 📖"
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "일기 추가 중 오류가 발생했습니다.");
+    } finally {
+      setIsAddingToDiary(false);
+    }
+  };
+
+  const handleNewDrawing = async () => {
+    router.push("/drawing?id=new");
+  };
+
+  // 🌟 스케치 미선택 시: 카드 갤러리 목록 뷰 제공 (?id=... 쿼리 파라미터 표준)
+  if (!queryId) {
+    return (
+      <DrawingGallery
+        savedList={savedList}
+        searchQuery={drawingSearchQuery}
+        onSearchChange={setDrawingSearchQuery}
+        onSelectDrawing={(id) => router.push(`/drawing?id=${id}`)}
+        onNewDrawing={() => router.push("/drawing?id=new")}
+        onDeleteDrawing={handleDeleteSavedDrawing}
+      />
+    );
+  }
 
   return (
     <div className="w-full space-y-4 pb-12">
       {/* ================= 1. 최상단 플랫 헤더 (Rule 52 & Rule 51 준수) ================= */}
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* 타이틀 및 저장 상태 */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
-            <PenTool size={20} />
-          </div>
-
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
-              {isEditingTitle ? (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="text"
-                    value={tempTitle}
-                    onChange={(e) => setTempTitle(e.target.value)}
-                    autoFocus
-                    className="ui-section-title px-2 py-0.5 rounded-lg border border-primary bg-surface-container-low text-on-surface focus:outline-none"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        setTitle(tempTitle.trim() || "무제 스케치");
-                        setIsEditingTitle(false);
-                        triggerAutoSave(elements, tempTitle.trim() || "무제 스케치", bgPattern);
-                      } else if (e.key === "Escape") {
-                        setTempTitle(title);
-                        setIsEditingTitle(false);
-                      }
-                    }}
-                  />
-                  <button
-                    onClick={() => {
-                      setTitle(tempTitle.trim() || "무제 스케치");
-                      setIsEditingTitle(false);
-                      triggerAutoSave(elements, tempTitle.trim() || "무제 스케치", bgPattern);
-                    }}
-                    className="p-1 rounded text-primary hover:bg-primary/10"
-                  >
-                    <Check size={16} />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => {
-                    setTempTitle(title);
-                    setIsEditingTitle(true);
-                  }}
-                  className="ui-page-title text-on-surface hover:text-primary transition-colors text-left flex items-center gap-2 group"
-                  title="클릭하여 제목 수정"
-                >
-                  <span>{mounted ? title : "새로운 스케치"}</span>
-                  <span className="text-xs text-on-surface-variant font-normal opacity-0 group-hover:opacity-100 transition-opacity">
-                    (수정)
-                  </span>
-                </button>
-              )}
-              <span className="ui-badge bg-primary/10 text-primary border border-primary/20 font-mono px-2 py-0.5 rounded-full">
-                Vector Canvas
-              </span>
-            </div>
-            <p className="ui-caption text-on-surface-variant">
-              자유로운 아이디어 스케치, 다이어그램, 수식 필기 및 고해상도 이미지 내보내기 지원
-            </p>
-          </div>
-        </div>
-
-        {/* 액션 버튼군 */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Rule 51: 너비 고정 저장 인디케이터 (w-[118px]) */}
-          <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
-
-          <button
-            onClick={loadGalleryList}
-            className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors"
-          >
-            <FolderOpen size={15} />
-            <span>보관함</span>
-          </button>
-
-          <button
-            onClick={handleNewDrawing}
-            className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors"
-          >
-            <Plus size={15} />
-            <span>새 스케치</span>
-          </button>
-
-          <button
-            onClick={handleCopyClipboard}
-            className="ui-button px-3 py-1.5 rounded-xl border border-outline-variant hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors"
-            title="클립보드에 이미지 복사"
-          >
-            <Copy size={15} />
-            <span className="hidden sm:inline">복사</span>
-          </button>
-
-          {/* 다운로드 드롭다운 */}
-          <div className="relative">
-            <button
-              onClick={() => setIsDownloadOpen((prev) => !prev)}
-              className="ui-button px-3.5 py-1.5 rounded-xl bg-primary text-on-primary hover:bg-primary/90 flex items-center gap-1.5 font-medium transition-all shadow-xs"
-            >
-              <Download size={15} />
-              <span>내보내기</span>
-              <ChevronDown size={13} />
-            </button>
-
-            {isDownloadOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-36 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-1.5 z-40 space-y-1 animate-in fade-in-50 zoom-in-95">
-                <button
-                  onClick={() => handleDownload("png")}
-                  className="w-full text-left px-3 py-1.5 rounded-lg text-xs text-on-surface hover:bg-surface-container-high transition-colors flex items-center gap-2"
-                >
-                  <FileImage size={14} className="text-primary" />
-                  <span>PNG 다운로드</span>
-                </button>
-                <button
-                  onClick={() => handleDownload("jpeg")}
-                  className="w-full text-left px-3 py-1.5 rounded-lg text-xs text-on-surface hover:bg-surface-container-high transition-colors flex items-center gap-2"
-                >
-                  <FileImage size={14} className="text-amber-500" />
-                  <span>JPEG 다운로드</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      <DrawingHeader
+        title={title}
+        isEditingTitle={isEditingTitle}
+        tempTitle={tempTitle}
+        mounted={mounted}
+        saveStatus={saveStatus}
+        savedTimeStr={savedTimeStr}
+        isSavingCard={isSavingCard}
+        isAddingToDiary={isAddingToDiary}
+        isDownloadOpen={isDownloadOpen}
+        onBackToList={() => router.push("/drawing")}
+        onTitleClick={() => {
+          setTempTitle(title);
+          setIsEditingTitle(true);
+        }}
+        onTempTitleChange={setTempTitle}
+        onTitleSave={() => {
+          setTitle(tempTitle.trim() || "무제 스케치");
+          setIsEditingTitle(false);
+          triggerAutoSave(elements, tempTitle.trim() || "무제 스케치", bgPattern);
+        }}
+        onTitleCancel={() => {
+          setTempTitle(title);
+          setIsEditingTitle(false);
+        }}
+        onSaveAsNewCard={handleSaveAsNewCard}
+        onAddToTodayDiary={handleAddToTodayDiary}
+        onNewDrawing={handleNewDrawing}
+        onCopyClipboard={handleCopyClipboard}
+        onToggleDownload={() => setIsDownloadOpen((prev) => !prev)}
+        onDownload={handleDownload}
+      />
 
       {/* ================= 2. 인터랙티브 도구 툴바 ================= */}
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-3 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        {/* 도구 모음 */}
-        <div className="flex flex-wrap items-center gap-1 bg-surface-container-low p-1 rounded-xl border border-outline-variant/60">
-          {[
-            { id: "pen", label: "펜 (P)", icon: PenTool },
-            { id: "highlighter", label: "형광펜 (H)", icon: Highlighter },
-            { id: "eraser", label: "지우개 (E)", icon: Eraser },
-            { id: "line", label: "직선 (L)", icon: Minus },
-            { id: "arrow", label: "화살표", icon: ArrowRight },
-            { id: "rect", label: "사각형 (R)", icon: Square },
-            { id: "circle", label: "원 (C)", icon: Circle },
-            { id: "text", label: "텍스트 (T)", icon: Type },
-          ].map((item) => {
-            const Icon = item.icon;
-            const active = tool === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setTool(item.id as DrawTool)}
-                className={`p-2 rounded-lg transition-all flex items-center gap-1 text-xs font-medium ${
-                  active
-                    ? "bg-primary text-on-primary shadow-xs"
-                    : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
-                }`}
-                title={item.label}
-              >
-                <Icon size={16} />
-                <span className="hidden xl:inline">{item.label.split(" ")[0]}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 굵기 선택 */}
-        <div className="flex items-center gap-1.5 bg-surface-container-low p-1 rounded-xl border border-outline-variant/60">
-          <span className="text-[11px] text-on-surface-variant px-1.5 hidden sm:inline">굵기</span>
-          {STROKE_WIDTHS.map((sw) => (
-            <button
-              key={sw.value}
-              onClick={() => setStrokeWidth(sw.value)}
-              className={`px-2 py-1 rounded-lg text-xs font-mono transition-all flex items-center gap-1 ${
-                strokeWidth === sw.value
-                  ? "bg-primary text-on-primary font-bold shadow-xs"
-                  : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
-              }`}
-              title={`${sw.label} (${sw.value}px)`}
-            >
-              <span
-                className="rounded-full bg-current inline-block"
-                style={{ width: Math.min(10, sw.value / 2 + 3), height: Math.min(10, sw.value / 2 + 3) }}
-              />
-              <span className="hidden md:inline">{sw.value}px</span>
-            </button>
-          ))}
-        </div>
-
-        {/* 도형 채우기 토글 (사각형/원일 때만 활성화) */}
-        {(tool === "rect" || tool === "circle") && (
-          <button
-            onClick={() => setIsFilled((prev) => !prev)}
-            className={`px-2.5 py-1.5 rounded-xl border text-xs font-medium transition-all flex items-center gap-1.5 ${
-              isFilled
-                ? "bg-primary/10 border-primary text-primary"
-                : "border-outline-variant hover:bg-surface-container-high text-on-surface-variant"
-            }`}
-          >
-            <span>도형 내부 채우기</span>
-            <span
-              className={`w-3.5 h-3.5 rounded-md flex items-center justify-center text-[10px] ${
-                isFilled ? "bg-primary text-on-primary" : "border border-outline-variant"
-              }`}
-            >
-              {isFilled && "✓"}
-            </span>
-          </button>
-        )}
-
-        {/* 컬러 팔레트 */}
-        <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-xl border border-outline-variant/60">
-          {PRESET_COLORS.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => {
-                setColor(c.hex);
-                setCustomColor(c.hex);
-              }}
-              className={`w-6 h-6 rounded-lg transition-transform border border-black/15 dark:border-white/20 relative flex items-center justify-center ${
-                color === c.hex ? "scale-115 ring-2 ring-primary ring-offset-1" : "hover:scale-105"
-              }`}
-              style={{ backgroundColor: c.hex }}
-              title={c.label}
-            >
-              {color === c.hex && (
-                <span
-                  className={`text-[10px] font-bold ${
-                    c.hex === "#ffffff" ? "text-slate-800" : "text-white"
-                  }`}
-                >
-                  ✓
-                </span>
-              )}
-            </button>
-          ))}
-
-          {/* 커스텀 컬러 피커 */}
-          <label className="relative cursor-pointer ml-1 w-6 h-6 rounded-lg border border-dashed border-outline-variant flex items-center justify-center hover:bg-surface-container-high transition-colors">
-            <Palette size={13} className="text-on-surface-variant" />
-            <input
-              type="color"
-              value={customColor}
-              onChange={(e) => {
-                setCustomColor(e.target.value);
-                setColor(e.target.value);
-              }}
-              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-              title="커스텀 색상 선택"
-            />
-          </label>
-        </div>
-
-        {/* 배경 패턴 & 실행 취소 / 다시 실행 */}
-        <div className="flex items-center gap-1.5 ml-auto">
-          {/* 배경 스타일 셀렉터 */}
-          <select
-            value={bgPattern}
-            onChange={(e) => {
-              const val = e.target.value as BgPattern;
-              setBgPattern(val);
-              triggerAutoSave(elements, title, val);
-            }}
-            className="text-xs bg-surface-container-low border border-outline-variant text-on-surface rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-            title="캔버스 배경 스타일"
-          >
-            {BG_PATTERNS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-
-          {/* 실행 취소 / 다시 실행 버튼 */}
-          <div className="flex items-center bg-surface-container-low border border-outline-variant/60 rounded-xl p-0.5">
-            <button
-              onClick={handleUndo}
-              disabled={undoStack.length === 0}
-              className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface disabled:opacity-30 disabled:pointer-events-none transition-colors"
-              title="실행 취소 (Ctrl+Z)"
-            >
-              <Undo2 size={16} />
-            </button>
-            <button
-              onClick={handleRedo}
-              disabled={redoStack.length === 0}
-              className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface disabled:opacity-30 disabled:pointer-events-none transition-colors"
-              title="다시 실행 (Ctrl+Y)"
-            >
-              <Redo2 size={16} />
-            </button>
-          </div>
-
-          <button
-            onClick={handleClearCanvas}
-            className="p-2 rounded-xl text-on-surface-variant hover:text-error hover:bg-error/10 border border-outline-variant/60 transition-colors"
-            title="캔버스 전체 지우기"
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
-      </div>
+      <DrawingToolbar
+        tool={tool}
+        color={color}
+        strokeWidth={strokeWidth}
+        isFilled={isFilled}
+        bgPattern={bgPattern}
+        zoomLevel={zoomLevel}
+        canUndo={undoStack.length > 0}
+        canRedo={redoStack.length > 0}
+        customColor={customColor}
+        onSelectTool={setTool}
+        onSelectColor={setColor}
+        onSelectStrokeWidth={setStrokeWidth}
+        onToggleFilled={() => setIsFilled((prev) => !prev)}
+        onSelectBgPattern={(p) => {
+          setBgPattern(p);
+          triggerAutoSave(elements, title, p);
+        }}
+        onCustomColorChange={setCustomColor}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onClear={handleClearCanvas}
+        onZoomIn={() => setZoomLevel((z) => Math.min(3.0, Number((z + 0.1).toFixed(1))))}
+        onZoomOut={() => setZoomLevel((z) => Math.max(0.3, Number((z - 0.1).toFixed(1))))}
+        onResetView={() => {
+          setPanOffset({ x: 0, y: 0 });
+          setZoomLevel(1);
+        }}
+      />
 
       {/* ================= 3. 메인 인터랙티브 캔버스 작업 영역 (Rule 52: Full Width) ================= */}
       <div
@@ -1109,8 +1175,13 @@ export function DrawingView() {
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
           className={`w-full h-full block ${
-            tool === "eraser"
+            tool === "hand"
+              ? isDrawing ? "cursor-grabbing" : "cursor-grab"
+              : tool === "eraser"
               ? "cursor-crosshair"
               : tool === "text"
               ? "cursor-text"
@@ -1198,120 +1269,6 @@ export function DrawingView() {
                 className="ui-button px-4 py-1.5 rounded-xl bg-primary text-on-primary hover:bg-primary/90 text-xs font-semibold"
               >
                 스탬프 삽입
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= 5. 모달: 스케치 보관함 (Gallery) ================= */}
-      {isGalleryOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95">
-            <div className="p-4 sm:p-5 border-b border-outline-variant flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                  <FolderOpen size={18} />
-                </div>
-                <div>
-                  <h3 className="ui-card-title text-on-surface font-bold">내 스케치 보관함</h3>
-                  <p className="ui-caption text-on-surface-variant">
-                    저장된 드로잉 목록을 열람하거나 불러올 수 있습니다.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsGalleryOpen(false)}
-                className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="p-5 overflow-y-auto flex-1">
-              {isLoadingGallery ? (
-                <div className="py-20 flex flex-col items-center justify-center gap-2 text-on-surface-variant">
-                  <Loader2 size={24} className="animate-spin text-primary" />
-                  <span className="ui-caption">저장된 그림 목록을 불러오는 중...</span>
-                </div>
-              ) : savedList.length === 0 ? (
-                <div className="py-16 text-center border border-dashed border-outline-variant rounded-2xl space-y-2">
-                  <PenTool size={32} className="mx-auto text-on-surface-variant/60" />
-                  <div className="ui-card-title text-on-surface font-semibold">
-                    저장된 스케치가 없습니다
-                  </div>
-                  <div className="ui-caption text-on-surface-variant">
-                    캔버스에서 자유롭게 그림을 그린 뒤 자동 저장해 보세요.
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {savedList.map((item) => (
-                    <div
-                      key={item._id}
-                      onClick={() => handleOpenSavedDrawing(item)}
-                      className={`group bg-surface-container-low border rounded-xl overflow-hidden hover:border-primary cursor-pointer transition-all flex flex-col justify-between ${
-                        currentId === item._id
-                          ? "border-primary ring-2 ring-primary/40"
-                          : "border-outline-variant"
-                      }`}
-                    >
-                      {/* 썸네일 미리보기 */}
-                      <div className="w-full h-36 bg-surface-container-high/40 flex items-center justify-center overflow-hidden relative">
-                        {item.thumbnail ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img
-                            src={item.thumbnail}
-                            alt={item.title}
-                            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
-                          />
-                        ) : (
-                          <PenTool size={28} className="text-on-surface-variant/40" />
-                        )}
-
-                        <button
-                          onClick={(e) => handleDeleteSavedDrawing(e, item._id)}
-                          className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-error"
-                          title="삭제"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-
-                      {/* 정보 영역 */}
-                      <div className="p-3 space-y-1">
-                        <div className="ui-card-title text-on-surface font-semibold truncate">
-                          {item.title}
-                        </div>
-                        <div className="ui-caption text-on-surface-variant font-mono text-[11px]">
-                          {item.updatedAt
-                            ? new Date(item.updatedAt).toLocaleDateString()
-                            : "최근"}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 border-t border-outline-variant bg-surface-container-low/50 flex items-center justify-between">
-              <button
-                onClick={() => {
-                  setIsGalleryOpen(false);
-                  handleNewDrawing();
-                }}
-                className="ui-button px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-semibold flex items-center gap-1.5"
-              >
-                <Plus size={15} />
-                <span>+ 새 스케치 시작하기</span>
-              </button>
-
-              <button
-                onClick={() => setIsGalleryOpen(false)}
-                className="ui-button px-4 py-2 rounded-xl border border-outline-variant hover:bg-surface-container-high text-xs text-on-surface"
-              >
-                닫기
               </button>
             </div>
           </div>

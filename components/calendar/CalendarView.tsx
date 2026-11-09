@@ -1200,7 +1200,7 @@ export function CalendarView() {
                                       ? "opacity-25 border-dashed scale-95"
                                       : "opacity-100"
                                   }`}
-                                  title={`${seg.evt.title} (${seg.evt.allDay ? "종일" : getEventTimeDisplay(seg.evt, true).timeText}, ${getLocalDateKey(seg.evt.startDate)?.slice(5) || ""} ~ ${getLocalDateKey(seg.evt.endDate)?.slice(5) || ""}) - 드래그하여 이동 또는 양 끝을 조절할 수 있습니다`}
+                                  title={`${seg.evt?.title || "일정"} (${seg.evt?.allDay ? "종일" : getEventTimeDisplay(seg.evt, true).timeText}, ${(getLocalDateKey(seg.evt?.startDate) || "").slice(5)} ~ ${(getLocalDateKey(seg.evt?.endDate) || "").slice(5)}) - 드래그하여 이동 또는 양 끝을 조절할 수 있습니다`}
                                 >
                                   {/* 좌측 가장자리 리사이즈 핸들 (시작일 조정) */}
                                   {!seg.isContinuationFromPrev && (
@@ -1352,7 +1352,7 @@ export function CalendarView() {
                     <span className="font-semibold text-xs sm:text-sm">{evt.title}</span>
                   </div>
                   <span className="text-[11px] font-mono opacity-80">
-                    {getLocalDateKey(evt.startDate)?.slice(5) || ""} ~ {getLocalDateKey(evt.endDate)?.slice(5) || ""}
+                    {(getLocalDateKey(evt?.startDate) || "").slice(5)} ~ {(getLocalDateKey(evt?.endDate) || "").slice(5)}
                   </span>
                 </div>
               );
@@ -1384,7 +1384,7 @@ export function CalendarView() {
                     <span className="font-medium text-on-surface truncate">{evt.title}</span>
                   </div>
                   <span className="text-[11px] font-mono text-on-surface-variant shrink-0">
-                    {getLocalDateKey(evt.startDate)?.slice(5) || ""} ~ {getLocalDateKey(evt.endDate)?.slice(5) || ""}
+                    {(getLocalDateKey(evt?.startDate) || "").slice(5)} ~ {(getLocalDateKey(evt?.endDate) || "").slice(5)}
                   </span>
                 </div>
               );

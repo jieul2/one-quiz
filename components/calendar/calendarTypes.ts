@@ -154,7 +154,7 @@ export function getLocalDateKey(dateInput: string | Date | undefined | null): st
   if (!isNaN(d.getTime())) {
     return formatDateKey(d);
   }
-  return str.slice(0, 10);
+  return typeof str === "string" ? str.slice(0, 10) : "";
 }
 
 // 문자열 날짜를 Date로 파싱 (로컬 자정 기준)
@@ -187,7 +187,7 @@ export function getLocalTimeStr(dateInput: string | Date | undefined | null): st
     const mm = String(d.getMinutes()).padStart(2, "0");
     return `${hh}:${mm}`;
   }
-  if (str.includes("T")) {
+  if (typeof str === "string" && str.includes("T")) {
     return str.slice(11, 16);
   }
   return "";
@@ -199,10 +199,10 @@ export function getLocalTimeStr(dateInput: string | Date | undefined | null): st
  * - allDay === false -> { isAllDay: false, timeText: "14:00" 또는 "14:00~15:30" }
  */
 export function getEventTimeDisplay(
-  evt: { startDate?: string; endDate?: string; allDay?: boolean },
+  evt?: { startDate?: string; endDate?: string; allDay?: boolean } | null,
   includeRange: boolean = false
 ): { isAllDay: boolean; timeText: string } {
-  if (evt.allDay) {
+  if (!evt || evt.allDay) {
     return { isAllDay: true, timeText: "종일" };
   }
 

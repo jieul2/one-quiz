@@ -172,41 +172,80 @@ function SubjectSelectionContent() {
   if (!mounted) return null;
 
   return (
-    <div className="w-full space-y-6 pb-24 text-on-surface">
-      {/* 1. 상단 플랫 헤더 (Rule 52: Full-Width 100% 가득 활용) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+    <div className="w-full space-y-6 pb-12 text-on-surface">
+      {/* 1. 상단 플랫 헤더 (Rule 52: Full-Width 100% 가득 활용, 다른 페이지와 통일된 상단 액션 버튼 배치) */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-outline-variant">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h1 className="ui-page-title">기출문제 학습 설정</h1>
             <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-primary font-mono font-bold">
               과목 {selectedSubjects.length}/{subjects.length}개 · 회차 {effectiveSelectedExamTypes.length}/
               {availableExamTypes.length}개
             </span>
+            {finalSelectedQuestions.length > 0 && (
+              <span className="ui-badge px-2.5 py-0.5 rounded-full bg-primary/15 text-primary font-mono font-bold animate-in fade-in-50">
+                총 {finalSelectedQuestions.length}문제 준비
+              </span>
+            )}
           </div>
           <p className="ui-page-subtitle mt-0.5">
-            응시할 과목을 선택하면 해당 과목의 출제 기출 회차가 우측에 나타납니다. 원하는 회차까지 선택한 후 시험을 시작하세요.
+            {selectedSubjects.length === 0
+              ? "응시할 과목을 선택하면 해당 과목의 출제 기출 회차가 우측에 나타납니다."
+              : effectiveSelectedExamTypes.length === 0
+              ? "우측에서 원하는 기출 회차를 1개 이상 선택한 후 상단의 시작 버튼을 누르세요."
+              : `선택된 ${selectedSubjects.length}개 과목 · ${effectiveSelectedExamTypes.length}개 회차의 기출문제(${finalSelectedQuestions.length}문항)를 풀이합니다.`}
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        {/* 우측 상단 액션 버튼군 */}
+        <div className="flex items-center gap-2 flex-wrap self-start md:self-auto shrink-0">
           {(selectedSubjects.length > 0 || effectiveSelectedExamTypes.length > 0) && (
             <button
               type="button"
               onClick={handleResetAll}
-              className="px-3 py-1.5 rounded-md border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-destructive text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="px-3 py-2 rounded-xl border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-destructive text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
               title="과목 및 회차 선택 모두 초기화"
             >
-              <RotateCcw size={13} />
+              <RotateCcw size={14} />
               <span>전체 초기화</span>
             </button>
           )}
 
           <Link
             href="/"
-            className="text-xs text-on-surface-variant hover:text-on-surface font-light transition-colors px-2 py-1"
+            className="px-3 py-2 rounded-xl border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold transition-colors"
           >
             ← 메인으로
           </Link>
+
+          {/* 🌟 최상단 기출문제 풀이 시작하기 메인 버튼 */}
+          <button
+            type="button"
+            onClick={handleStartExam}
+            disabled={
+              isLoading ||
+              selectedSubjects.length === 0 ||
+              effectiveSelectedExamTypes.length === 0 ||
+              finalSelectedQuestions.length === 0
+            }
+            className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-primary hover:opacity-90 disabled:opacity-40 text-on-primary font-bold text-xs sm:text-sm shadow-xs transition-all flex items-center gap-2 disabled:cursor-not-allowed cursor-pointer"
+            title={
+              selectedSubjects.length === 0
+                ? "과목을 1개 이상 선택해주세요"
+                : effectiveSelectedExamTypes.length === 0
+                ? "회차를 1개 이상 선택해주세요"
+                : "선택한 과목 및 회차 기출문제 풀이 시작"
+            }
+          >
+            <GraduationCap size={16} />
+            <span>기출문제 풀이 시작하기</span>
+            {finalSelectedQuestions.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-md bg-white/20 text-white text-[11px] font-mono font-bold">
+                {finalSelectedQuestions.length}문제
+              </span>
+            )}
+            <ArrowRight size={15} />
+          </button>
         </div>
       </div>
 
@@ -507,58 +546,6 @@ function SubjectSelectionContent() {
               </>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* 3. 🌟 하단 플로팅 요약 및 시험 시작 바 */}
-      <div className="sticky bottom-4 z-20 bg-surface-container-lowest/95 backdrop-blur-md border border-outline-variant p-4 sm:p-5 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 w-full">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <GraduationCap size={22} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-sm sm:text-base text-on-surface">
-                총 {finalSelectedQuestions.length}문제 풀이 준비
-              </span>
-              {finalSelectedQuestions.length > 0 && (
-                <span className="ui-badge px-2 py-0.5 rounded-full bg-primary/15 text-primary font-mono font-bold">
-                  선택 완료
-                </span>
-              )}
-            </div>
-            <p className="ui-caption text-on-surface-variant mt-0.5 truncate">
-              {selectedSubjects.length === 0
-                ? "과목을 1개 이상 선택해주세요"
-                : effectiveSelectedExamTypes.length === 0
-                ? "회차를 1개 이상 선택해주세요"
-                : `${selectedSubjects.length}개 과목 · ${effectiveSelectedExamTypes.length}개 회차 선택됨`}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-          <Link
-            href="/"
-            className="px-4 py-3 rounded-xl border border-outline-variant bg-surface-container-low hover:bg-surface-container text-on-surface font-semibold text-xs transition-colors text-center"
-          >
-            메인으로
-          </Link>
-
-          <button
-            type="button"
-            onClick={handleStartExam}
-            disabled={
-              isLoading ||
-              selectedSubjects.length === 0 ||
-              effectiveSelectedExamTypes.length === 0 ||
-              finalSelectedQuestions.length === 0
-            }
-            className="flex-1 sm:flex-none px-6 py-3 rounded-xl bg-primary hover:opacity-90 disabled:opacity-40 text-on-primary font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed cursor-pointer"
-          >
-            <span>기출문제 풀이 시작하기</span>
-            <ArrowRight size={16} />
-          </button>
         </div>
       </div>
     </div>

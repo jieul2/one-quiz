@@ -37,6 +37,10 @@ import {
   BookOpen,
   Activity,
   PenTool,
+  PanelLeft,
+  PanelLeftOpen,
+  Database,
+  Wallet,
 } from "lucide-react";
 
 export type SidebarMode = "hidden" | "icon" | "full";
@@ -152,6 +156,7 @@ export function Sidebar({
         { label: "아이디어 캔버스", href: "/canvas", icon: StickyNote },
         { label: "2D 마인드맵", href: "/mindmap", icon: Network },
         { label: "스케치 그림판", href: "/drawing", icon: PenTool },
+        { label: "ERD & 설계 명세서", href: "/erd", icon: Database },
         { label: "프로젝트 로드맵", href: "/projects", icon: FolderGit2 },
         { label: "기능 백로그", href: "/ideas", icon: Lightbulb },
       ],
@@ -159,6 +164,7 @@ export function Sidebar({
     {
       title: "일상 & 라이프",
       items: [
+        { label: "스마트 가계부", href: "/finance", icon: Wallet },
         { label: "러닝(달리기) 기록", href: "/running", icon: Activity },
         { label: "클라우드 드라이브", href: "/drive", icon: Folder },
         { label: "웹 북마크", href: "/bookmarks", icon: Bookmark },
@@ -201,9 +207,11 @@ export function Sidebar({
       {/* 사이드바 본체 */}
       <aside
         className={`fixed left-0 top-0 h-screen h-[100dvh] max-h-[100dvh] bg-surface-container-lowest z-50 flex flex-col justify-between overflow-hidden md:overflow-visible border-r border-outline-variant shadow-xs transition-all duration-300 ${
-          /* 모바일: 서랍식 슬라이드 */
+          /* 모바일: 서랍식 슬라이드 (아이콘 모드 시 컴팩트 w-20, 펼침 모드 시 w-72) */
           isMobileOpen
-            ? "translate-x-0 w-64 pointer-events-auto"
+            ? isIconOnly
+              ? "translate-x-0 w-20 pointer-events-auto"
+              : "translate-x-0 w-72 pointer-events-auto"
             : isHidden
             ? "-translate-x-full md:-translate-x-full w-0 pointer-events-none opacity-0"
             : "-translate-x-full md:translate-x-0 opacity-100"
@@ -213,45 +221,20 @@ export function Sidebar({
         }`}
       >
         {/* 상단 고정 헤더 & 검색바 (shrink-0) */}
-        <div className="p-3 shrink-0 flex flex-col gap-3">
-          {/* 상단 브랜드 로고 & 3단계 모드 토글 버튼 */}
-          {isIconOnly ? (
-            /* 🌟 1. 아이콘 모드일 때: 홈 로고와 펼치기 버튼을 수직으로 깔끔하게 배치하여 겹침 방지 */
-            <div className="hidden md:flex flex-col items-center gap-2 pt-1 w-full">
-              <Link
-                href="/"
-                onMouseEnter={(e) => handleMouseEnterItem(e, "원퀴즈 홈")}
-                onMouseLeave={handleMouseLeaveItem}
-                className="p-1 rounded-xl group relative cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-xs shrink-0 group-hover:scale-105 transition-transform">
-                  <Sparkles className="w-4 h-4 text-on-primary" />
-                </div>
-              </Link>
+        <div className="p-3 shrink-0 flex flex-col gap-2.5">
+          {/* 브랜드 로고 & 닫기/숨기기 컨트롤 */}
+          <div className="flex items-center justify-between pt-1">
+            <Link
+              href="/"
+              onClick={onCloseMobile}
+              className="flex items-center gap-2.5 group overflow-hidden"
+              title="원퀴즈 홈으로 이동"
+            >
+              <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-xs shrink-0 group-hover:scale-105 transition-transform">
+                <Sparkles className="w-4.5 h-4.5 text-on-primary" />
+              </div>
 
-              <button
-                type="button"
-                onClick={() => handleModeSelect("full")}
-                onMouseEnter={(e) => handleMouseEnterItem(e, "사이드바 펼치기")}
-                onMouseLeave={handleMouseLeaveItem}
-                className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer group"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          ) : (
-            /* 🌟 2. 펼쳐진 상태일 때: 로고와 숨기기/접기 버튼 깔끔하게 정돈 (기능 중복 제거) */
-            <div className="flex items-center justify-between pt-1">
-              <Link
-                href="/"
-                onClick={onCloseMobile}
-                className="flex items-center gap-2.5 group overflow-hidden"
-                title="원퀴즈 홈으로 이동"
-              >
-                <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-xs shrink-0 group-hover:scale-105 transition-transform">
-                  <Sparkles className="w-5 h-5 text-on-primary" />
-                </div>
-
+              {!isIconOnly && (
                 <div className="flex flex-col transition-opacity duration-200 overflow-hidden">
                   <span className="text-[17px] font-black tracking-tight text-on-surface leading-tight whitespace-nowrap">
                     원퀴즈
@@ -260,17 +243,21 @@ export function Sidebar({
                     All-in-One Workspace
                   </span>
                 </div>
-              </Link>
+              )}
+            </Link>
 
-              {/* 모바일 닫기 버튼 */}
-              <button
-                onClick={onCloseMobile}
-                className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container md:hidden"
-              >
-                <X size={18} />
-              </button>
+            {/* 모바일 전용 닫기 (X) 버튼 (항상 노출되어 바로 닫기 가능) */}
+            <button
+              type="button"
+              onClick={onCloseMobile}
+              className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container md:hidden cursor-pointer"
+              title="메뉴 닫기"
+            >
+              <X size={18} />
+            </button>
 
-              {/* PC 데스크톱 컨트롤: 완전히 숨기기(EyeOff) + 사이드바 접기(ChevronLeft) */}
+            {/* PC 데스크톱 컨트롤: 완전히 숨기기(EyeOff) */}
+            {!isIconOnly && (
               <div className="hidden md:flex items-center gap-0.5 bg-surface-container-low p-0.5 rounded-lg border border-outline-variant/60">
                 <button
                   type="button"
@@ -280,17 +267,43 @@ export function Sidebar({
                 >
                   <EyeOff size={13} />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleModeSelect("icon")}
-                  className="p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
-                  title="사이드바 접기 (아이콘 모드)"
-                >
-                  <ChevronLeft size={13} />
-                </button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          {/* 🌟 모바일 & 데스크톱 네브바 뷰 모드 선택기 (아이콘만 vs 글씨 포함) */}
+          <div
+            className={`flex items-center bg-surface-container-low p-1 rounded-xl border border-outline-variant/60 gap-1 select-none ${
+              isIconOnly ? "flex-col" : "w-full"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => handleModeSelect("icon")}
+              className={`flex items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                isIconOnly
+                  ? "bg-primary text-on-primary shadow-xs p-1.5 w-full"
+                  : "flex-1 py-1 px-2 text-on-surface-variant hover:text-on-surface"
+              }`}
+              title="아이콘만 표시 모드"
+            >
+              <PanelLeft size={13} />
+              {!isIconOnly && <span>아이콘만</span>}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeSelect("full")}
+              className={`flex items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                !isIconOnly
+                  ? "bg-primary text-on-primary shadow-xs flex-1 py-1 px-2 font-bold"
+                  : "p-1.5 w-full text-on-surface-variant hover:text-on-surface"
+              }`}
+              title="글씨 포함 전체 표시 모드"
+            >
+              <PanelLeftOpen size={13} />
+              {!isIconOnly && <span>글씨 포함</span>}
+            </button>
+          </div>
 
           {/* 검색창: 펼쳐진 상태에서만 노출 */}
           {!isIconOnly && (

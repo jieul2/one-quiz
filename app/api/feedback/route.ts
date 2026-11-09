@@ -77,11 +77,12 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url);
+    const tab = searchParams.get("tab") || "active"; // "active" | "completed" | "all"
     const status = searchParams.get("status");
     const type = searchParams.get("type");
     const search = searchParams.get("search");
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
-    const limit = Math.min(50, Math.max(1, Number(searchParams.get("limit")) || 15));
+    const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit")) || 20));
 
     const query: Record<string, unknown> = {};
 
@@ -90,9 +91,18 @@ export async function GET(req: Request) {
       query.userEmail = session.user.email;
     }
 
+    // 탭별 기본 상태 필터링
+    if (tab === "active") {
+      query.status = { $in: ["pending", "in_progress"] };
+    } else if (tab === "completed") {
+      query.status = { $in: ["resolved", "dismissed"] };
+    }
+
+    // 세부 상태 필터가 명시된 경우 덮어쓰기
     if (status && status !== "ALL") {
       query.status = status;
     }
+
     if (type && type !== "ALL") {
       query.type = type;
     }
@@ -101,20 +111,41 @@ export async function GET(req: Request) {
         { title: { $regex: search.trim(), $options: "i" } },
         { content: { $regex: search.trim(), $options: "i" } },
         { userEmail: { $regex: search.trim(), $options: "i" } },
+        { userName: { $regex: search.trim(), $options: "i" } },
       ];
     }
 
+    const baseUserQuery = !isAdmin ? { userEmail: session.user.email } : {};
+
     const skip = (page - 1) * limit;
-    const [feedbacks, total, pendingCount] = await Promise.all([
+    const [
+      feedbacks,
+      total,
+      pendingCount,
+      inProgressCount,
+      resolvedCount,
+      allCount,
+    ] = await Promise.all([
       Feedback.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       Feedback.countDocuments(query),
-      Feedback.countDocuments({ status: "pending" }),
+      Feedback.countDocuments({ ...baseUserQuery, status: "pending" }),
+      Feedback.countDocuments({ ...baseUserQuery, status: "in_progress" }),
+      Feedback.countDocuments({ ...baseUserQuery, status: { $in: ["resolved", "dismissed"] } }),
+      Feedback.countDocuments(baseUserQuery),
     ]);
+
+    const activeCount = pendingCount + inProgressCount;
+    const completedCount = resolvedCount;
 
     return NextResponse.json({
       feedbacks,
       total,
+      activeCount,
+      completedCount,
+      allCount,
       pendingCount,
+      inProgressCount,
+      resolvedCount,
       page,
       totalPages: Math.ceil(total / limit) || 1,
     });

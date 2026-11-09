@@ -25,6 +25,8 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Droplets,
   Wind,
   Umbrella,
@@ -473,6 +475,37 @@ export function DashboardView() {
   // 표시할 위젯 목록
   const visibleWidgets = useMemo(() => widgets.filter((w) => w.visible), [widgets]);
 
+  // 모바일/접근성 지원: 전체 위젯 목록 순서 변경 (메뉴 내)
+  const handleMoveWidgetInAll = (id: string, direction: "up" | "down") => {
+    const currentIndex = widgets.findIndex((w) => w.id === id);
+    if (currentIndex === -1) return;
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= widgets.length) return;
+
+    const reordered = [...widgets];
+    const [moved] = reordered.splice(currentIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+    persistWidgets(reordered);
+  };
+
+  // 모바일/접근성 지원: 화면에 표시된 위젯 순서 변경 (카드 헤더 화살표)
+  const handleMoveVisibleWidget = (id: string, direction: "up" | "down") => {
+    const visibleIdx = visibleWidgets.findIndex((w) => w.id === id);
+    if (visibleIdx === -1) return;
+    const targetVisibleIdx = direction === "up" ? visibleIdx - 1 : visibleIdx + 1;
+    if (targetVisibleIdx < 0 || targetVisibleIdx >= visibleWidgets.length) return;
+
+    const targetId = visibleWidgets[targetVisibleIdx].id;
+    const sourceIdx = widgets.findIndex((w) => w.id === id);
+    const targetIdx = widgets.findIndex((w) => w.id === targetId);
+    if (sourceIdx === -1 || targetIdx === -1) return;
+
+    const reordered = [...widgets];
+    const [moved] = reordered.splice(sourceIdx, 1);
+    reordered.splice(targetIdx, 0, moved);
+    persistWidgets(reordered);
+  };
+
   return (
     <div className="w-full space-y-5 text-on-surface select-none">
       {/* 비로그인(게스트) 안내 배너 */}
@@ -556,24 +589,67 @@ export function DashboardView() {
               <span>위젯</span>
             </button>
 
-            {/* 🌟 홈 위젯 구성 드롭다운 메뉴 (테마 색상 준수) */}
+            {/* 🌟 홈 위젯 구성 드롭다운 메뉴 (테마 색상 준수, 모바일 순서 이동 지원) */}
             {isWidgetMenuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-56 bg-surface-container-lowest border border-outline-variant rounded-xl p-2 shadow-xl z-50 space-y-1 text-on-surface animate-in fade-in zoom-in-95 duration-150">
-                <div className="px-3 py-1.5 text-xs font-bold text-on-surface-variant border-b border-outline-variant mb-1">
-                  홈 위젯 구성
+              <div className="absolute right-0 top-full mt-2 w-64 sm:w-72 bg-surface-container-lowest border border-outline-variant rounded-xl p-2 shadow-xl z-50 space-y-1 text-on-surface animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center justify-between px-2.5 py-1.5 text-xs font-bold text-on-surface-variant border-b border-outline-variant mb-1">
+                  <span>홈 위젯 구성 및 순서</span>
+                  <span className="text-[10px] font-normal text-on-surface-variant/70">
+                    {visibleWidgets.length}/{widgets.length} 표시중
+                  </span>
                 </div>
-                <div className="max-h-[380px] overflow-y-auto space-y-0.5 scrollbar-thin pr-1">
-                  {widgets.map((w) => (
-                    <button
+                <div className="max-h-[380px] overflow-y-auto space-y-1 scrollbar-thin pr-0.5">
+                  {widgets.map((w, idx) => (
+                    <div
                       key={w.id}
-                      onClick={() => handleToggleWidget(w.id)}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-left hover:bg-surface-container-low transition-colors cursor-pointer"
+                      className="flex items-center justify-between px-2 py-1 rounded-lg hover:bg-surface-container-low transition-colors group/item"
                     >
-                      <span className={w.visible ? "text-on-surface font-semibold" : "text-on-surface-variant font-light"}>
-                        {w.title}
-                      </span>
-                      {w.visible && <Check size={15} className="text-primary shrink-0 ml-2" />}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleWidget(w.id)}
+                        className="flex items-center gap-2 flex-1 text-left min-w-0 cursor-pointer py-1"
+                      >
+                        <div
+                          className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                            w.visible
+                              ? "bg-primary border-primary text-on-primary"
+                              : "border-outline-variant bg-surface-container"
+                          }`}
+                        >
+                          {w.visible && <Check size={11} />}
+                        </div>
+                        <span
+                          className={`text-xs truncate ${
+                            w.visible
+                              ? "text-on-surface font-semibold"
+                              : "text-on-surface-variant/60 font-light"
+                          }`}
+                        >
+                          {w.title}
+                        </span>
+                      </button>
+
+                      <div className="flex items-center gap-0.5 shrink-0 ml-1">
+                        <button
+                          type="button"
+                          onClick={() => handleMoveWidgetInAll(w.id, "up")}
+                          disabled={idx === 0}
+                          className="p-1 rounded text-on-surface-variant hover:text-primary hover:bg-surface-container disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                          title="위로 이동"
+                        >
+                          <ChevronUp size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveWidgetInAll(w.id, "down")}
+                          disabled={idx === widgets.length - 1}
+                          className="p-1 rounded text-on-surface-variant hover:text-primary hover:bg-surface-container disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                          title="아래로 이동"
+                        >
+                          <ChevronDown size={13} />
+                        </button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -584,7 +660,7 @@ export function DashboardView() {
 
       {/* ================= 2. 반응형 Flat 3열 그리드 (모바일 1열, 태블릿 2열, PC 최대 3열) ================= */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
-        {visibleWidgets.map((widget) => {
+        {visibleWidgets.map((widget, widgetIdx) => {
           const isDragging = draggingWidgetId === widget.id;
           const isOver = dragOverWidgetId === widget.id && draggingWidgetId !== widget.id;
           const draggedWidget = draggingWidgetId ? widgets.find((w) => w.id === draggingWidgetId) : null;
@@ -687,6 +763,34 @@ export function DashboardView() {
                       draggable={false}
                       onMouseDown={(e) => e.stopPropagation()}
                     >
+                      {/* 🌟 모바일 친화적 위치 이동 버튼 (터치 디바이스 지원) */}
+                      <div className="flex items-center gap-0.5 mr-0.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMoveVisibleWidget(widget.id, "up");
+                          }}
+                          disabled={widgetIdx === 0}
+                          className="p-1 rounded text-on-surface-variant hover:text-primary hover:bg-surface-container disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors"
+                          title="이전 위치로 이동"
+                        >
+                          <ChevronUp size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMoveVisibleWidget(widget.id, "down");
+                          }}
+                          disabled={widgetIdx === visibleWidgets.length - 1}
+                          className="p-1 rounded text-on-surface-variant hover:text-primary hover:bg-surface-container disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors"
+                          title="다음 위치로 이동"
+                        >
+                          <ChevronDown size={14} />
+                        </button>
+                      </div>
+
                       <Link
                         href={getWidgetLink(widget.id)}
                         className="text-xs text-primary hover:underline font-semibold flex items-center gap-0.5"
@@ -742,7 +846,7 @@ export function DashboardView() {
 
       {/* ================= 3. 하단 안내 문구 (사진 1 동일) ================= */}
       <div className="text-xs sm:text-sm text-on-surface-variant font-light pt-2">
-        ※ 위젯 상단 헤더를 드래그해 순서를 바꾸고, &quot;위젯&quot; 버튼이나 x 로 추가·제거하세요. 본문 내용은 자유롭게 선택 및 복사할 수 있습니다.
+        ※ 위젯 상단 헤더를 드래그하거나 화살표(▲/▼) 버튼으로 순서를 바꾸고, &quot;위젯&quot; 버튼이나 x 로 추가·제거하세요. 본문 내용은 자유롭게 선택 및 복사할 수 있습니다.
       </div>
     </div>
   );
@@ -828,7 +932,7 @@ function TodayScheduleWidget({ events }: { events: CalendarEvent[] }) {
         const endTime = getLocalTimeStr(item?.endDate);
         const timeStr = isAllDay ? "종일" : (startTime || "시간 미정");
         const tagStr = isAllDay
-          ? (startKey && endKey && startKey !== endKey ? `${startKey.slice(5)}~${endKey.slice(5)}` : "")
+          ? (startKey && endKey && startKey !== endKey ? `${typeof startKey === "string" ? startKey.slice(5) : ""}~${typeof endKey === "string" ? endKey.slice(5) : ""}` : "")
           : (endTime ? `~${endTime}` : "");
 
         return (
@@ -1208,7 +1312,7 @@ function MiniCalendarWidget({ events = [] }: { events?: CalendarEvent[] }) {
             </div>
           ) : (
             <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5 scrollbar-thin">
-              {selectedDay.events.slice(0, 5).map((evt, idx) => {
+              {Array.isArray(selectedDay?.events) && selectedDay.events.slice(0, 5).map((evt, idx) => {
                 const { isAllDay, timeText } = getEventTimeDisplay(evt, true);
 
                 return (
@@ -1279,7 +1383,7 @@ function UpcomingScheduleWidget({ events }: { events: CalendarEvent[] }) {
               <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
               <span className="truncate text-on-surface font-medium">{evt?.title || "무제 일정"}</span>
             </div>
-            {startKey && (
+            {startKey && typeof startKey === "string" && (
               <span className="text-[11px] font-mono text-on-surface-variant shrink-0">
                 {startKey.slice(5)}
               </span>
@@ -1414,7 +1518,7 @@ function DdayWidget({ events = [] }: { events?: CalendarEvent[] }) {
               <span className="truncate text-on-surface font-semibold">{item.title}</span>
             </div>
             <span className="text-[11px] font-mono text-on-surface-variant shrink-0 ml-1.5">
-              {item.dateStr ? item.dateStr.slice(5) : ""}
+              {typeof item.dateStr === "string" ? item.dateStr.slice(5) : ""}
             </span>
           </div>
         );
@@ -1592,10 +1696,11 @@ function FavoriteNotesWidget() {
     <CustomScrollArea className="h-full flex-1" viewportClassName="space-y-1.5 pr-1.5">
       {diaries.map((d, idx) => {
         const firstItem = Array.isArray(d.items) && d.items.length > 0 ? d.items[0] : null;
+        const firstItemContent = typeof firstItem === "string" ? firstItem : firstItem?.content;
         const displayTitle =
           d.title ||
-          firstItem?.title ||
-          (firstItem?.content ? String(firstItem.content).slice(0, 30) : "") ||
+          (typeof firstItem === "object" && firstItem?.title ? firstItem.title : "") ||
+          (firstItemContent ? String(firstItemContent).slice(0, 30) : "") ||
           (d.content ? String(d.content).slice(0, 30) : "") ||
           "기록된 일기";
 

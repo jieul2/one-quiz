@@ -32,9 +32,7 @@ export function AppShell({ children }: AppShellProps) {
           setSidebarMode("icon");
           return;
         }
-        if (window.innerWidth < 1024) {
-          setSidebarMode("icon");
-        }
+        setSidebarMode("full");
       } catch {}
     }, 0);
     return () => clearTimeout(timer);

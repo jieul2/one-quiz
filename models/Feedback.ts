@@ -7,7 +7,7 @@ export interface IFeedback extends Document {
   title: string;
   content: string;
   rating?: number; // 1 ~ 5 별점
-  status: "pending" | "in_progress" | "resolved";
+  status: "pending" | "in_progress" | "resolved" | "dismissed";
   adminReply?: string;
   repliedAt?: Date;
   createdAt: Date;
@@ -29,7 +29,7 @@ const FeedbackSchema = new Schema<IFeedback>(
     rating: { type: Number, min: 1, max: 5, default: 5 },
     status: {
       type: String,
-      enum: ["pending", "in_progress", "resolved"],
+      enum: ["pending", "in_progress", "resolved", "dismissed"],
       default: "pending",
       index: true,
     },

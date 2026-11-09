@@ -27,12 +27,24 @@ async function handleGet(request: Request) {
       return NextResponse.json(drawing, { status: 200 });
     }
 
-    // 갤러리 목록용 요약 데이터 조회
+    // 갤러리 목록용 요약 데이터 조회 (오브젝트 개수 포함)
     const drawings = await Drawing.find({ userEmail })
-      .select("_id title thumbnail backgroundPattern backgroundColor updatedAt createdAt")
-      .sort({ updatedAt: -1 });
+      .select("_id title thumbnail backgroundPattern backgroundColor elements updatedAt createdAt")
+      .sort({ updatedAt: -1 })
+      .lean();
 
-    return NextResponse.json(drawings, { status: 200 });
+    const formatted = drawings.map((d) => ({
+      _id: d._id,
+      title: d.title,
+      thumbnail: d.thumbnail,
+      backgroundPattern: d.backgroundPattern,
+      backgroundColor: d.backgroundColor,
+      elementCount: Array.isArray(d.elements) ? d.elements.length : 0,
+      updatedAt: d.updatedAt,
+      createdAt: d.createdAt,
+    }));
+
+    return NextResponse.json(formatted, { status: 200 });
   } catch (error) {
     console.error("Failed to fetch drawings:", error);
     return NextResponse.json(
