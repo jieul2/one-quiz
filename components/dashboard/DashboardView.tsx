@@ -146,8 +146,12 @@ export function DashboardView() {
 
   // 4. 할 일 상태 (SSR 하이드레이션 일관성 유지)
   const [tasks, setTasks] = useState<{ id: string; text: string; done: boolean }[]>([]);
-
   const [newTaskInput, setNewTaskInput] = useState("");
+
+  // 계정별 할일 독립 격리 저장소 키
+  const userEmail = session?.user?.email;
+  const tasksStorageKey = userEmail ? `onequiz_tasks_items_${userEmail}` : "onequiz_tasks_items_guest";
+  const dashTasksStorageKey = userEmail ? `onequiz_dashboard_tasks_${userEmail}` : "onequiz_dashboard_tasks_guest";
 
   const persistTasks = useCallback((newTasks: { id: string; text: string; done: boolean }[]) => {
     // 중복 ID 방어 제거
@@ -157,9 +161,9 @@ export function DashboardView() {
     setTasks(uniqueTasks);
 
     if (typeof window !== "undefined") {
-      localStorage.setItem("onequiz_dashboard_tasks", JSON.stringify(uniqueTasks));
+      localStorage.setItem(dashTasksStorageKey, JSON.stringify(uniqueTasks));
       try {
-        const savedTasks = localStorage.getItem("onequiz_tasks_items_v2");
+        const savedTasks = localStorage.getItem(tasksStorageKey);
         const allTasks: StoredTaskItem[] = savedTasks ? JSON.parse(savedTasks) : [];
 
         // 오늘 카테고리가 아닌 다른 할일 보존
@@ -182,17 +186,17 @@ export function DashboardView() {
         });
 
         const combined = [...otherCategoryTasks, ...todayStoredItems];
-        localStorage.setItem("onequiz_tasks_items_v2", JSON.stringify(combined));
+        localStorage.setItem(tasksStorageKey, JSON.stringify(combined));
       } catch {}
       window.dispatchEvent(new Event("onequiz_tasks_updated"));
     }
-  }, []);
+  }, [dashTasksStorageKey, tasksStorageKey]);
 
   // 외부(할일 페이지 등)에서 할일 변경 시 대시보드도 즉시 반영
   useEffect(() => {
     const handleSyncTasks = () => {
       if (typeof window !== "undefined") {
-        const savedTasks = localStorage.getItem("onequiz_tasks_items_v2");
+        const savedTasks = localStorage.getItem(tasksStorageKey);
         if (savedTasks) {
           try {
             const parsed = JSON.parse(savedTasks);
@@ -219,7 +223,7 @@ export function DashboardView() {
       window.removeEventListener("onequiz_tasks_updated", handleSyncTasks);
       window.removeEventListener("storage", handleSyncTasks);
     };
-  }, []);
+  }, [tasksStorageKey]);
 
   // 마운트 후 로컬스토리지 및 DB에서 할일 목록 로드
   useEffect(() => {
@@ -228,7 +232,7 @@ export function DashboardView() {
     // 1단계: 로컬스토리지에서 비동기 로드 (하이드레이션 불일치 및 cascading render 방지)
     const timer = setTimeout(() => {
       if (typeof window !== "undefined" && !ignore) {
-        const savedTasks = localStorage.getItem("onequiz_tasks_items_v2");
+        const savedTasks = localStorage.getItem(tasksStorageKey);
         if (savedTasks) {
           try {
             const parsed = JSON.parse(savedTasks);
@@ -247,7 +251,7 @@ export function DashboardView() {
             }
           } catch {}
         } else {
-          const savedDash = localStorage.getItem("onequiz_dashboard_tasks");
+          const savedDash = localStorage.getItem(dashTasksStorageKey);
           if (savedDash) {
             try {
               const parsed = JSON.parse(savedDash);
@@ -296,7 +300,7 @@ export function DashboardView() {
       ignore = true;
       clearTimeout(timer);
     };
-  }, []);
+  }, [dashTasksStorageKey, tasksStorageKey]);
 
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -331,21 +335,21 @@ export function DashboardView() {
           );
           if (typeof window !== "undefined") {
             try {
-              const saved = localStorage.getItem("onequiz_tasks_items_v2");
+              const saved = localStorage.getItem(tasksStorageKey);
               if (saved) {
                 const parsed: StoredTaskItem[] = JSON.parse(saved);
                 const updatedAll = parsed.map((item) =>
                   item.id === tempId ? { ...item, id: realIdStr } : item
                 );
-                localStorage.setItem("onequiz_tasks_items_v2", JSON.stringify(updatedAll));
+                localStorage.setItem(tasksStorageKey, JSON.stringify(updatedAll));
               }
-              const savedDash = localStorage.getItem("onequiz_dashboard_tasks");
+              const savedDash = localStorage.getItem(dashTasksStorageKey);
               if (savedDash) {
                 const parsedDash = JSON.parse(savedDash);
                 const updatedDash = parsedDash.map((t: { id: string }) =>
                   t.id === tempId ? { ...t, id: realIdStr } : t
                 );
-                localStorage.setItem("onequiz_dashboard_tasks", JSON.stringify(updatedDash));
+                localStorage.setItem(dashTasksStorageKey, JSON.stringify(updatedDash));
               }
             } catch {}
             window.dispatchEvent(new Event("onequiz_tasks_updated"));
@@ -508,24 +512,6 @@ export function DashboardView() {
 
   return (
     <div className="w-full space-y-5 text-on-surface select-none">
-      {/* 비로그인(게스트) 안내 배너 */}
-      {!session?.user && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-4 py-3 rounded-lg bg-surface-container-low border border-outline-variant text-xs text-on-surface-variant">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-            <span>
-              <strong>게스트(체험) 모드로 접속 중입니다:</strong> 위젯 배치 및 로컬 할일은 현재 브라우저에 임시 저장됩니다. 클라우드 자동 동기화, 오답노트 저장, 다중 기기 연동을 사용하려면 로그인하세요.
-            </span>
-          </div>
-          <button
-            onClick={() => signIn()}
-            className="px-3 py-1.5 rounded-md bg-primary text-on-primary font-bold text-xs hover:opacity-90 transition-opacity cursor-pointer shrink-0 self-end sm:self-auto shadow-xs"
-          >
-            로그인하기
-          </button>
-        </div>
-      )}
-
       {/* ================= 1. 최상단 대시보드 헤더 (전역 타이포그래피 모듈 통일) ================= */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2">
         {/* 좌측 인사말 */}
@@ -1873,7 +1859,7 @@ function ProjectsWidget() {
   );
 }
 
-// 12. 채팅 위젯 (실제 /api/chat DB 실시간 연동 및 대시보드 퀵 메시지 전송)
+// 12. 채팅 위젯 (실제 /api/chat DB 실시간 SSE + 폴링 연동 및 대시보드 퀵 메시지 전송)
 function ChatWidget() {
   const [messages, setMessages] = useState<Array<{ _id: string; senderName: string; content: string; createdAt: string }>>([]);
   const [inputMsg, setInputMsg] = useState("");
@@ -1894,21 +1880,67 @@ function ChatWidget() {
 
   useEffect(() => {
     let ignore = false;
+    let eventSource: EventSource | null = null;
+    let pollInterval: NodeJS.Timeout | null = null;
+
     async function loadChat() {
       try {
         const res = await fetch("/api/chat?groupId=global&limit=20");
         if (res.ok && !ignore) {
           const data = await res.json();
           if (Array.isArray(data.messages)) {
-            setMessages(data.messages);
+            const list = data.messages;
+            setMessages((prev) => {
+              const map = new Map<string, (typeof list)[0]>();
+              list.forEach((m: (typeof list)[0]) => {
+                if (m && m._id) map.set(String(m._id), m);
+              });
+              prev.forEach((m) => {
+                if (m && m._id && !map.has(String(m._id))) {
+                  map.set(String(m._id), m);
+                }
+              });
+              return Array.from(map.values()).sort(
+                (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+              );
+            });
           }
         }
       } catch {}
       if (!ignore) setIsLoading(false);
     }
     loadChat();
+
+    // 🌟 실시간 SSE 연결 (A PC -> B PC 즉시 반영)
+    try {
+      eventSource = new EventSource("/api/chat/stream?groupId=global");
+      eventSource.onmessage = (event) => {
+        try {
+          if (!event.data || event.data.startsWith(":")) return;
+          const newMsg = JSON.parse(event.data);
+          if (newMsg && newMsg._id) {
+            const idStr = String(newMsg._id);
+            setMessages((prev) => {
+              if (prev.some((m) => String(m._id) === idStr)) return prev;
+              return [...prev, newMsg];
+            });
+          }
+        } catch {}
+      };
+    } catch (sseErr) {
+      console.warn("Dashboard Chat SSE error:", sseErr);
+    }
+
+    // 🌟 3초 보조 폴링
+    pollInterval = setInterval(() => {
+      if (document.hidden) return;
+      loadChat();
+    }, 3000);
+
     return () => {
       ignore = true;
+      if (pollInterval) clearInterval(pollInterval);
+      if (eventSource) eventSource.close();
     };
   }, []);
 
@@ -1923,7 +1955,7 @@ function ChatWidget() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           groupId: "global",
-          channel: "일반",
+          channelName: "일반",
           content: text,
         }),
       });
@@ -1934,18 +1966,30 @@ function ChatWidget() {
     } catch {}
   };
 
+  const uniqueMessages = useMemo(() => {
+    const map = new Map<string, (typeof messages)[0]>();
+    messages.forEach((m) => {
+      if (m && m._id) {
+        map.set(String(m._id), m);
+      }
+    });
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+  }, [messages]);
+
   return (
     <div className="flex flex-col justify-between h-full space-y-2">
       <CustomScrollArea className="flex-1 min-h-0" viewportClassName="space-y-1.5 pr-1.5">
         {isLoading ? (
           <div className="h-full flex items-center justify-center ui-caption">채팅 로딩 중...</div>
-        ) : messages.length === 0 ? (
+        ) : uniqueMessages.length === 0 ? (
           <div className="h-full flex items-center justify-center ui-empty-state py-4">
             라운지에 첫 메시지를 남겨보세요!
           </div>
         ) : (
-          messages.map((m) => (
-            <div key={m._id} className="p-1 rounded text-xs flex items-start gap-1.5">
+          uniqueMessages.map((m, idx) => (
+            <div key={m._id || `dash-msg-${idx}`} className="p-1 rounded text-xs flex items-start gap-1.5">
               <span className="font-bold text-primary shrink-0">{m.senderName}:</span>
               <span className="text-on-surface truncate">{m.content}</span>
             </div>

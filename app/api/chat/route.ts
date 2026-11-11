@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/mongodb";
 import ChatMessage from "@/models/ChatMessage";
+import { chatEmitter } from "@/lib/chatEmitter";
 
 // 1. 채팅 메시지 조회 (특정 그룹 + 채널)
 export async function GET(req: Request) {
@@ -34,7 +35,8 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     const body = await req.json();
-    const { groupId = "global", channelName = "일반", content } = body;
+    const { groupId = "global", content } = body;
+    const channelName = body.channelName || body.channel || "일반";
 
     if (!content || !content.trim()) {
       return NextResponse.json({ error: "메시지 내용을 입력해주세요." }, { status: 400 });
@@ -54,7 +56,20 @@ export async function POST(req: Request) {
       content: content.trim(),
     });
 
-    return NextResponse.json({ success: true, message: newMsg }, { status: 201 });
+    const msgObj = typeof newMsg.toObject === "function" ? newMsg.toObject() : newMsg;
+    const sanitizedMsg = {
+      ...msgObj,
+      _id: String(newMsg._id),
+    };
+
+    // 🌟 실시간 SSE 이벤트 브로드캐스트 (A PC -> B PC 즉시 동기화)
+    try {
+      chatEmitter.emit("new_message", sanitizedMsg);
+    } catch (emitterErr) {
+      console.error("ChatEmitter broadcast error:", emitterErr);
+    }
+
+    return NextResponse.json({ success: true, message: sanitizedMsg }, { status: 201 });
   } catch (error) {
     console.error("POST /api/chat error:", error);
     return NextResponse.json(

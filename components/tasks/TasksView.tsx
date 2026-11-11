@@ -45,6 +45,11 @@ const INITIAL_TASKS: TaskItem[] = [];
 
 export function TasksView() {
   const { data: session } = useSession();
+  const userEmail = session?.user?.email;
+
+  // 🌟 계정별 독립 스토리지 키 (계정 간 할일 데이터 100% 격리)
+  const tasksStorageKey = userEmail ? `onequiz_tasks_items_${userEmail}` : "onequiz_tasks_items_guest";
+  const catsStorageKey = userEmail ? `onequiz_tasks_categories_${userEmail}` : "onequiz_tasks_categories_guest";
 
   // 1. 뷰 모드: 칸반 보드 / 스윔레인 (Hydration Safe 고정값 초기화)
   const [viewMode, setViewMode] = useState<"kanban" | "swimlane">("kanban");
@@ -63,7 +68,7 @@ export function TasksView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showDoneColumn, setShowDoneColumn] = useState<boolean>(false);
 
-  // 클라이언트 마운트 후 로컬 설정 및 캐시 로드 (Hydration mismatch 방지)
+  // 클라이언트 마운트 후 로컬 설정 로드
   useEffect(() => {
     const timer = setTimeout(() => {
       if (typeof window !== "undefined") {
@@ -75,27 +80,10 @@ export function TasksView() {
         if (savedDone !== null) {
           setShowDoneColumn(savedDone === "true");
         }
-        // 비로그인 게스트인 경우 로컬스토리지 태스크/카테고리 복원
-        if (!session?.user?.email) {
-          const savedCats = localStorage.getItem("onequiz_tasks_categories_v2");
-          if (savedCats) {
-            try {
-              const parsed = JSON.parse(savedCats);
-              if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
-            } catch {}
-          }
-          const savedTasks = localStorage.getItem("onequiz_tasks_items_v2");
-          if (savedTasks) {
-            try {
-              const parsed = JSON.parse(savedTasks);
-              if (Array.isArray(parsed)) setTasks(parsed);
-            } catch {}
-          }
-        }
       }
     }, 0);
     return () => clearTimeout(timer);
-  }, [session?.user?.email]);
+  }, []);
 
   const handleToggleShowDone = () => {
     setShowDoneColumn((prev) => {
@@ -126,68 +114,89 @@ export function TasksView() {
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null); // 카테고리 ID 또는 "done"
   const [dragOverTargetIndex, setDragOverTargetIndex] = useState<number | null>(null); // 삽입될 인덱스
 
-  // 서버 DB 동기화 로드
+  // 🌟 계정별 서버 DB 동기화 및 전용 캐시 로드
   useEffect(() => {
     let ignore = false;
     async function loadServerData() {
-      if (session?.user?.email) {
+      if (!userEmail) return;
+
+      // 1. 해당 계정 전용 로컬 캐시 즉시 복원 (다른 계정 데이터 노출 원천 차단)
+      if (typeof window !== "undefined") {
         try {
-          const [tasksRes, catsRes] = await Promise.all([
-            fetch("/api/tasks"),
-            fetch("/api/tasks/categories"),
-          ]);
-          if (tasksRes.ok && !ignore) {
-            const data = await tasksRes.json();
-            if (Array.isArray(data)) {
-              const mapped: TaskItem[] = data.map((t: { _id?: string; id?: string; categoryId?: string; title: string; memo?: string; dueDate?: string | null; completed?: boolean; createdAt?: string }) => ({
-                id: t._id || t.id || `task-${Date.now()}`,
-                categoryId: t.categoryId || "cat-today",
-                title: t.title,
-                memo: t.memo || "",
-                dueDate: t.dueDate || null,
-                completed: !!t.completed,
-                createdAt: t.createdAt ? String(t.createdAt).slice(0, 10) : "2026-11-04",
-              }));
-              setTasks(mapped);
-              if (typeof window !== "undefined") {
-                localStorage.setItem("onequiz_tasks_items_v2", JSON.stringify(mapped));
-              }
+          const cached = localStorage.getItem(tasksStorageKey);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && !ignore) setTasks(parsed);
+          } else {
+            if (!ignore) setTasks([]);
+          }
+          const cachedCats = localStorage.getItem(catsStorageKey);
+          if (cachedCats) {
+            const parsedCats = JSON.parse(cachedCats);
+            if (Array.isArray(parsedCats) && parsedCats.length > 0 && !ignore) setCategories(parsedCats);
+          } else {
+            if (!ignore) setCategories(DEFAULT_CATEGORIES);
+          }
+        } catch {}
+      }
+
+      // 2. 서버 DB 최신 데이터 조회
+      try {
+        const [tasksRes, catsRes] = await Promise.all([
+          fetch("/api/tasks"),
+          fetch("/api/tasks/categories"),
+        ]);
+        if (tasksRes.ok && !ignore) {
+          const data = await tasksRes.json();
+          if (Array.isArray(data)) {
+            const mapped: TaskItem[] = data.map((t: { _id?: string; id?: string; categoryId?: string; title: string; memo?: string; dueDate?: string | null; completed?: boolean; createdAt?: string }) => ({
+              id: t._id || t.id || `task-${Date.now()}`,
+              categoryId: t.categoryId || "cat-today",
+              title: t.title,
+              memo: t.memo || "",
+              dueDate: t.dueDate || null,
+              completed: !!t.completed,
+              createdAt: t.createdAt ? String(t.createdAt).slice(0, 10) : "2026-11-04",
+            }));
+            setTasks(mapped);
+            if (typeof window !== "undefined") {
+              localStorage.setItem(tasksStorageKey, JSON.stringify(mapped));
             }
           }
-          if (catsRes.ok && !ignore) {
-            const catData = await catsRes.json();
-            if (Array.isArray(catData) && catData.length > 0) {
-              const mappedCats: CategoryItem[] = catData.map((c: { categoryId?: string; id?: string; name: string }) => ({
-                id: c.categoryId || c.id || `cat-${Date.now()}`,
-                name: c.name,
-              }));
-              setCategories(mappedCats);
-              if (typeof window !== "undefined") {
-                localStorage.setItem("onequiz_tasks_categories_v2", JSON.stringify(mappedCats));
-              }
-            }
-          }
-        } catch (e) {
-          console.error("Failed to fetch tasks from server:", e);
         }
+        if (catsRes.ok && !ignore) {
+          const catData = await catsRes.json();
+          if (Array.isArray(catData) && catData.length > 0) {
+            const mappedCats: CategoryItem[] = catData.map((c: { categoryId?: string; id?: string; name: string }) => ({
+              id: c.categoryId || c.id || `cat-${Date.now()}`,
+              name: c.name,
+            }));
+            setCategories(mappedCats);
+            if (typeof window !== "undefined") {
+              localStorage.setItem(catsStorageKey, JSON.stringify(mappedCats));
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Failed to fetch tasks from server:", e);
       }
     }
     loadServerData();
     return () => {
       ignore = true;
     };
-  }, [session?.user?.email]);
+  }, [userEmail, tasksStorageKey, catsStorageKey]);
 
   const persistTasks = useCallback(
     (newTasks: TaskItem[]) => {
       setTasks(newTasks);
       if (typeof window !== "undefined") {
-        localStorage.setItem("onequiz_tasks_items_v2", JSON.stringify(newTasks));
+        localStorage.setItem(tasksStorageKey, JSON.stringify(newTasks));
         window.dispatchEvent(new Event("onequiz_tasks_updated"));
       }
       setSaveStatus("saving");
 
-      if (session?.user?.email) {
+      if (userEmail) {
         fetch("/api/tasks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -209,18 +218,18 @@ export function TasksView() {
         setSaveStatus("saved");
       }
     },
-    [session?.user?.email],
+    [userEmail, tasksStorageKey],
   );
 
   const persistCategories = useCallback(
     (newCategories: CategoryItem[]) => {
       setCategories(newCategories);
       if (typeof window !== "undefined") {
-        localStorage.setItem("onequiz_tasks_categories_v2", JSON.stringify(newCategories));
+        localStorage.setItem(catsStorageKey, JSON.stringify(newCategories));
       }
       setSaveStatus("saving");
 
-      if (session?.user?.email) {
+      if (userEmail) {
         fetch("/api/tasks/categories", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -242,7 +251,7 @@ export function TasksView() {
         setSaveStatus("saved");
       }
     },
-    [session?.user?.email],
+    [userEmail, catsStorageKey],
   );
 
   const handleChangeViewMode = (mode: "kanban" | "swimlane") => {
@@ -430,35 +439,12 @@ export function TasksView() {
 
   return (
     <div className="w-full space-y-4 text-on-surface">
-      {/* 게스트 체험 모드 안내 배너 (비로그인 시) */}
-      {!session?.user && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3.5 py-2.5 rounded-lg bg-surface-container-low border border-outline-variant text-xs text-on-surface-variant">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-            <span>
-              <strong>게스트 체험 모드:</strong> 작성한 할일은 현재 브라우저에 임시 저장됩니다. 클라우드 영구 저장 및 기기 간 실시간 동기화를 위해 로그인하세요.
-            </span>
-          </div>
-          <button
-            onClick={() => signIn()}
-            className="px-3 py-1 rounded-md bg-primary text-on-primary font-bold text-xs hover:opacity-90 transition-opacity cursor-pointer shrink-0 self-end sm:self-auto shadow-xs"
-          >
-            로그인하기
-          </button>
-        </div>
-      )}
-
       {/* 1. 상단 컨트롤 바 */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-outline-variant pb-3">
         <div className="flex items-center gap-2">
           <h1 className="ui-page-title">
             할일
           </h1>
-          {!session?.user && (
-            <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant">
-              로컬 임시 저장
-            </span>
-          )}
         </div>
 
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0 text-sm">

@@ -54,6 +54,7 @@ export interface SidebarProps {
   onToggleCollapse?: () => void;
   isMobileOpen: boolean;
   onCloseMobile: () => void;
+  enableTransitions?: boolean;
 }
 
 export function Sidebar({
@@ -64,6 +65,7 @@ export function Sidebar({
   onToggleCollapse: legacyToggle,
   isMobileOpen,
   onCloseMobile,
+  enableTransitions = true,
 }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -206,7 +208,9 @@ export function Sidebar({
 
       {/* 사이드바 본체 */}
       <aside
-        className={`fixed left-0 top-0 h-screen h-[100dvh] max-h-[100dvh] bg-surface-container-lowest z-50 flex flex-col justify-between overflow-hidden md:overflow-visible border-r border-outline-variant shadow-xs transition-all duration-300 ${
+        className={`fixed left-0 top-0 h-screen h-[100dvh] max-h-[100dvh] bg-surface-container-lowest z-50 flex flex-col justify-between overflow-hidden md:overflow-visible border-r border-outline-variant shadow-xs ${
+          enableTransitions ? "transition-all duration-300" : ""
+        } ${
           /* 모바일: 서랍식 슬라이드 (아이콘 모드 시 컴팩트 w-24, 펼침 모드 시 w-72) */
           isMobileOpen
             ? isIconOnly

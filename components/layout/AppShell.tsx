@@ -10,31 +10,55 @@ interface AppShellProps {
   children: React.ReactNode;
 }
 
+// 🌟 클라이언트 전역 캐시 및 하이드레이션 상태 관리
+// 1) hasAppHydrated: 최초 SSR 하이드레이션 일치 검증 통과 여부
+// 2) cachedSidebarMode: 페이지 간 이동(라우팅) 시 사이드바 모드가 "full"로 커졌다가 "icon"으로 줄어드는 깜빡임/시각적 지터 100% 방지
+let hasAppHydrated = false;
+let cachedSidebarMode: SidebarMode = "full";
+if (typeof window !== "undefined") {
+  try {
+    const savedMode = localStorage.getItem("onequiz_sidebar_mode");
+    if (savedMode === "hidden" || savedMode === "icon" || savedMode === "full") {
+      cachedSidebarMode = savedMode;
+    } else if (localStorage.getItem("onequiz_sidebar_collapsed") === "true") {
+      cachedSidebarMode = "icon";
+    }
+  } catch {}
+}
+
 export function AppShell({ children }: AppShellProps) {
   // 1. 24개 테마 선택 모달 상태
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
 
   // 2. 사이드바 반응형 상태 (3단계 모드: "hidden"(아예 없음) | "icon"(아이콘만) | "full"(아이콘+글씨))
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const [sidebarMode, setSidebarMode] = useState<SidebarMode>("full");
 
-  // SSR 하이드레이션 불일치 방지: 초기 렌더링은 "full"로 서버와 클라이언트가 일치하고, 마운트 직후 사용자 저장 설정을 동기화
+  // 최초 하이드레이션 시점(!hasAppHydrated)에는 SSR pre-render 결과("full")와 100% 일치시켜 Hydration Mismatch 방지
+  // 이미 하이드레이션이 완료된 이후의 페이지 라우팅(CSR) 시점에는 cachedSidebarMode로 즉시 초기화하여 깜빡임/지터 방지
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>(() => {
+    if (!hasAppHydrated) {
+      return "full";
+    }
+    return cachedSidebarMode;
+  });
+
+  // 최초 SSR 마운트 직후 "full" -> "icon" 동기화 시 300ms 애니메이션이 동작하지 않도록 마운트 완료 후 트랜지션 활성화
+  const [enableTransitions, setEnableTransitions] = useState(() => hasAppHydrated);
+
+  // 초기 마운트 시 로컬스토리지 최신 설정 동기화
   useEffect(() => {
+    hasAppHydrated = true;
+    try {
+      const savedMode = localStorage.getItem("onequiz_sidebar_mode");
+      if (savedMode === "hidden" || savedMode === "icon" || savedMode === "full") {
+        cachedSidebarMode = savedMode;
+        setSidebarMode(savedMode);
+      }
+    } catch {}
+
     const timer = setTimeout(() => {
-      try {
-        const savedMode = localStorage.getItem("onequiz_sidebar_mode");
-        if (savedMode === "hidden" || savedMode === "icon" || savedMode === "full") {
-          setSidebarMode(savedMode);
-          return;
-        }
-        const savedCollapsed = localStorage.getItem("onequiz_sidebar_collapsed");
-        if (savedCollapsed === "true") {
-          setSidebarMode("icon");
-          return;
-        }
-        setSidebarMode("full");
-      } catch {}
-    }, 0);
+      setEnableTransitions(true);
+    }, 50);
     return () => clearTimeout(timer);
   }, []);
 
@@ -56,6 +80,7 @@ export function AppShell({ children }: AppShellProps) {
   }, []);
 
   const handleChangeSidebarMode = (mode: SidebarMode) => {
+    cachedSidebarMode = mode;
     setSidebarMode(mode);
     if (typeof window !== "undefined") {
       localStorage.setItem("onequiz_sidebar_mode", mode);
@@ -67,6 +92,7 @@ export function AppShell({ children }: AppShellProps) {
     setSidebarMode((prev) => {
       const next: SidebarMode =
         prev === "full" ? "icon" : prev === "icon" ? "hidden" : "full";
+      cachedSidebarMode = next;
       if (typeof window !== "undefined") {
         localStorage.setItem("onequiz_sidebar_mode", next);
         localStorage.setItem("onequiz_sidebar_collapsed", String(next === "icon"));
@@ -86,6 +112,7 @@ export function AppShell({ children }: AppShellProps) {
           onCycleMode={handleCycleSidebarMode}
           isMobileOpen={isMobileNavOpen}
           onCloseMobile={() => setIsMobileNavOpen(false)}
+          enableTransitions={enableTransitions}
         />
       </Suspense>
 
@@ -130,7 +157,7 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* 3. 메인 컨텐츠 영역 (네브바 제외한 남은 공간을 100% 쾌적하게 활용하도록 유동적 레이아웃 적용) */}
       <div
-        className={`min-h-screen transition-all duration-300 w-full ${
+        className={`min-h-screen ${enableTransitions ? "transition-all duration-300" : ""} w-full ${
           /* 3단계 사이드바 반응형 오프셋 */
           sidebarMode === "hidden"
             ? "md:pl-0"

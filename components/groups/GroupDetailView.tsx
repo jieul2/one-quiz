@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -99,32 +99,94 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
     };
   }, [groupId]);
 
-  // 2. 채팅 메시지 로드 (채널 변경 시)
+  // 2. 채팅 메시지 초기 로드 및 실시간 SSE + 폴링 동기화 (A PC -> B PC 즉시 반영)
   useEffect(() => {
     let ignore = false;
+    let eventSource: EventSource | null = null;
+    let pollInterval: NodeJS.Timeout | null = null;
+
     async function loadMessages() {
       try {
-        const res = await fetch(`/api/chat?groupId=${groupId}&channel=${activeChannel}`);
+        const res = await fetch(`/api/chat?groupId=${groupId}&channel=${encodeURIComponent(activeChannel)}`);
         if (res.ok && !ignore) {
           const data = await res.json();
-          setMessages(data.messages || []);
+          const list: ChatMsg[] = data.messages || [];
+          setMessages((prev) => {
+            const map = new Map<string, ChatMsg>();
+            list.forEach((m) => {
+              if (m && m._id) map.set(String(m._id), m);
+            });
+            prev.forEach((m) => {
+              if (m && m._id && !map.has(String(m._id))) {
+                map.set(String(m._id), m);
+              }
+            });
+            return Array.from(map.values()).sort(
+              (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            );
+          });
         }
       } catch (err) {
         console.error(err);
       }
     }
+
     if (activeTab === "chat") {
       loadMessages();
+
+      // 🌟 A. 실시간 SSE 연결
+      try {
+        eventSource = new EventSource(
+          `/api/chat/stream?groupId=${encodeURIComponent(groupId)}&channel=${encodeURIComponent(activeChannel)}`
+        );
+        eventSource.onmessage = (event) => {
+          try {
+            if (!event.data || event.data.startsWith(":")) return;
+            const newMsg = JSON.parse(event.data);
+            if (newMsg && newMsg._id) {
+              const idStr = String(newMsg._id);
+              setMessages((prev) => {
+                if (prev.some((m) => String(m._id) === idStr)) return prev;
+                return [...prev, newMsg];
+              });
+            }
+          } catch {}
+        };
+      } catch (sseErr) {
+        console.warn("EventSource connection error:", sseErr);
+      }
+
+      // 🌟 B. 3초 주기 보조 폴링
+      pollInterval = setInterval(() => {
+        if (document.hidden) return;
+        loadMessages();
+      }, 3000);
     }
+
     return () => {
       ignore = true;
+      if (pollInterval) clearInterval(pollInterval);
+      if (eventSource) eventSource.close();
     };
   }, [groupId, activeChannel, activeTab]);
+
+  // 중복 메시지 키 충돌 100% 방어
+  const uniqueMessages = useMemo(() => {
+    const map = new Map<string, ChatMsg>();
+    messages.forEach((m) => {
+      if (m && m._id) {
+        map.set(String(m._id), m);
+      }
+    });
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+  }, [messages]);
 
   // 채팅 스크롤 하단 이동
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [uniqueMessages]);
 
   // 채팅 전송
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -148,7 +210,14 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
 
       if (res.ok) {
         const data = await res.json();
-        setMessages((prev) => [...prev, data.message]);
+        const createdMsg = data.message;
+        if (createdMsg && createdMsg._id) {
+          const idStr = String(createdMsg._id);
+          setMessages((prev) => {
+            if (prev.some((m) => String(m._id) === idStr)) return prev;
+            return [...prev, createdMsg];
+          });
+        }
       }
     } catch {
       toast.error("메시지 전송에 실패했습니다.");
@@ -429,17 +498,17 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
 
             {/* 메시지 피드 */}
             <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
-              {messages.length === 0 ? (
+              {uniqueMessages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center text-on-surface-variant gap-1">
                   <MessageSquare size={20} className="opacity-40" />
                   <span className="ui-caption">#{activeChannel} 채널의 첫 메시지를 남겨보세요!</span>
                 </div>
               ) : (
-                messages.map((m) => {
+                uniqueMessages.map((m: ChatMsg, idx: number) => {
                   const isMine = m.senderEmail === userEmail;
                   return (
                     <div
-                      key={m._id}
+                      key={m._id || `grp-msg-${idx}`}
                       className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}
                     >
                       <div className="flex items-center gap-1.5 text-[10px] text-on-surface-variant px-1 mb-0.5">
