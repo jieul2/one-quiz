@@ -231,7 +231,7 @@ export function SettingsLayout({ activeModule, children }: SettingsLayoutProps) 
                         className="text-on-surface-variant group-hover:text-primary group-hover:translate-x-0.5 transition-all"
                       />
                     ) : tab.id === "feedback" && pendingFeedbackCount > 0 ? (
-                      <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-error text-white font-mono animate-pulse">
+                      <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-error text-white font-mono">
                         {pendingFeedbackCount}
                       </span>
                     ) : (

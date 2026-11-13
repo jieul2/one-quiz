@@ -487,7 +487,7 @@ export function Sidebar({
             >
               <Bell className="w-4 h-4" />
               {session?.user?.role === "admin" && pendingFeedbackCount > 0 && (
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-error animate-pulse" />
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-error" />
               )}
             </Link>
           </div>
@@ -495,44 +495,69 @@ export function Sidebar({
           {/* 유저 세션 프로필 */}
           {session?.user ? (
             <div
-              className={`flex items-center justify-between py-1 group ${
-                isIconOnly ? "justify-center" : "px-1"
+              className={`flex flex-col gap-1 py-1 group ${
+                isIconOnly ? "items-center" : "px-1"
               }`}
             >
-              <div
-                className="flex items-center gap-2 min-w-0"
-                onMouseEnter={(e) =>
-                  handleMouseEnterItem(e, session.user?.name || "학습자")
-                }
-                onMouseLeave={handleMouseLeaveItem}
-              >
-                <div className="w-7 h-7 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-bold shrink-0">
-                  {session.user.name ? session.user.name[0].toUpperCase() : "U"}
+              <div className="flex items-center justify-between w-full">
+                <div
+                  className="flex items-center gap-2 min-w-0"
+                  onMouseEnter={(e) =>
+                    handleMouseEnterItem(e, session.user?.name || "학습자")
+                  }
+                  onMouseLeave={handleMouseLeaveItem}
+                >
+                  <div className="w-7 h-7 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                    {session.user.name ? session.user.name[0].toUpperCase() : "U"}
+                  </div>
+                  {!isIconOnly && (
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm text-on-surface truncate font-bold">
+                        {session.user.name || "학습자"}
+                      </span>
+                      <span className="text-xs text-on-surface-variant truncate">
+                        {session.user.email}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 {!isIconOnly && (
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-sm text-on-surface truncate font-bold">
-                      {session.user.name || "학습자"}
-                    </span>
-                    <span className="text-xs text-on-surface-variant truncate">
-                      {session.user.email}
-                    </span>
-                  </div>
+                  <button
+                    onClick={() => signOut()}
+                    className="p-1 text-on-surface-variant hover:text-destructive transition-colors shrink-0 cursor-pointer"
+                    title="로그아웃"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
                 )}
               </div>
+
+              {/* 약관 및 개인정보처리방침 링크 */}
               {!isIconOnly && (
-                <button
-                  onClick={() => signOut()}
-                  className="p-1 text-on-surface-variant hover:text-destructive transition-colors shrink-0 cursor-pointer"
-                  title="로그아웃"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
+                <div className="flex items-center justify-start gap-2 text-[10.5px] text-on-surface-variant/70 pt-1.5 border-t border-outline-variant/40">
+                  <Link href="/terms" onClick={onCloseMobile} className="hover:text-on-surface transition-colors">
+                    이용약관
+                  </Link>
+                  <span>·</span>
+                  <Link href="/privacy" onClick={onCloseMobile} className="hover:text-on-surface transition-colors">
+                    개인정보처리방침
+                  </Link>
+                </div>
               )}
             </div>
           ) : (
             <button
-              onClick={() => signIn()}
+              onClick={() => {
+                const currentPath =
+                  typeof window !== "undefined"
+                    ? window.location.pathname + window.location.search
+                    : "/";
+                const targetUrl =
+                  !currentPath || currentPath.startsWith("/auth")
+                    ? "/"
+                    : currentPath;
+                signIn(undefined, { callbackUrl: targetUrl });
+              }}
               onMouseEnter={(e) => handleMouseEnterItem(e, "로그인")}
               onMouseLeave={handleMouseLeaveItem}
               className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-primary text-on-primary font-bold text-xs hover:opacity-90 transition-opacity cursor-pointer group ${

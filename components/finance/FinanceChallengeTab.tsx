@@ -149,7 +149,7 @@ export function FinanceChallengeTab({ transactions, monthKey }: Props) {
         </div>
 
         <div className="flex flex-col sm:flex-row items-center gap-6 p-4 rounded-xl bg-surface-container-low border border-outline-variant/60">
-          <div className="text-6xl sm:text-7xl select-none animate-bounce">
+          <div className="text-6xl sm:text-7xl select-none">
             {plantLevel.icon}
           </div>
 

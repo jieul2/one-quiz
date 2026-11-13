@@ -159,7 +159,7 @@ export function RunningView() {
       });
 
       if (res.ok) {
-        toast.success("🏃‍♂️ 러닝 인증 및 기록이 등록되었습니다!");
+        toast.success("러닝 인증 및 기록이 등록되었습니다.");
         setIsAddModalOpen(false);
         // 폼 초기화
         setDistanceKm("");
@@ -421,7 +421,7 @@ export function RunningView() {
                       ) : null}
                       {log.shoes && (
                         <span className="text-[11px] bg-surface-container px-2 py-0.5 rounded-md">
-                          👟 {log.shoes}
+                          {log.shoes}
                         </span>
                       )}
                     </div>
@@ -526,11 +526,11 @@ export function RunningView() {
                     onChange={(e) => setWeather(e.target.value)}
                     className="w-full bg-surface-container-low border border-outline-variant rounded-xl px-3 py-2 text-xs text-on-surface focus:outline-hidden focus:border-primary font-medium"
                   >
-                    <option value="맑음">☀️ 맑음</option>
-                    <option value="구름조금">⛅ 구름조금</option>
-                    <option value="흐림">☁️ 흐림</option>
-                    <option value="비">🌧️ 비</option>
-                    <option value="실내트레드밀">🏃 실내 트레드밀</option>
+                    <option value="맑음">맑음</option>
+                    <option value="구름조금">구름조금</option>
+                    <option value="흐림">흐림</option>
+                    <option value="비">비</option>
+                    <option value="실내트레드밀">실내 트레드밀</option>
                   </select>
                 </div>
               </div>
@@ -728,7 +728,6 @@ export function RunningView() {
               <div className="space-y-2">
                 <div className="p-3 rounded-xl bg-surface-container-low border border-outline-variant flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <span className="text-base">🟠</span>
                     <div>
                       <div className="font-bold">Strava API 실시간 동기화</div>
                       <div className="text-[10px] text-on-surface-variant">OAuth 연동 후 달리기 완료 시 자동 등록</div>
@@ -741,7 +740,6 @@ export function RunningView() {
 
                 <div className="p-3 rounded-xl bg-surface-container-low border border-outline-variant flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <span className="text-base">⚡</span>
                     <div>
                       <div className="font-bold">Nike Run Club 스크린샷 AI 인식</div>
                       <div className="text-[10px] text-on-surface-variant">인증 사진을 올리면 거리/페이스 자동 추출</div>
@@ -754,7 +752,6 @@ export function RunningView() {
 
                 <div className="p-3 rounded-xl bg-surface-container-low border border-outline-variant flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <span className="text-base">🍎</span>
                     <div>
                       <div className="font-bold">Apple 건강 & Apple Watch 연동</div>
                       <div className="text-[10px] text-on-surface-variant">심박수, 케이던스, 고도 변화 자동 분석</div>
@@ -767,7 +764,7 @@ export function RunningView() {
               </div>
 
               <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 text-xs text-primary leading-relaxed">
-                💡 현재는 상단의 <strong>[러닝 인증 및 기록]</strong> 버튼을 통해 직접 거리와 시간, 인증 사진을 올려주시면 AI 러닝 코치가 즉시 전문 피드백을 제공합니다!
+                현재는 상단의 <strong>[러닝 인증 및 기록]</strong> 버튼을 통해 직접 거리와 시간, 인증 사진을 올려주시면 AI 러닝 코치가 즉시 전문 피드백을 제공합니다.
               </div>
             </div>
 

@@ -92,9 +92,9 @@ export function FeedbackModal() {
 
       {/* 🌟 피드백 작성 모달 */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150">
           <div
-            className="w-full max-w-lg bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+            className="w-full max-w-lg bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 모달 헤더 */}
@@ -122,8 +122,8 @@ export function FeedbackModal() {
             {/* 모달 본문 */}
             {isSubmitted ? (
               <div className="py-16 px-6 flex flex-col items-center justify-center text-center gap-3 animate-in zoom-in-95 duration-200">
-                <CheckCircle2 size={48} className="text-primary animate-bounce" />
-                <h3 className="ui-section-title text-on-surface">피드백이 접수되었습니다!</h3>
+                <CheckCircle2 size={44} className="text-primary" />
+                <h3 className="ui-section-title text-on-surface">피드백이 접수되었습니다</h3>
                 <p className="ui-body text-on-surface-variant max-w-xs">
                   보내주신 의견을 면밀히 검토하여 더욱 편리한 원퀴즈로 발전하겠습니다. 감사합니다.
                 </p>

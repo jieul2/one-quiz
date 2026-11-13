@@ -124,7 +124,7 @@ export function AppShell({ children }: AppShellProps) {
         >
           <button
             onClick={() => setIsMobileNavOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-surface-container-lowest/95 backdrop-blur-md border border-outline-variant rounded-full shadow-xl text-on-surface hover:text-primary active:scale-95 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xs text-on-surface hover:text-primary active:scale-98 transition-all cursor-pointer"
             title="사이드바 메뉴 열기"
           >
             <Menu size={18} className="text-primary shrink-0" />
@@ -135,7 +135,7 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* 2-1. PC 데스크톱에서 사이드바가 아예 없을 때(hidden) 즉시 꺼낼 수 있는 플로팅 토글러 */}
       {sidebarMode === "hidden" && (
-        <div className="fixed top-3.5 left-3.5 z-40 hidden md:flex items-center gap-1.5 bg-surface-container-lowest/90 backdrop-blur-md border border-outline-variant rounded-xl p-1 shadow-md transition-all hover:border-primary/50">
+        <div className="fixed top-3.5 left-3.5 z-40 hidden md:flex items-center gap-1.5 bg-surface-container-lowest border border-outline-variant rounded-xl p-1 shadow-xs transition-colors hover:border-primary/50">
           <button
             onClick={() => handleChangeSidebarMode("icon")}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container text-xs font-medium cursor-pointer transition-colors"

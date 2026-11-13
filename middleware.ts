@@ -8,7 +8,11 @@ export default withAuth(
 
     // 1. 이미 로그인된 상태에서 로그인 페이지 접근 시 이전 목적지 또는 홈으로 리다이렉트
     if (token && path === "/auth/signin") {
-      const callbackUrl = req.nextUrl.searchParams.get("callbackUrl") || "/";
+      const rawCallbackUrl = req.nextUrl.searchParams.get("callbackUrl");
+      const callbackUrl =
+        !rawCallbackUrl || rawCallbackUrl.startsWith("/auth")
+          ? "/"
+          : rawCallbackUrl;
       return NextResponse.redirect(new URL(callbackUrl, req.url));
     }
 
@@ -37,8 +41,13 @@ export default withAuth(
       authorized: ({ token, req }) => {
         const path = req.nextUrl.pathname;
 
-        // /auth 및 /api/auth 경로는 인증 없이 접근 허용
-        if (path.startsWith("/auth") || path.startsWith("/api/auth")) {
+        // /auth, /api/auth, /terms, /privacy 경로는 인증 없이 접근 허용 (이용약관 및 개인정보처리방침 공개)
+        if (
+          path.startsWith("/auth") ||
+          path.startsWith("/api/auth") ||
+          path.startsWith("/terms") ||
+          path.startsWith("/privacy")
+        ) {
           return true;
         }
 

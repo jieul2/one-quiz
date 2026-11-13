@@ -524,60 +524,35 @@ export function DashboardView() {
           </h1>
         </div>
 
-        {/* 우측 통계 칩 3개 + '위젯' 단일 버튼 (사진 1) */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0">
-          {/* 오늘 일정 */}
-          <Link
-            href="/calendar"
-            className="flex flex-col items-center justify-center px-3.5 py-2 bg-surface-container-low hover:bg-surface-container border border-outline-variant/70 rounded-xl min-w-[68px] sm:min-w-[72px] transition-colors shrink-0 whitespace-nowrap"
-          >
-            <span
-              className="text-base sm:text-xl font-black text-on-surface font-mono leading-none"
-              suppressHydrationWarning
-            >
-              {mounted ? todayEventCount : 0}
+        {/* 우측 컨트롤 및 요약 바 */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="hidden sm:flex items-center gap-3 text-xs text-on-surface-variant px-3 py-2 rounded-lg bg-surface-container-low border border-outline-variant font-medium">
+            <Link href="/calendar" className="hover:text-primary transition-colors">
+              오늘 일정 <span className="font-bold text-on-surface font-mono">{mounted ? todayEventCount : 0}</span>
+            </Link>
+            <span className="text-outline">·</span>
+            <Link href="/tasks" className="hover:text-primary transition-colors">
+              할일 <span className="font-bold text-on-surface font-mono">{mounted ? taskCount : 0}</span>
+            </Link>
+            <span className="text-outline">·</span>
+            <span>
+              완료 <span className="font-bold text-on-surface font-mono">{mounted ? `${completionRate}%` : "0%"}</span>
             </span>
-            <span className="text-xs text-on-surface-variant font-medium mt-1">오늘 일정</span>
-          </Link>
-
-          {/* 할일 */}
-          <Link
-            href="/tasks"
-            className="flex flex-col items-center justify-center px-3.5 py-2 bg-surface-container-low hover:bg-surface-container border border-outline-variant/70 rounded-xl min-w-[68px] sm:min-w-[72px] transition-colors shrink-0 whitespace-nowrap"
-          >
-            <span
-              className="text-base sm:text-xl font-black text-on-surface font-mono leading-none"
-              suppressHydrationWarning
-            >
-              {mounted ? taskCount : 0}
-            </span>
-            <span className="text-xs text-on-surface-variant font-medium mt-1">할일</span>
-          </Link>
-
-          {/* 완료율 */}
-          <div className="flex flex-col items-center justify-center px-3.5 py-2 bg-surface-container-low border border-outline-variant/70 rounded-xl min-w-[68px] sm:min-w-[72px] shrink-0 whitespace-nowrap">
-            <span
-              className="text-base sm:text-xl font-black text-on-surface font-mono leading-none"
-              suppressHydrationWarning
-            >
-              {mounted ? `${completionRate}%` : "0%"}
-            </span>
-            <span className="text-xs text-on-surface-variant font-medium mt-1">완료</span>
           </div>
 
-          {/* 🌟 '위젯' 버튼 (대시보드의 유일한 컨트롤 버튼) */}
+          {/* 🌟 '위젯' 버튼 */}
           <div className="relative shrink-0" ref={widgetMenuRef}>
             <button
               onClick={() => setIsWidgetMenuOpen(!isWidgetMenuOpen)}
-              className="flex items-center gap-2 px-3.5 py-2.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant/70 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer shadow-xs active:scale-98 shrink-0 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3 py-2 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-lg text-xs font-medium transition-colors cursor-pointer"
             >
-              <LayoutGrid size={15} />
-              <span>위젯</span>
+              <LayoutGrid size={14} />
+              <span>위젯 구성</span>
             </button>
 
-            {/* 🌟 홈 위젯 구성 드롭다운 메뉴 (테마 색상 준수, 모바일 순서 이동 지원) */}
+            {/* 🌟 홈 위젯 구성 드롭다운 메뉴 */}
             {isWidgetMenuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-64 sm:w-72 bg-surface-container-lowest border border-outline-variant rounded-xl p-2 shadow-xl z-50 space-y-1 text-on-surface animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute right-0 top-full mt-2 w-64 sm:w-72 bg-surface-container-lowest border border-outline-variant rounded-xl p-2 shadow-md z-50 space-y-1 text-on-surface animate-in fade-in zoom-in-95 duration-150">
                 <div className="flex items-center justify-between px-2.5 py-1.5 text-xs font-bold text-on-surface-variant border-b border-outline-variant mb-1">
                   <span>홈 위젯 구성 및 순서</span>
                   <span className="text-[10px] font-normal text-on-surface-variant/70">
@@ -666,7 +641,7 @@ export function DashboardView() {
             >
               {/* 🌟 1. 드래그 오버 시 목표 위치 스켈레톤 와이어프레임 프리뷰 */}
               {isOver && draggedWidget && (
-                <div className="absolute inset-0 z-30 rounded-2xl border-2 border-dashed border-primary bg-surface-container-lowest/95 dark:bg-neutral-900/95 backdrop-blur-xs flex flex-col justify-between p-4 pointer-events-none text-primary animate-in fade-in zoom-in-95 duration-150 shadow-xl">
+                <div className="absolute inset-0 z-30 rounded-xl border-2 border-dashed border-primary bg-surface-container-lowest flex flex-col justify-between p-4 pointer-events-none text-primary animate-in fade-in zoom-in-95 duration-100">
                   {/* 스켈레톤 헤더 */}
                   <div className="flex items-center justify-between pb-3 border-b border-primary/25">
                     <div className="flex items-center gap-2">
@@ -675,30 +650,30 @@ export function DashboardView() {
                       </div>
                       <span className="text-sm font-bold text-on-surface">{draggedWidget.title}</span>
                     </div>
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary text-on-primary shadow-xs">
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary text-on-primary">
                       여기로 이동
                     </span>
                   </div>
 
                   {/* 스켈레톤 본문 와이어프레임 */}
                   <div className="space-y-2.5 py-2 flex-1 flex flex-col justify-center">
-                    <div className="h-3.5 w-4/5 rounded-full bg-primary/20 animate-pulse" />
-                    <div className="h-3 w-3/5 rounded-full bg-primary/25 animate-pulse" />
+                    <div className="h-3.5 w-4/5 rounded-full bg-primary/20" />
+                    <div className="h-3 w-3/5 rounded-full bg-primary/25" />
                     <div className="grid grid-cols-2 gap-2 mt-2">
-                      <div className="h-16 rounded-xl bg-primary/10 border border-dashed border-primary/30 flex items-center justify-center text-xs font-semibold text-primary/70 animate-pulse">
+                      <div className="h-16 rounded-lg bg-primary/10 border border-dashed border-primary/30 flex items-center justify-center text-xs font-semibold text-primary/70">
                         위젯 배치 슬롯
                       </div>
-                      <div className="h-16 rounded-xl bg-primary/10 border border-dashed border-primary/30 flex items-center justify-center text-xs font-semibold text-primary/70 animate-pulse">
+                      <div className="h-16 rounded-lg bg-primary/10 border border-dashed border-primary/30 flex items-center justify-center text-xs font-semibold text-primary/70">
                         새 순서로 정렬
                       </div>
                     </div>
-                    <div className="h-3 w-2/3 rounded-full bg-primary/15 animate-pulse" />
+                    <div className="h-3 w-2/3 rounded-full bg-primary/15" />
                   </div>
 
                   {/* 스켈레톤 하단 가이드 */}
                   <div className="pt-2 border-t border-primary/20 flex items-center justify-center">
                     <p className="text-xs font-bold text-primary flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
+                      <span className="w-2 h-2 rounded-full bg-primary" />
                       마우스를 놓으면 이 자리에 배치됩니다
                     </p>
                   </div>
@@ -1244,7 +1219,7 @@ function MiniCalendarWidget({ events = [] }: { events?: CalendarEvent[] }) {
             top: `${selectedDay.y}px`,
             left: `${selectedDay.x}px`,
           }}
-          className={`fixed z-[999999] -translate-x-1/2 w-72 p-3.5 bg-surface-container-lowest/98 backdrop-blur-md border border-outline-variant rounded-2xl shadow-2xl text-on-surface animate-in fade-in zoom-in-95 duration-150 ${
+          className={`fixed z-[999999] -translate-x-1/2 w-72 p-3.5 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-md text-on-surface animate-in fade-in zoom-in-95 duration-100 ${
             selectedDay.placeBelow ? "" : "-translate-y-full"
           }`}
         >
@@ -1487,7 +1462,7 @@ function DdayWidget({ events = [] }: { events?: CalendarEvent[] }) {
         const isPast = item.diffDays < 0;
         const badgeText = isDDay ? "D-DAY" : isPast ? `D+${Math.abs(item.diffDays)}` : `D-${item.diffDays}`;
         const badgeColor = isDDay
-          ? "bg-rose-500 text-white font-black animate-pulse"
+          ? "bg-rose-500 text-white font-black"
           : isPast
           ? "bg-surface-container-high text-on-surface-variant font-mono"
           : "bg-primary text-on-primary font-mono font-bold";

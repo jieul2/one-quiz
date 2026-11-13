@@ -87,11 +87,11 @@ const COLOR_MAP: Record<string, { bg: string; border: string; text: string; fill
 };
 
 const DEFAULT_STARTER_NODES: MindmapNode[] = [
-  { id: "root-1", label: "🎯 2026 핵심 목표", x: 450, y: 300, isRoot: true, color: "primary" },
-  { id: "child-1", label: "💻 기술 역량 강화", x: 220, y: 180, parentId: "root-1", color: "emerald" },
-  { id: "child-2", label: "🏃 건강 & 러닝 루틴", x: 680, y: 180, parentId: "root-1", color: "amber" },
-  { id: "child-3", label: "📚 정보처리기사 자격증", x: 220, y: 420, parentId: "root-1", color: "violet" },
-  { id: "child-4", label: "🚀 one-quiz 프로젝트 완성", x: 680, y: 420, parentId: "root-1", color: "rose" },
+  { id: "root-1", label: "2026 핵심 목표", x: 450, y: 300, isRoot: true, color: "primary" },
+  { id: "child-1", label: "기술 역량 강화", x: 220, y: 180, parentId: "root-1", color: "emerald" },
+  { id: "child-2", label: "건강 & 러닝 루틴", x: 680, y: 180, parentId: "root-1", color: "amber" },
+  { id: "child-3", label: "정보처리기사 자격증", x: 220, y: 420, parentId: "root-1", color: "violet" },
+  { id: "child-4", label: "one-quiz 프로젝트 완성", x: 680, y: 420, parentId: "root-1", color: "rose" },
 ];
 
 export function MindmapView() {
@@ -1222,7 +1222,7 @@ export function MindmapView() {
         onTouchMove={handleTouchMoveCanvas}
         onTouchEnd={handleTouchEndCanvas}
         onContextMenu={handleContextMenuCanvas}
-        className={`relative w-full h-[calc(100vh-230px)] min-h-[580px] rounded-3xl border border-outline-variant overflow-hidden shadow-xs bg-surface-container-lowest select-none ${
+        className={`relative w-full h-[calc(100vh-230px)] min-h-[580px] rounded-xl border border-outline-variant overflow-hidden shadow-xs bg-surface-container-lowest select-none ${
           isPanning
             ? "cursor-grabbing"
             : isHandToolActive || isSpaceHeld
@@ -1413,8 +1413,8 @@ export function MindmapView() {
         })()}
 
         {/* 캔버스 하단 좌측 단축키 안내 팁 */}
-        <div className="absolute left-4 bottom-4 hidden md:flex bg-surface-container-lowest/80 backdrop-blur-md border border-outline-variant px-3 py-1.5 rounded-xl ui-caption text-on-surface-variant items-center gap-2 shadow-xs pointer-events-none">
-          <span>💡 <strong>V</strong>: 선택</span>
+        <div className="absolute left-4 bottom-4 hidden md:flex bg-surface-container-lowest border border-outline-variant px-3 py-1.5 rounded-xl ui-caption text-on-surface-variant items-center gap-2 shadow-xs pointer-events-none">
+          <span><strong>V</strong>: 선택</span>
           <span>•</span>
           <span><strong>H / Space 홀드</strong>: 화면 이동</span>
           <span>•</span>

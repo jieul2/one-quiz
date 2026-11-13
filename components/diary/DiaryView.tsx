@@ -1025,7 +1025,7 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
             {/* 1. 폴더 가로 필터 */}
             <div className="p-3 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-2xs">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                <span className="text-xs font-bold text-on-surface-variant">
                   폴더 선택
                 </span>
                 <span className="text-[11px] text-on-surface-variant">

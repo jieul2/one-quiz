@@ -1421,7 +1421,7 @@ export function RoadmapView() {
 
           {/* 상세 설명 (길더라도 잘리지 않고 전체 개행 유지 표시) */}
           <div className="space-y-1">
-            <div className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+            <div className="text-xs font-semibold text-on-surface-variant">
               상세 설명 및 부가 메모
             </div>
             {activeProject.description ? (
@@ -1881,8 +1881,8 @@ export function RoadmapView() {
 
       {/* 4. 프로젝트 기간 수정 모달 */}
       {isDateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4 text-on-surface">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 w-full max-w-sm shadow-lg space-y-4 text-on-surface">
             <div className="flex justify-between items-center border-b border-outline-variant pb-3">
               <h3 className="font-bold text-base text-on-surface">프로젝트 전체 기간 수정</h3>
               <button
@@ -1938,8 +1938,8 @@ export function RoadmapView() {
 
       {/* 5. 팀원 초대 모달 */}
       {isInviteModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4 text-on-surface">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 w-full max-w-md shadow-lg space-y-4 text-on-surface">
             <div className="flex justify-between items-center border-b border-outline-variant pb-3">
               <div className="flex items-center gap-2">
                 <UserPlus size={18} className="text-secondary" />
@@ -2007,8 +2007,8 @@ export function RoadmapView() {
 
       {/* 6. 항목 생성/수정 모달 */}
       {isItemModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4 text-on-surface">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 w-full max-w-md shadow-lg space-y-4 text-on-surface">
             <div className="flex justify-between items-center border-b border-outline-variant pb-3">
               <h3 className="font-bold text-base text-on-surface">
                 {editingItemId ? "로드맵 항목 수정" : "새 로드맵 항목 추가"}

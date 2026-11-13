@@ -443,7 +443,7 @@ function ExamContent() {
           </div>
 
           {hasSettingsChanged && (
-            <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-3 py-1.5 rounded-xl text-xs animate-pulse">
+            <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-3 py-1.5 rounded-xl text-xs">
               <AlertCircle size={14} className="shrink-0" />
               <span>
                 설정이 변경되었습니다. 적용하려면 <strong>[새로 뽑기]</strong> 버튼을 눌러주세요!

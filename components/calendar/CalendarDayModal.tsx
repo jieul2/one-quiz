@@ -97,12 +97,12 @@ export function CalendarDayModal({
       <div
         ref={popoverRef}
         style={popoverStyle}
-        className="w-[90vw] max-w-[320px] bg-surface-container-lowest border border-outline-variant hover:border-primary/40 ring-1 ring-primary/15 rounded-2xl p-4 shadow-2xl text-on-surface space-y-3 animate-in fade-in zoom-in-95 duration-150 select-none"
+        className="w-[90vw] max-w-[320px] bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-md text-on-surface space-y-3 animate-in fade-in zoom-in-95 duration-100 select-none"
       >
         {/* 상단 헤더: 날짜 + X 닫기 버튼 (테마 색상 Primary 반영) */}
         <div className="flex items-center justify-between pb-2 border-b border-outline-variant/60">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-primary shrink-0 animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
             <h3 className="font-bold text-sm tracking-tight text-primary">{titleStr}</h3>
           </div>
           <button
@@ -135,10 +135,9 @@ export function CalendarDayModal({
                     style={{
                       backgroundColor: styles.bgRgba,
                       borderColor: styles.borderRgba,
-                      borderLeftColor: styles.accentColor,
                       color: styles.textColor,
                     }}
-                    className="flex items-center justify-between px-3 py-2 rounded-lg border border-l-[3.5px] text-xs sm:text-sm font-semibold cursor-pointer hover:brightness-105 transition-all shadow-2xs"
+                    className="flex items-center justify-between px-3 py-2 rounded-lg border text-xs sm:text-sm font-semibold cursor-pointer hover:brightness-105 transition-colors shadow-2xs"
                     title={`${evt.title} 편집`}
                   >
                     <div className="flex items-center gap-1.5 min-w-0 flex-1">

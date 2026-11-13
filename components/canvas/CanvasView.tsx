@@ -938,10 +938,10 @@ export function CanvasView() {
           })}
         </div>
 
-        {/* 🌟 회의실 개설 모달 */}
+        {/* 회의실 개설 모달 */}
         {isCreateRoomOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-            <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95 duration-150">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-150">
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl w-full max-w-md p-6 shadow-lg animate-in zoom-in-95 duration-100">
               <div className="flex items-center justify-between pb-4 border-b border-outline-variant">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
@@ -1120,7 +1120,7 @@ export function CanvasView() {
         <div className="flex items-center gap-2">
           {/* 회의 타이머 위젯 */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container border border-outline-variant text-on-surface">
-            <Clock size={13} className="text-primary animate-pulse" />
+            <Clock size={13} className="text-primary" />
             <span className="font-mono text-xs font-bold">{timerStr}</span>
             <button
               onClick={() => setIsTimerRunning((prev) => !prev)}
@@ -1389,10 +1389,10 @@ export function CanvasView() {
                       }`}
                     >
                       {item.meetingStatus === "done"
-                        ? "✅ 완료"
+                        ? "완료"
                         : item.meetingStatus === "in_progress"
-                        ? "⏳ 진행중"
-                        : "📋 회의 안건"}
+                        ? "진행중"
+                        : "회의 안건"}
                     </button>
 
                     <button
@@ -1518,10 +1518,10 @@ export function CanvasView() {
               onMouseDown={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
-              className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-lowest/95 backdrop-blur-md border border-outline-variant rounded-2xl shadow-xl animate-in slide-in-from-bottom-2 duration-150 select-none"
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-md animate-in slide-in-from-bottom-2 duration-150 select-none"
             >
               <span className="text-[11px] font-bold text-on-surface truncate max-w-[120px] px-1">
-                {selectedItem.type === "meeting_card" ? "📋 회의 안건" : "📝 메모지"}
+                {selectedItem.type === "meeting_card" ? "회의 안건" : "메모지"}
               </span>
               <div className="h-3.5 w-px bg-outline-variant" />
               {selectedItem.type === "meeting_card" && (
@@ -1569,8 +1569,8 @@ export function CanvasView() {
         })()}
 
         {/* PC 단축키 안내 팁 */}
-        <div className="absolute left-4 bottom-3 hidden md:flex bg-surface-container-lowest/80 backdrop-blur-md border border-outline-variant px-3 py-1.5 rounded-xl ui-caption text-on-surface-variant items-center gap-2 shadow-xs pointer-events-none">
-          <span>💡 <strong>V</strong>: 선택</span>
+        <div className="absolute left-4 bottom-3 hidden md:flex bg-surface-container-lowest border border-outline-variant px-3 py-1.5 rounded-xl ui-caption text-on-surface-variant items-center gap-2 shadow-xs pointer-events-none">
+          <span><strong>V</strong>: 선택</span>
           <span>•</span>
           <span><strong>H / Space 홀드</strong>: 잡기</span>
           <span>•</span>
@@ -1582,10 +1582,10 @@ export function CanvasView() {
         </div>
       </div>
 
-      {/* 🌟 회의실 개설 모달 */}
+      {/* 회의실 개설 모달 */}
       {isCreateRoomOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-150">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl w-full max-w-md p-6 shadow-lg animate-in zoom-in-95 duration-100">
             <div className="flex items-center justify-between pb-4 border-b border-outline-variant">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">

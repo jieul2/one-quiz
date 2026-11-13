@@ -181,9 +181,9 @@ export function AIQuestionImportModal({
   const validCount = parsedQuestions.filter((q) => q.isValid).length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-fade-in select-none">
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-5 animate-fade-in select-none">
       <div
-        className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-4xl max-h-[92vh] shadow-2xl flex flex-col justify-between overflow-hidden text-on-surface"
+        className="bg-surface-container-lowest border border-outline-variant rounded-xl w-full max-w-4xl max-h-[92vh] shadow-lg flex flex-col justify-between overflow-hidden text-on-surface"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 1. 모달 상단 헤더 */}

@@ -162,7 +162,7 @@ export function BookmarksView() {
       {!session?.user && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3.5 py-2.5 rounded-lg bg-surface-container-low border border-outline-variant text-xs text-on-surface-variant">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
             <span>
               <strong>게스트 체험 모드:</strong> 북마크가 브라우저에 임시 저장됩니다. 계정에 영구 저장하려면 로그인하세요.
             </span>
@@ -297,8 +297,8 @@ export function BookmarksView() {
 
       {/* Add Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-surface-container-lowest border border-outline-variant rounded-lg shadow-xl p-5 flex flex-col gap-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="w-full max-w-md bg-surface-container-lowest border border-outline-variant rounded-lg shadow-md p-5 flex flex-col gap-4">
             <span className="text-base font-bold text-on-surface">새 북마크 추가</span>
             <form onSubmit={handleAdd} className="flex flex-col gap-3">
               <div className="flex flex-col gap-1">

@@ -110,7 +110,7 @@ export function NewProjectModal({
                     : "bg-surface-container-low border-outline-variant text-on-surface-variant hover:bg-surface-container"
                 }`}
               >
-                <div className="font-bold text-on-surface">📦 기본 스타터 샘플</div>
+                <div className="font-bold text-on-surface">기본 스타터 샘플</div>
                 <div className="text-[11px] text-on-surface-variant mt-0.5">
                   User, Post, Comment 3개 기본 테이블 &amp; 관계
                 </div>

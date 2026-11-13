@@ -882,8 +882,8 @@ export function CalendarView() {
 
       {/* 🌟 캘린더 막대 리사이즈 중 실시간 기간 안내 툴팁 배지 */}
       {resizingEvent && (resizePreviewStartDate || resizePreviewEndDate) && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-primary text-on-primary rounded-full shadow-2xl text-xs font-bold flex items-center gap-2 pointer-events-none transition-all duration-150 animate-bounce">
-          <span className="w-2 h-2 rounded-full bg-white animate-ping shrink-0" />
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-3.5 py-1.5 bg-primary text-on-primary rounded-lg shadow-md text-xs font-semibold flex items-center gap-2 pointer-events-none transition-all duration-150">
+          <span className="w-2 h-2 rounded-full bg-white shrink-0" />
           <span>{resizingEvent.title}</span>
           <span className="opacity-60">|</span>
           <span className="font-mono">
@@ -906,7 +906,7 @@ export function CalendarView() {
 
       {/* 🌟 캘린더 드래그 앤 드롭 이동 중 상단 실시간 안내 배지 */}
       {draggingEvent && dragPreview && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-primary text-on-primary rounded-full shadow-2xl text-xs font-bold flex items-center gap-2 pointer-events-none transition-all duration-150 animate-bounce">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-3.5 py-1.5 bg-primary text-on-primary rounded-lg shadow-md text-xs font-semibold flex items-center gap-2 pointer-events-none transition-all duration-150">
           <span>이동 중: {draggingEvent.title}</span>
           <span className="opacity-60">|</span>
           <span className="font-mono">
@@ -1339,10 +1339,9 @@ export function CalendarView() {
                   style={{
                     backgroundColor: styles.bgRgba,
                     borderColor: styles.borderRgba,
-                    borderLeftColor: styles.accentColor,
                     color: styles.textColor,
                   }}
-                  className="p-3 rounded-lg border border-l-[4px] flex items-center justify-between cursor-pointer hover:brightness-105 transition-all shadow-2xs"
+                  className="p-3 rounded-lg border flex items-center justify-between cursor-pointer hover:brightness-105 transition-colors shadow-2xs"
                 >
                   <div className="flex items-center gap-2">
                     <span

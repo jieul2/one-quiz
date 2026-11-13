@@ -1,38 +1,71 @@
 "use client";
 
-import { Suspense } from "react";
-import { Lock } from "lucide-react";
+import { Suspense, useEffect } from "react";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
-import { useSearchParams } from "next/navigation";
+import { signIn, useSession } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMounted } from "@/lib/hooks/useMounted";
 import { AppShell } from "@/components/layout/AppShell";
+import { Loader2 } from "lucide-react";
 
 function SignInContent() {
   const mounted = useMounted();
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const { status } = useSession();
 
-  // 사용자가 원래 접근하려던 페이지 경로를 가져옴 (없으면 메인('/')으로 이동)
-  const callbackUrl = searchParams.get("callbackUrl") || "/";
+  // 사용자가 원래 접근하려던 페이지 경로를 가져옴 (없거나 /auth 관련이면 메인('/')으로 안전 이동)
+  const rawCallbackUrl = searchParams.get("callbackUrl");
+  const callbackUrl =
+    !rawCallbackUrl || rawCallbackUrl.startsWith("/auth")
+      ? "/"
+      : rawCallbackUrl;
+
+  // 로그인 완료 감지 시 즉시 원래 목적지(또는 홈)로 리다이렉트
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.replace(callbackUrl);
+    }
+  }, [status, callbackUrl, router]);
 
   if (!mounted) return null;
+
+  // 이미 로그인된 사용자인 경우 이동 중 상태 표시
+  if (status === "authenticated") {
+    return (
+      <AppShell>
+        <div className="min-h-[70vh] flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest p-6 sm:p-8 rounded-xl border border-outline-variant w-full max-w-md text-center space-y-4 shadow-xs">
+            <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
+            <div className="space-y-1">
+              <h2 className="text-base font-bold text-on-surface">
+                로그인이 확인되었습니다
+              </h2>
+              <p className="text-xs text-on-surface-variant">
+                잠시 후 서비스 화면으로 이동합니다...
+              </p>
+            </div>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
       <div className="min-h-[70vh] flex items-center justify-center p-4">
-        <div className="bg-surface-container-lowest p-8 md:p-10 rounded-3xl shadow-xl border border-outline-variant w-full max-w-md text-center space-y-6">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-surface-container-high/60 border border-outline-variant/60 flex items-center justify-center p-2.5 shadow-md">
+        <div className="bg-surface-container-lowest p-6 sm:p-8 rounded-xl border border-outline-variant w-full max-w-md text-center space-y-6 shadow-xs">
+          <div className="flex flex-col items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/favicon.ico" alt="원퀴즈 로고" className="w-full h-full object-contain" />
-          </div>
-
-          <div className="space-y-1.5">
-            <h1 className="text-2xl font-black text-on-surface tracking-tight">
-              원퀴즈 (OneQuiz) 로그인
-            </h1>
-            <p className="text-xs text-on-surface-variant">
-              소셜 계정으로 빠르고 안전하게 시작하세요.
-            </p>
+            <img src="/favicon.ico" alt="원퀴즈 로고" className="w-10 h-10 object-contain" />
+            <div className="space-y-1">
+              <h1 className="text-xl font-bold text-on-surface tracking-tight">
+                원퀴즈 로그인
+              </h1>
+              <p className="text-xs text-on-surface-variant">
+                소셜 계정으로 빠르고 안전하게 시작하세요.
+              </p>
+            </div>
           </div>
 
           <div className="space-y-3 pt-2">
@@ -74,12 +107,19 @@ function SignInContent() {
             </button>
           </div>
 
-          <div className="pt-2 border-t border-outline-variant">
+          <div className="pt-3 border-t border-outline-variant flex items-center justify-center gap-3 text-xs text-on-surface-variant">
             <Link
-              href="/"
-              className="text-xs text-on-surface-variant hover:text-on-surface transition-colors"
+              href="/terms"
+              className="hover:text-on-surface transition-colors"
             >
-              ← 메인으로 돌아가기
+              이용약관
+            </Link>
+            <span>·</span>
+            <Link
+              href="/privacy"
+              className="hover:text-on-surface transition-colors"
+            >
+              개인정보처리방침
             </Link>
           </div>
         </div>

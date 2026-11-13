@@ -409,17 +409,17 @@ export function AdminFeedbackModule() {
         <div className="p-14 text-center bg-surface-container-lowest border border-outline-variant rounded-xl space-y-2">
           {activeTab === "active" ? (
             <>
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-1">
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-1">
                 <CheckCircle2 size={28} />
               </div>
-              <h3 className="ui-section-title text-on-surface">모든 피드백이 처리 완료되었습니다! 🎉</h3>
+              <h3 className="ui-section-title text-on-surface">모든 피드백이 처리 완료되었습니다</h3>
               <p className="ui-caption text-on-surface-variant max-w-sm mx-auto">
                 현재 접수 대기 또는 처리 중인 피드백이 없습니다. 해결된 피드백은 [완료 보관함]에서 확인하실 수 있습니다.
               </p>
             </>
           ) : activeTab === "completed" ? (
             <>
-              <div className="w-12 h-12 rounded-2xl bg-surface-container text-on-surface-variant flex items-center justify-center mx-auto mb-1">
+              <div className="w-12 h-12 rounded-xl bg-surface-container text-on-surface-variant flex items-center justify-center mx-auto mb-1">
                 <Archive size={28} />
               </div>
               <h3 className="ui-section-title text-on-surface">보관된 완료 피드백이 없습니다</h3>
@@ -429,7 +429,7 @@ export function AdminFeedbackModule() {
             </>
           ) : (
             <>
-              <div className="w-12 h-12 rounded-2xl bg-surface-container text-on-surface-variant flex items-center justify-center mx-auto mb-1">
+              <div className="w-12 h-12 rounded-xl bg-surface-container text-on-surface-variant flex items-center justify-center mx-auto mb-1">
                 <MessageSquareText size={28} />
               </div>
               <h3 className="ui-section-title text-on-surface">검색 조건에 맞는 피드백이 없습니다</h3>
@@ -441,10 +441,10 @@ export function AdminFeedbackModule() {
         <div className="space-y-3.5">
           {feedbacks.map((fb) => {
             const typeBadgeMap = {
-              bug: { label: "🐛 버그 제보", color: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/25" },
-              feature: { label: "💡 기능 제안", color: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/25" },
-              inquiry: { label: "❓ 문의 사항", color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25" },
-              feedback: { label: "💬 일반 피드백", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25" },
+              bug: { label: "버그 제보", color: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/25" },
+              feature: { label: "기능 제안", color: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/25" },
+              inquiry: { label: "문의 사항", color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25" },
+              feedback: { label: "일반 피드백", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25" },
             }[fb.type] || { label: "피드백", color: "bg-primary/10 text-primary border-primary/25" };
 
             const isResolved = fb.status === "resolved";

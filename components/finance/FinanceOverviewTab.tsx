@@ -192,14 +192,14 @@ export function FinanceOverviewTab({
       {/* 2. 중단: 예산 관리 상세 게이지 & 카테고리별 소비 비중 */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* 좌측: 예산 심층 모니터링 (5열) */}
-        <div className="lg:col-span-5 bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="lg:col-span-5 bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-xs space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-outline-variant/60">
             <div className="flex items-center gap-2">
               <PieChartIcon size={18} className="text-primary" />
               <h3 className="ui-section-title">예산 진행률 & 한도 관리</h3>
             </div>
             {isOverBudget && (
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/15 text-rose-500 border border-rose-500/30 animate-pulse flex items-center gap-1">
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/15 text-rose-500 border border-rose-500/30 flex items-center gap-1">
                 <AlertTriangle size={12} />
                 <span>예산 초과 경고</span>
               </span>
