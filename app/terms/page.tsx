@@ -9,16 +9,16 @@ export default function TermsPage() {
   return (
     <AppShell>
       <div className="w-full max-w-4xl mx-auto space-y-6 text-on-surface py-2">
-        <div className="flex items-center justify-between pb-4 border-b border-outline-variant">
-          <div>
-            <h1 className="ui-page-title">서비스 이용약관</h1>
-            <p className="ui-page-subtitle mt-1">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-outline-variant">
+          <div className="min-w-0 flex-1 w-full">
+            <h1 className="ui-page-title break-keep">서비스 이용약관</h1>
+            <p className="ui-page-subtitle mt-1 break-keep text-xs sm:text-sm text-on-surface-variant">
               원퀴즈(one-quiz)는 개인 개발자가 개발 및 운영하는 웹 워크스페이스 사이드 프로젝트입니다.
             </p>
           </div>
           <Link
             href="/"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant hover:bg-surface-container ui-button text-on-surface transition-colors shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant hover:bg-surface-container ui-button text-on-surface transition-colors shrink-0 self-start md:self-auto"
           >
             <ArrowLeft size={14} />
             <span>홈으로 복귀</span>

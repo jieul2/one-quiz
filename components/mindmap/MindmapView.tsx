@@ -21,6 +21,7 @@ import {
   Move,
   Edit3,
   Maximize2,
+  LayoutGrid,
 } from "lucide-react";
 import { SaveStatusIndicator, SaveStatus } from "@/components/common/SaveStatusIndicator";
 import { toast } from "@/lib/toast";
@@ -732,6 +733,70 @@ export function MindmapView() {
     toast.success("새 중심 노드가 생성되었습니다!");
   };
 
+  // 🌟 마인드맵 계층 구조 스마트 자동 정렬 (Tree / Radial Auto Layout)
+  const handleAutoLayout = () => {
+    if (nodes.length === 0) return;
+    const rootNodes = nodes.filter((n) => n.isRoot || !n.parentId);
+    if (rootNodes.length === 0 && nodes.length > 0) {
+      rootNodes.push(nodes[0]);
+    }
+
+    const newPositions: Record<string, { x: number; y: number }> = {};
+
+    rootNodes.forEach((root, rootIdx) => {
+      const centerX = 520 + rootIdx * 720;
+      const centerY = 360;
+      newPositions[root.id] = { x: centerX, y: centerY };
+
+      const children = nodes.filter((n) => n.parentId === root.id);
+      if (children.length === 0) return;
+
+      const half = Math.ceil(children.length / 2);
+      const rightChildren = children.slice(0, half);
+      const leftChildren = children.slice(half);
+
+      const arrangeBranch = (branchNodes: MindmapNode[], isRight: boolean) => {
+        const total = branchNodes.length;
+        const totalHeight = (total - 1) * 130;
+        const startY = centerY - totalHeight / 2;
+
+        branchNodes.forEach((node, idx) => {
+          const posX = isRight ? centerX + 260 : centerX - 260;
+          const posY = startY + idx * 130;
+          newPositions[node.id] = { x: posX, y: posY };
+
+          const subChildren = nodes.filter((n) => n.parentId === node.id);
+          const subTotal = subChildren.length;
+          const subTotalHeight = (subTotal - 1) * 75;
+          const subStartY = posY - subTotalHeight / 2;
+
+          subChildren.forEach((sub, sIdx) => {
+            const subX = isRight ? posX + 220 : posX - 220;
+            const subY = subStartY + sIdx * 75;
+            newPositions[sub.id] = { x: subX, y: subY };
+          });
+        });
+      };
+
+      arrangeBranch(rightChildren, true);
+      arrangeBranch(leftChildren, false);
+    });
+
+    const updated = nodes.map((n) => {
+      if (newPositions[n.id]) {
+        return { ...n, x: newPositions[n.id].x, y: newPositions[n.id].y };
+      }
+      return n;
+    });
+
+    setNodes(updated);
+    setPanOffset({ x: 0, y: 0 });
+    setZoomLevel(1);
+    closeContextMenu();
+    saveToServer(updated, mapTitle, activeMapId);
+    toast.success("마인드맵이 트리 계층 구조로 깔끔하게 자동 정렬되었습니다! ✨");
+  };
+
   // (3) 노드 삭제 (자식 노드도 재귀적으로 삭제)
   const handleDeleteNode = (nodeId: string) => {
     const getDescendantIds = (targetId: string): string[] => {
@@ -1099,8 +1164,8 @@ export function MindmapView() {
       className="w-full space-y-4 pb-6 animate-fade-in select-none"
     >
       {/* 1. 상단 타이틀 & 캔버스 툴바 */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-outline-variant pb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 border-b border-outline-variant pb-3">
+        <div className="flex items-start sm:items-center gap-2 flex-wrap sm:flex-nowrap min-w-0 flex-1 w-full">
           {/* 목록으로 돌아가기 버튼 */}
           <button
             type="button"
@@ -1108,29 +1173,29 @@ export function MindmapView() {
               setSelectedMapId(null);
               router.push("/mindmap");
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant text-xs font-bold text-on-surface transition-colors cursor-pointer mr-1 shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant text-xs font-bold text-on-surface transition-colors cursor-pointer mr-1 shadow-xs shrink-0 mt-0.5 sm:mt-0"
             title="마인드맵 목록으로 돌아가기"
           >
             <ArrowLeft size={14} className="text-primary" />
-            <span>마인드맵 목록</span>
+            <span>목록</span>
           </button>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="ui-page-title text-on-surface">{mapTitle}</h1>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <h1 className="ui-page-title text-on-surface break-keep truncate max-w-[240px] sm:max-w-md md:max-w-xl">{mapTitle}</h1>
 
-              <span className="ui-badge px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400 text-[11px] font-bold">
+              <span className="ui-badge px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400 text-[11px] font-bold shrink-0">
                 CANVAS
               </span>
             </div>
-            <p className="ui-page-subtitle">
+            <p className="ui-page-subtitle break-keep text-xs sm:text-sm text-on-surface-variant line-clamp-2 md:line-clamp-none">
               노드를 자유롭게 드래그하고, <strong>우클릭</strong>으로 가지 추가/수정/삭제/색상을 변경하세요.
             </p>
           </div>
         </div>
 
         {/* 우측 도구: 저장 상태 & 줌 컨트롤 & 액션 버튼 */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-1 max-w-full w-full xl:w-auto xl:shrink-0 text-sm">
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 
           {/* 줌 컨트롤 & 화면 이동 도구 */}
@@ -1193,6 +1258,15 @@ export function MindmapView() {
               <span>잡기 (H/Space)</span>
             </button>
           </div>
+
+          <button
+            onClick={handleAutoLayout}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container border border-outline-variant hover:bg-surface-container-high text-on-surface text-xs font-semibold shadow-xs transition-all cursor-pointer shrink-0 whitespace-nowrap"
+            title="마인드맵 가지를 트리 계층 구조로 깔끔하게 자동 정렬"
+          >
+            <LayoutGrid size={14} className="text-secondary" />
+            <span>자동 정렬</span>
+          </button>
 
           <button
             onClick={() => handleAddRootNode()}
@@ -1459,6 +1533,14 @@ export function MindmapView() {
                 <Edit2 size={13} /> 이름 수정
               </button>
 
+              <button
+                type="button"
+                onClick={handleAutoLayout}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-surface-container text-secondary transition-colors cursor-pointer text-left font-bold"
+              >
+                <LayoutGrid size={13} /> 계층 구조 자동 정렬
+              </button>
+
               {/* 색상 테마 팔레트 */}
               <div className="px-2.5 py-1.5">
                 <div className="ui-caption font-bold text-on-surface-variant mb-1.5 flex items-center gap-1">
@@ -1503,6 +1585,14 @@ export function MindmapView() {
                 className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-surface-container text-primary transition-colors cursor-pointer text-left font-bold"
               >
                 <Plus size={14} /> 여기에 새 중심 노드 생성
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAutoLayout}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-surface-container text-secondary transition-colors cursor-pointer text-left font-bold"
+              >
+                <LayoutGrid size={13} /> 계층 구조 자동 정렬
               </button>
 
               <button

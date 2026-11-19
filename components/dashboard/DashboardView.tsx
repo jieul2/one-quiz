@@ -513,19 +513,19 @@ export function DashboardView() {
   return (
     <div className="w-full space-y-5 text-on-surface select-none">
       {/* ================= 1. 최상단 대시보드 헤더 (전역 타이포그래피 모듈 통일) ================= */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3.5 pb-2">
         {/* 좌측 인사말 */}
-        <div>
+        <div className="min-w-0">
           <div className="ui-page-subtitle font-mono">
             {currentDateStr}
           </div>
-          <h1 className="ui-page-title mt-1">
+          <h1 className="ui-page-title mt-1 break-keep min-w-0">
             {greeting}, <span className="text-primary">{userName}</span>님
           </h1>
         </div>
 
         {/* 우측 컨트롤 및 요약 바 */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
           <div className="hidden sm:flex items-center gap-3 text-xs text-on-surface-variant px-3 py-2 rounded-lg bg-surface-container-low border border-outline-variant font-medium">
             <Link href="/calendar" className="hover:text-primary transition-colors">
               오늘 일정 <span className="font-bold text-on-surface font-mono">{mounted ? todayEventCount : 0}</span>
@@ -552,7 +552,7 @@ export function DashboardView() {
 
             {/* 🌟 홈 위젯 구성 드롭다운 메뉴 */}
             {isWidgetMenuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-64 sm:w-72 bg-surface-container-lowest border border-outline-variant rounded-xl p-2 shadow-md z-50 space-y-1 text-on-surface animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute right-0 top-full mt-2 w-64 sm:w-72 max-w-[calc(100vw-2rem)] bg-surface-container-lowest border border-outline-variant rounded-xl p-2 shadow-md z-50 space-y-1 text-on-surface animate-in fade-in zoom-in-95 duration-150">
                 <div className="flex items-center justify-between px-2.5 py-1.5 text-xs font-bold text-on-surface-variant border-b border-outline-variant mb-1">
                   <span>홈 위젯 구성 및 순서</span>
                   <span className="text-[10px] font-normal text-on-surface-variant/70">
@@ -1856,7 +1856,6 @@ function ChatWidget() {
   useEffect(() => {
     let ignore = false;
     let eventSource: EventSource | null = null;
-    let pollInterval: NodeJS.Timeout | null = null;
 
     async function loadChat() {
       try {
@@ -1886,7 +1885,7 @@ function ChatWidget() {
     }
     loadChat();
 
-    // 🌟 실시간 SSE 연결 (A PC -> B PC 즉시 반영)
+    // 🌟 실시간 SSE 연결 (새 메시지 도착 시 서버에서 즉각 푸시, 지속적인 HTTP 폴링 0회)
     try {
       eventSource = new EventSource("/api/chat/stream?groupId=global");
       eventSource.onmessage = (event) => {
@@ -1906,15 +1905,17 @@ function ChatWidget() {
       console.warn("Dashboard Chat SSE error:", sseErr);
     }
 
-    // 🌟 3초 보조 폴링
-    pollInterval = setInterval(() => {
-      if (document.hidden) return;
-      loadChat();
-    }, 3000);
+    // 🌟 탭 복귀/화면 활성화 시에만 1회 최신 동기화 (불필요한 지속 폴링 제거)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadChat();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       ignore = true;
-      if (pollInterval) clearInterval(pollInterval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (eventSource) eventSource.close();
     };
   }, []);

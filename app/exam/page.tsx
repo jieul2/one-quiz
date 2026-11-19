@@ -470,7 +470,7 @@ function ExamContent() {
 
             <button
               onClick={handleApplyNewSet}
-              className="ml-auto flex items-center gap-1.5 bg-primary hover:opacity-90 text-on-primary font-medium rounded-md px-3.5 py-1.5 text-xs sm:text-sm transition-all cursor-pointer"
+              className="w-full sm:w-auto sm:ml-auto justify-center flex items-center gap-1.5 bg-primary hover:opacity-90 text-on-primary font-medium rounded-md px-3.5 py-1.5 text-xs sm:text-sm transition-all cursor-pointer"
             >
               <RefreshCw size={13} /> <span>새로 뽑기</span>
             </button>
@@ -517,22 +517,22 @@ function ExamContent() {
                   className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden shadow-xs"
                 >
                   {/* 카드 상단 배지 헤더 */}
-                  <div className="bg-surface-container-low px-4 sm:px-5 py-3 text-on-surface text-xs sm:text-sm font-semibold flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-outline-variant">
-                    <div className="flex flex-wrap items-center gap-2 break-words">
+                  <div className="bg-surface-container-low px-3.5 sm:px-5 py-2.5 sm:py-3 text-on-surface text-xs sm:text-sm font-semibold flex items-center justify-between gap-2 border-b border-outline-variant flex-wrap">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 break-words min-w-0">
                       <span className="bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-md text-[11px] font-bold shrink-0">
                         기출
                       </span>
-                      <span className="font-bold text-on-surface">{q.examType}</span>
+                      <span className="font-bold text-on-surface truncate">{q.examType}</span>
                       <span className="opacity-30 hidden sm:inline">•</span>
-                      <span className="text-on-surface-variant font-medium">
+                      <span className="text-on-surface-variant font-medium truncate">
                         {q.subject}
                       </span>
                     </div>
 
-                    <div className="relative self-end sm:self-auto">
+                    <div className="relative shrink-0">
                       <button
                         onClick={() => setOpenHistoryId(isHistoryOpen ? null : q._id)}
-                        className="flex items-center gap-1.5 text-on-surface-variant text-[11px] sm:text-xs bg-surface-container-lowest px-3 py-1 rounded-xl shadow-2xs border border-outline-variant cursor-pointer font-bold transition-colors hover:text-on-surface"
+                        className="flex items-center gap-1.5 text-on-surface-variant text-[11px] sm:text-xs bg-surface-container-lowest px-2.5 sm:px-3 py-1 rounded-xl shadow-2xs border border-outline-variant cursor-pointer font-bold transition-colors hover:text-on-surface"
                       >
                         <span>
                           Q. {idx + 1} / {displayQuestions.length}
@@ -662,7 +662,7 @@ function ExamContent() {
                                 >
                                   {optionNum}
                                 </span>
-                                <span className="text-sm font-medium leading-snug">
+                                <span className="text-sm font-medium leading-snug break-keep min-w-0 flex-1">
                                   {option}
                                 </span>
                               </button>

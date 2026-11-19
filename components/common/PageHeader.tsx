@@ -17,22 +17,22 @@ export interface PageHeaderProps {
 export function PageHeader({ title, badge, subtitle, actions, className = "" }: PageHeaderProps) {
   return (
     <div
-      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant ${className}`}
+      className={`flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-outline-variant ${className}`}
     >
-      <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+      <div className="flex flex-col gap-0.5 min-w-0 flex-1 w-full">
         <div className="flex items-center gap-2 flex-wrap">
-          {typeof title === "string" ? <h1 className="ui-page-title truncate">{title}</h1> : title}
+          {typeof title === "string" ? <h1 className="ui-page-title break-keep min-w-0">{title}</h1> : title}
           {badge && (
             <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono shrink-0">
               {badge}
             </span>
           )}
         </div>
-        {subtitle && <p className="ui-page-subtitle break-keep">{subtitle}</p>}
+        {subtitle && <p className="ui-page-subtitle break-keep text-xs sm:text-sm text-on-surface-variant">{subtitle}</p>}
       </div>
 
       {actions && (
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none py-0.5 max-w-full shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-0.5 max-w-full w-full md:w-auto md:shrink-0">
           {actions}
         </div>
       )}

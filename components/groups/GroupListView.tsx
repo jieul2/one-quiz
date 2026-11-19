@@ -155,21 +155,21 @@ export function GroupListView() {
   return (
     <div className="w-full space-y-4">
       {/* ================= 1. 상단 플랫 헤더 ================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="ui-page-title text-on-surface">스터디 그룹 & 협업</h1>
-            <span className="ui-badge px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 font-semibold">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+        <div className="min-w-0 flex-1 w-full">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <h1 className="ui-page-title text-on-surface break-keep">스터디 그룹 & 협업</h1>
+            <span className="ui-badge px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 font-semibold shrink-0">
               <Users size={11} />
               STUDY GROUP
             </span>
           </div>
-          <span className="ui-page-subtitle block mt-0.5">
+          <span className="ui-page-subtitle block mt-0.5 break-keep text-xs sm:text-sm text-on-surface-variant line-clamp-2 md:line-clamp-none">
             동료 학습자들과 그룹을 맺어 기출 오답노트, 캘린더 스터디 일정, 아이디어 캔버스를 공유하고 전용 채널에서 채팅하세요.
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-1 max-w-full w-full md:w-auto md:shrink-0">
           <button
             onClick={() => setIsJoinOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container hover:bg-surface-container-high border border-outline-variant text-on-surface font-medium ui-button transition-colors cursor-pointer"

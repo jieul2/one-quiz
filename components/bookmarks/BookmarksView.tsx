@@ -171,20 +171,20 @@ export function BookmarksView() {
       )}
 
       {/* 1. 최상단 헤더 (플랫 헤더 표준) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
-        <div className="flex items-center gap-2">
-          <h1 className="ui-page-title">북마크</h1>
-          <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+        <div className="flex items-center gap-2 min-w-0 flex-1 w-full">
+          <h1 className="ui-page-title break-keep">북마크</h1>
+          <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono shrink-0">
             {bookmarks.length}개
           </span>
           {!session?.user && (
-            <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant">
+            <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant shrink-0">
               로컬 저장
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-1 max-w-full w-full md:w-auto md:shrink-0 text-sm">
           {session?.user ? (
             <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
           ) : (
@@ -284,7 +284,7 @@ export function BookmarksView() {
                 <span className="px-2 py-0.5 rounded bg-surface-container font-medium">#{b.category}</span>
                 <button
                   onClick={() => handleDelete(b.id)}
-                  className="opacity-0 group-hover:opacity-100 hover:text-red-500 transition-opacity flex items-center gap-1 cursor-pointer"
+                  className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:text-red-500 transition-opacity flex items-center gap-1 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>삭제</span>

@@ -52,7 +52,7 @@ export function ErdSpecsTab({
 
       {/* 기능 명세서 (Functional Specs) */}
       <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-xs space-y-4">
-        <div className="flex items-center justify-between pb-2 border-b border-outline-variant/60">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-outline-variant/60">
           <div className="flex items-center gap-2">
             <Layers size={18} className="text-primary" />
             <h2 className="ui-section-title">주요 기능 명세서 ({functionalSpecs.length}개)</h2>
@@ -60,7 +60,7 @@ export function ErdSpecsTab({
           <button
             type="button"
             onClick={onAddFunctionalSpec}
-            className="ui-button px-3 py-1.5 rounded-xl bg-primary text-on-primary hover:bg-primary/90 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+            className="ui-button px-3 py-1.5 rounded-xl bg-primary text-on-primary hover:bg-primary/90 text-xs font-semibold flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shrink-0"
           >
             <Plus size={14} />
             <span>+ 기능 추가</span>
@@ -160,7 +160,7 @@ export function ErdSpecsTab({
 
       {/* API 엔드포인트 명세서 (API Specs) */}
       <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-xs space-y-4">
-        <div className="flex items-center justify-between pb-2 border-b border-outline-variant/60">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-outline-variant/60">
           <div className="flex items-center gap-2">
             <Code2 size={18} className="text-primary" />
             <h2 className="ui-section-title">API 엔드포인트 명세서 ({apiSpecs.length}개)</h2>
@@ -168,7 +168,7 @@ export function ErdSpecsTab({
           <button
             type="button"
             onClick={onAddApiSpec}
-            className="ui-button px-3 py-1.5 rounded-xl bg-primary text-on-primary hover:bg-primary/90 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+            className="ui-button px-3 py-1.5 rounded-xl bg-primary text-on-primary hover:bg-primary/90 text-xs font-semibold flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shrink-0"
           >
             <Plus size={14} />
             <span>+ API 추가</span>

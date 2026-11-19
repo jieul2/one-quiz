@@ -59,9 +59,9 @@ export function CalendarDayModal({
     return startStr === endStr;
   });
 
-  // 팝오버 위치 계산 (앵커 셀 기준)
+  // 팝오버 위치 계산 (앵커 셀 기준, 모바일 sm 미만에서는 중앙 모달 배치)
   let popoverStyle: React.CSSProperties = {};
-  if (anchorRect && typeof window !== "undefined") {
+  if (anchorRect && typeof window !== "undefined" && window.innerWidth >= 640) {
     const popoverWidth = 310;
     const padding = 12;
 
@@ -92,7 +92,7 @@ export function CalendarDayModal({
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-50 bg-black/10 dark:bg-black/25 sm:bg-transparent flex items-center justify-center sm:block"
+      className="fixed inset-0 z-50 bg-black/40 sm:bg-transparent flex items-center justify-center sm:block p-4"
     >
       <div
         ref={popoverRef}

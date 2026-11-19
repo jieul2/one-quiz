@@ -248,17 +248,17 @@ export function FinanceView() {
   return (
     <div className="w-full max-w-7xl mx-auto space-y-5 pb-12">
       {/* 1. 상단 표준 페이지 헤더 (Rule 52 준수) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="ui-page-title text-on-surface">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+        <div className="min-w-0 flex-1 w-full">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <h1 className="ui-page-title text-on-surface break-keep">
               스마트 가계부
             </h1>
             {/* 개인 vs 그룹 토글 뱃지 */}
             <button
               type="button"
               onClick={() => setScope(scope === "personal" ? "group" : "personal")}
-              className={`ui-badge text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 transition-all cursor-pointer ${
+              className={`ui-badge text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0 ${
                 scope === "group"
                   ? "bg-primary text-on-primary shadow-2xs"
                   : "bg-surface-container text-on-surface-variant hover:text-on-surface"
@@ -269,13 +269,13 @@ export function FinanceView() {
               <span>{scope === "group" ? "공유 가계부" : "개인 가계부"}</span>
             </button>
           </div>
-          <p className="ui-page-subtitle">
+          <p className="ui-page-subtitle break-keep text-xs sm:text-sm text-on-surface-variant line-clamp-2 lg:line-clamp-none mt-0.5">
             수입·지출 자동 집계, 영수증 AI OCR, 예산 관리 및 순자산 트래커
           </p>
         </div>
 
         {/* 월 변경 컨트롤 & 액션 버튼 */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 shrink-0">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-1 w-full lg:w-auto lg:shrink-0">
           {/* 년월 선택기 */}
           <div className="flex items-center bg-surface-container-low border border-outline-variant rounded-xl p-1 gap-1 shrink-0 whitespace-nowrap">
             <button

@@ -89,7 +89,7 @@ export function ChatView() {
     }
     loadMessages();
 
-    // 🌟 A. 실시간 SSE (Server-Sent Events) 연결 수립
+    // 🌟 A. 실시간 SSE (Server-Sent Events) 연결 수립 (새 메시지 도착 시 실시간 서버 푸시, 지속적인 무한 폴링 0회)
     let eventSource: EventSource | null = null;
     try {
       eventSource = new EventSource(
@@ -115,15 +115,17 @@ export function ChatView() {
       console.warn("EventSource not supported or failed to connect:", sseErr);
     }
 
-    // 🌟 B. 3초 주기 보조 폴링 (네트워크 순단 또는 SSE 미지원 환경 대비 안전망)
-    const pollInterval = setInterval(() => {
-      if (document.hidden) return;
-      loadMessages();
-    }, 3000);
+    // 🌟 B. 탭 복귀/화면 활성화 시에만 1회 최신 동기화 (불필요한 무한 3초 주기 폴링 제거)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadMessages();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       ignore = true;
-      clearInterval(pollInterval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (eventSource) {
         eventSource.close();
       }
@@ -187,33 +189,50 @@ export function ChatView() {
   return (
     <div className="w-full space-y-4">
       {/* 상단 플랫 헤더 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="ui-page-title text-on-surface">스터디 라운지 & 그룹 채팅</h1>
-            <span className="ui-badge inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-primary border border-outline-variant font-semibold">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+        <div className="min-w-0 flex-1 w-full">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <h1 className="ui-page-title text-on-surface break-keep">스터디 라운지 & 그룹 채팅</h1>
+            <span className="ui-badge inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-primary border border-outline-variant font-semibold shrink-0">
               <ShieldCheck className="w-3.5 h-3.5 text-primary" />
               실시간 라운지
             </span>
           </div>
-          <p className="ui-page-subtitle block mt-0.5">
+          <p className="ui-page-subtitle block mt-0.5 break-keep text-xs sm:text-sm text-on-surface-variant line-clamp-2 md:line-clamp-none">
             원퀴즈 스터디 동료들과 실시간으로 질의응답을 나누고, 참여 중인 스터디 그룹 전용 채팅방으로 바로 이동하세요.
           </p>
         </div>
 
         <Link
           href="/groups"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-on-primary font-medium ui-button hover:opacity-90 transition-all cursor-pointer shadow-xs self-start sm:self-auto"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-on-primary font-medium ui-button hover:opacity-90 transition-all cursor-pointer shadow-xs self-start md:self-auto shrink-0"
         >
           <Users size={13} />
           <span>스터디 그룹 관리</span>
         </Link>
       </div>
 
+      {/* 모바일 전용 상단 수평 채널 칩 바 */}
+      <div className="flex md:hidden items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none pb-1">
+        {channels.map((ch) => (
+          <button
+            key={ch}
+            onClick={() => setActiveChannel(ch)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
+              activeChannel === ch
+                ? "bg-primary text-on-primary shadow-xs"
+                : "bg-surface-container-low text-on-surface-variant hover:text-on-surface border border-outline-variant"
+            }`}
+          >
+            #{ch}
+          </button>
+        ))}
+      </div>
+
       {/* 2열 구조 (채널 + 채팅 화면) */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 h-[580px]">
-        {/* 좌측 채널 및 소속 그룹 */}
-        <div className="md:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-3 flex flex-col justify-between overflow-y-auto">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 h-[520px] md:h-[580px]">
+        {/* 좌측 채널 및 소속 그룹 (데스크톱 전용) */}
+        <div className="hidden md:flex md:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-3 flex-col justify-between overflow-y-auto">
           <div className="space-y-4">
             {/* 1. 공개 라운지 채널 */}
             <div>

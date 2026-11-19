@@ -174,21 +174,21 @@ function SubjectSelectionContent() {
   return (
     <div className="w-full space-y-6 pb-12 text-on-surface">
       {/* 1. 상단 플랫 헤더 (Rule 52: Full-Width 100% 가득 활용, 다른 페이지와 통일된 상단 액션 버튼 배치) */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-outline-variant">
-        <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3.5 pb-4 border-b border-outline-variant">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="ui-page-title">기출문제 학습 설정</h1>
-            <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-primary font-mono font-bold">
+            <h1 className="ui-page-title break-keep">기출문제 학습 설정</h1>
+            <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-primary font-mono font-bold shrink-0">
               과목 {selectedSubjects.length}/{subjects.length}개 · 회차 {effectiveSelectedExamTypes.length}/
               {availableExamTypes.length}개
             </span>
             {finalSelectedQuestions.length > 0 && (
-              <span className="ui-badge px-2.5 py-0.5 rounded-full bg-primary/15 text-primary font-mono font-bold animate-in fade-in-50">
+              <span className="ui-badge px-2.5 py-0.5 rounded-full bg-primary/15 text-primary font-mono font-bold animate-in fade-in-50 shrink-0">
                 총 {finalSelectedQuestions.length}문제 준비
               </span>
             )}
           </div>
-          <p className="ui-page-subtitle mt-0.5">
+          <p className="ui-page-subtitle mt-0.5 break-keep">
             {selectedSubjects.length === 0
               ? "응시할 과목을 선택하면 해당 과목의 출제 기출 회차가 우측에 나타납니다."
               : effectiveSelectedExamTypes.length === 0
@@ -198,7 +198,7 @@ function SubjectSelectionContent() {
         </div>
 
         {/* 우측 상단 액션 버튼군 */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-wrap sm:flex-nowrap py-1 max-w-full shrink-0">
           {(selectedSubjects.length > 0 || effectiveSelectedExamTypes.length > 0) && (
             <button
               type="button"
@@ -228,7 +228,7 @@ function SubjectSelectionContent() {
               effectiveSelectedExamTypes.length === 0 ||
               finalSelectedQuestions.length === 0
             }
-            className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-primary hover:opacity-90 disabled:opacity-40 text-on-primary font-bold text-xs sm:text-sm shadow-xs transition-all flex items-center gap-2 disabled:cursor-not-allowed cursor-pointer shrink-0 whitespace-nowrap"
+            className="flex-1 sm:flex-initial justify-center px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-primary hover:opacity-90 disabled:opacity-40 text-on-primary font-bold text-xs sm:text-sm shadow-xs transition-all flex items-center gap-2 disabled:cursor-not-allowed cursor-pointer shrink-0 whitespace-nowrap"
             title={
               selectedSubjects.length === 0
                 ? "과목을 1개 이상 선택해주세요"

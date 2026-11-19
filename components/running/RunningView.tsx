@@ -202,27 +202,27 @@ export function RunningView() {
   return (
     <div className="w-full space-y-6 pb-12 animate-fade-in">
       {/* 1. 상단 타이틀 & 액션 버튼 */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-outline-variant pb-5">
-        <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant pb-5">
+        <div className="min-w-0 flex-1 w-full">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shadow-xs">
+            <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shadow-xs shrink-0">
               <Activity className="w-5 h-5 text-primary" />
             </div>
-            <div>
-              <h1 className="ui-page-title flex items-center gap-2">
-                러닝(달리기) 기록
-                <span className="ui-badge px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[11px] font-bold">
+            <div className="min-w-0 flex-1">
+              <h1 className="ui-page-title flex items-center gap-2 flex-wrap sm:flex-nowrap break-keep">
+                <span>러닝(달리기) 기록</span>
+                <span className="ui-badge px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[11px] font-bold shrink-0">
                   RUN TRACKER
                 </span>
               </h1>
-              <p className="ui-page-subtitle">
+              <p className="ui-page-subtitle break-keep text-xs sm:text-sm text-on-surface-variant line-clamp-2 md:line-clamp-none">
                 나만의 러닝 습관을 기록하고 AI 코치의 맞춤 피드백과 함께 성장하세요.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-1 max-w-full w-full md:w-auto md:shrink-0">
           <button
             onClick={() => setIsAiSyncModalOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-container border border-outline-variant hover:border-primary text-on-surface text-xs font-semibold shadow-xs transition-all cursor-pointer shrink-0 whitespace-nowrap"
@@ -303,7 +303,7 @@ export function RunningView() {
                   최신 런 기준
                 </span>
               </div>
-              <p className="ui-body text-xs text-on-surface leading-relaxed whitespace-pre-line">
+              <p className="ui-body text-xs text-on-surface leading-relaxed whitespace-pre-line break-keep">
                 {latestFeedback}
               </p>
             </div>

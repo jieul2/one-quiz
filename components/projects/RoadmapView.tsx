@@ -1264,9 +1264,9 @@ export function RoadmapView() {
   return (
     <div className="w-full space-y-4 text-on-surface">
       {/* 1. 최상단 네비게이션 헤더 (라운딩 박스 없이 플랫 헤더) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
         {/* 좌측: 세로 목록으로 뒤로가기 & 프로젝트 제목 & 기간 */}
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-3 min-w-0 flex-1 w-full">
           <button
             type="button"
             onClick={() => {
@@ -1278,7 +1278,7 @@ export function RoadmapView() {
             <ChevronLeft size={20} />
           </button>
 
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
@@ -1290,7 +1290,7 @@ export function RoadmapView() {
                 <span>프로젝트 목록</span>
                 <ChevronRight size={13} />
               </button>
-              <h1 className="ui-page-title truncate max-w-xl">
+              <h1 className="ui-page-title truncate max-w-xl break-keep">
                 {activeProject ? activeProject.title : (roadmap.name === "1" ? "프로젝트 로드맵" : roadmap.name)}
               </h1>
               {activeProject ? (
@@ -1320,7 +1320,7 @@ export function RoadmapView() {
         </div>
 
         {/* 우측 도구 버튼들 (기간 수정, 초대, 전체공개, 완료처리, 항목 추가) */}
-        <div className="flex flex-wrap items-center gap-2 text-sm shrink-0">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-1 max-w-full w-full xl:w-auto xl:shrink-0 text-sm">
           {/* 저장 상태 인디케이터 */}
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 

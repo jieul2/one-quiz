@@ -128,24 +128,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <AppShell>
       <div className="w-full space-y-4 text-on-surface select-none">
         {/* 상단 공통 플랫 헤더 */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-outline-variant pb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="ui-page-title">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-outline-variant pb-3">
+          <div className="min-w-0 flex-1 w-full">
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <h1 className="ui-page-title break-keep">
                 문항 관리
               </h1>
-              <span className="ui-badge px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+              <span className="ui-badge px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 shrink-0">
                 Admin
               </span>
             </div>
-            <p className="ui-page-subtitle mt-0.5">
+            <p className="ui-page-subtitle mt-0.5 break-keep text-xs sm:text-sm text-on-surface-variant">
               원퀴즈 기출문제 및 출제 관리 워크스페이스
             </p>
           </div>
 
           <Link
             href="/settings"
-            className="flex items-center gap-1.5 text-xs text-on-surface-variant hover:text-on-surface font-medium px-2.5 py-1.5 rounded-md bg-surface-container-low border border-outline-variant w-max transition-colors"
+            className="flex items-center gap-1.5 text-xs text-on-surface-variant hover:text-on-surface font-medium px-2.5 py-1.5 rounded-md bg-surface-container-low border border-outline-variant w-max transition-colors shrink-0 self-start md:self-auto"
           >
             <User size={13} className="text-primary" />
             <span>설정으로 돌아가기</span>
@@ -153,10 +153,35 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </Link>
         </div>
 
+        {/* 모바일 전용 상단 수평 스크롤 탭 바 */}
+        <div className="flex md:hidden items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none pb-1">
+          {adminNav.map((item) => {
+            const isActive =
+              item.href === "/admin"
+                ? pathname === "/admin"
+                : pathname.startsWith(item.href);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors flex items-center gap-1.5 ${
+                  isActive
+                    ? "bg-primary text-on-primary shadow-xs"
+                    : "bg-surface-container-low text-on-surface-variant hover:text-on-surface border border-outline-variant"
+                }`}
+              >
+                <Icon size={13} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+
         {/* settings 페이지와 동일한 2열 구조 (좌측 사이드 탭 + 우측 컨텐츠) */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-          {/* ================= 좌측 세로 관리자 탭 메뉴 ================= */}
-          <div className="md:col-span-3 space-y-0.5 bg-surface-container-lowest p-1.5 rounded-lg border border-outline-variant">
+          {/* ================= 좌측 세로 관리자 탭 메뉴 (데스크톱 전용) ================= */}
+          <div className="hidden md:block md:col-span-3 space-y-0.5 bg-surface-container-lowest p-1.5 rounded-lg border border-outline-variant">
             {adminNav.map((item) => {
               const isActive =
                 item.href === "/admin"

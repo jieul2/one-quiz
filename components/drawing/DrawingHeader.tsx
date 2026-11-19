@@ -61,21 +61,21 @@ export function DrawingHeader({
   onDownload,
 }: DrawingHeaderProps) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+    <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3.5 pb-3 border-b border-outline-variant">
       {/* 타이틀 및 저장 상태 */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1 w-full">
         <button
           type="button"
           onClick={onBackToList}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant text-xs font-bold text-on-surface transition-colors cursor-pointer mr-1 shadow-xs shrink-0"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant text-xs font-bold text-on-surface transition-colors cursor-pointer mr-1 shadow-xs shrink-0 mt-0.5 sm:mt-0"
           title="스케치 목록으로 돌아가기"
         >
           <ArrowLeft size={14} className="text-primary" />
-          <span>스케치 목록</span>
+          <span>목록</span>
         </button>
 
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
+        <div className="space-y-0.5 min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             {isEditingTitle ? (
               <div className="flex items-center gap-1.5">
                 <input
@@ -102,27 +102,27 @@ export function DrawingHeader({
             ) : (
               <button
                 onClick={onTitleClick}
-                className="ui-page-title text-on-surface hover:text-primary transition-colors text-left flex items-center gap-2 group"
+                className="ui-page-title text-on-surface hover:text-primary transition-colors text-left flex items-center gap-2 group break-keep truncate max-w-[240px] sm:max-w-md md:max-w-xl"
                 title="클릭하여 제목 수정"
               >
-                <span>{mounted ? title : "새로운 스케치"}</span>
-                <span className="text-xs text-on-surface-variant font-normal opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="truncate">{mounted ? title : "새로운 스케치"}</span>
+                <span className="text-xs text-on-surface-variant font-normal opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                   (수정)
                 </span>
               </button>
             )}
-            <span className="ui-badge bg-primary/10 text-primary border border-primary/20 font-mono px-2 py-0.5 rounded-full">
+            <span className="ui-badge bg-primary/10 text-primary border border-primary/20 font-mono px-2 py-0.5 rounded-full shrink-0">
               Vector Canvas
             </span>
           </div>
-          <p className="ui-page-subtitle">
+          <p className="ui-page-subtitle break-keep text-xs sm:text-sm text-on-surface-variant line-clamp-2 md:line-clamp-none">
             자유로운 아이디어 스케치, 다이어그램, 수식 필기 및 고해상도 이미지 내보내기 지원
           </p>
         </div>
       </div>
 
       {/* 액션 버튼군 */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0">
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-1 max-w-full w-full xl:w-auto xl:shrink-0 text-xs sm:text-sm">
         {/* Rule 51: 너비 고정 저장 인디케이터 (w-[118px]) */}
         <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 

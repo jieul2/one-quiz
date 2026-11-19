@@ -103,7 +103,6 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
   useEffect(() => {
     let ignore = false;
     let eventSource: EventSource | null = null;
-    let pollInterval: NodeJS.Timeout | null = null;
 
     async function loadMessages() {
       try {
@@ -131,10 +130,12 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
       }
     }
 
+    let cleanupVisibility: (() => void) | null = null;
+
     if (activeTab === "chat") {
       loadMessages();
 
-      // 🌟 A. 실시간 SSE 연결
+      // 🌟 A. 실시간 SSE 연결 (새 메시지 도착 시 실시간 서버 푸시 수신, 지속적인 무한 폴링 0회)
       try {
         eventSource = new EventSource(
           `/api/chat/stream?groupId=${encodeURIComponent(groupId)}&channel=${encodeURIComponent(activeChannel)}`
@@ -156,16 +157,21 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
         console.warn("EventSource connection error:", sseErr);
       }
 
-      // 🌟 B. 3초 주기 보조 폴링
-      pollInterval = setInterval(() => {
-        if (document.hidden) return;
-        loadMessages();
-      }, 3000);
+      // 🌟 B. 탭 복귀/화면 활성화 시에만 1회 최신 동기화 (불필요한 무한 3초 폴링 제거)
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === "visible") {
+          loadMessages();
+        }
+      };
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      cleanupVisibility = () => {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      };
     }
 
     return () => {
       ignore = true;
-      if (pollInterval) clearInterval(pollInterval);
+      if (cleanupVisibility) cleanupVisibility();
       if (eventSource) eventSource.close();
     };
   }, [groupId, activeChannel, activeTab]);
@@ -309,24 +315,24 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
   return (
     <div className="w-full space-y-4">
       {/* ================= 1. 그룹 헤더 ================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+        <div className="space-y-1 min-w-0 flex-1 w-full">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             <Link
               href="/groups"
-              className="p-1 rounded-md hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors"
+              className="p-1 rounded-md hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors shrink-0"
             >
               <ArrowLeft size={16} />
             </Link>
-            <h1 className="ui-page-title text-on-surface">{group.name}</h1>
-            <span className="ui-badge px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold">
+            <h1 className="ui-page-title text-on-surface break-keep truncate max-w-[240px] sm:max-w-md md:max-w-xl">{group.name}</h1>
+            <span className="ui-badge px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold shrink-0">
               {group.category}
             </span>
           </div>
-          <p className="ui-page-subtitle">{group.description || "함께 공부하는 스터디 그룹입니다."}</p>
+          <p className="ui-page-subtitle break-keep text-xs sm:text-sm text-on-surface-variant line-clamp-2 md:line-clamp-none">{group.description || "함께 공부하는 스터디 그룹입니다."}</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-1 max-w-full w-full md:w-auto md:shrink-0">
           {/* 초대코드 복사 칩 */}
           <button
             onClick={handleCopyInviteCode}
@@ -360,7 +366,7 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
       </div>
 
       {/* ================= 2. 탭 내비게이션 ================= */}
-      <div className="flex items-center gap-1 border-b border-outline-variant pb-1">
+      <div className="flex items-center gap-1 border-b border-outline-variant pb-1 overflow-x-auto no-scrollbar scrollbar-none">
         <button
           onClick={() => setActiveTab("shared")}
           className={`flex items-center gap-1.5 px-3 py-2 rounded-md ui-body font-medium transition-colors cursor-pointer ${
@@ -461,30 +467,48 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
 
       {/* [탭 2: 그룹 전용 채널 채팅] */}
       {activeTab === "chat" && (
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 h-[520px]">
-          {/* 채널 목록 사이드바 */}
-          <div className="md:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-2 space-y-1">
-            <span className="block px-2 py-1 ui-caption font-bold text-on-surface-variant">
-              채널 목록
-            </span>
+        <div className="flex flex-col gap-3">
+          {/* 모바일 전용 수평 채널 칩 바 */}
+          <div className="flex md:hidden items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none pb-1">
             {group.channels?.map((ch) => (
               <button
                 key={ch}
                 onClick={() => setActiveChannel(ch)}
-                className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-md ui-body transition-colors cursor-pointer text-left ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
                   activeChannel === ch
-                    ? "bg-surface-container text-primary font-semibold"
-                    : "text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
+                    ? "bg-primary text-on-primary shadow-xs"
+                    : "bg-surface-container-low text-on-surface-variant hover:text-on-surface border border-outline-variant"
                 }`}
               >
-                <Hash size={13} className="text-on-surface-variant" />
-                <span>{ch}</span>
+                #{ch}
               </button>
             ))}
           </div>
 
-          {/* 채팅 메시지 영역 */}
-          <div className="md:col-span-9 bg-surface-container-lowest border border-outline-variant rounded-xl flex flex-col overflow-hidden">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 h-[520px]">
+            {/* 채널 목록 사이드바 (데스크톱 전용) */}
+            <div className="hidden md:block md:col-span-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-2 space-y-1">
+              <span className="block px-2 py-1 ui-caption font-bold text-on-surface-variant">
+                채널 목록
+              </span>
+              {group.channels?.map((ch) => (
+                <button
+                  key={ch}
+                  onClick={() => setActiveChannel(ch)}
+                  className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-md ui-body transition-colors cursor-pointer text-left ${
+                    activeChannel === ch
+                      ? "bg-surface-container text-primary font-semibold"
+                      : "text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
+                  }`}
+                >
+                  <Hash size={13} className="text-on-surface-variant" />
+                  <span>{ch}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* 채팅 메시지 영역 */}
+            <div className="col-span-1 md:col-span-9 bg-surface-container-lowest border border-outline-variant rounded-xl flex flex-col overflow-hidden">
             <div className="px-3 py-2 border-b border-outline-variant flex items-center justify-between">
               <span className="ui-card-title flex items-center gap-1 text-on-surface">
                 <Hash size={14} className="text-primary" />
@@ -548,6 +572,7 @@ export function GroupDetailView({ groupId }: { groupId: string }) {
               </button>
             </form>
           </div>
+        </div>
         </div>
       )}
 

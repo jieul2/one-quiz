@@ -440,14 +440,14 @@ export function TasksView() {
   return (
     <div className="w-full space-y-4 text-on-surface">
       {/* 1. 상단 컨트롤 바 */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-outline-variant pb-3">
-        <div className="flex items-center gap-2">
-          <h1 className="ui-page-title">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 border-b border-outline-variant pb-3">
+        <div className="flex items-center gap-2 min-w-0 flex-1 w-full">
+          <h1 className="ui-page-title break-keep">
             할일
           </h1>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0 text-sm">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-1 max-w-full w-full xl:w-auto xl:shrink-0 text-sm">
           {/* 저장 상태 인디케이터 (로그인 시 실시간 DB 상태, 비로그인 시 로컬 모드) */}
           {session?.user ? (
             <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
@@ -510,7 +510,7 @@ export function TasksView() {
           </button>
 
           {/* 검색창 */}
-          <div className="relative w-48">
+          <div className="relative w-40 sm:w-48 shrink-0">
             <Search
               size={15}
               className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none"

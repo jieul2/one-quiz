@@ -582,23 +582,23 @@ export function BacklogView() {
   return (
     <div className="w-full space-y-6 text-on-surface">
       {/* 1. 상단 타이틀 및 툴바 (라운딩 박스 없이 플랫 헤더) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="ui-page-title">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+        <div className="min-w-0 flex-1 w-full">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <h1 className="ui-page-title break-keep">
               아이디어 (백로그)
             </h1>
-            <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono">
+            <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono shrink-0">
               {backlogs.length}개
             </span>
           </div>
-          <p className="ui-page-subtitle mt-0.5">
+          <p className="ui-page-subtitle mt-0.5 break-keep text-xs sm:text-sm text-on-surface-variant line-clamp-2 lg:line-clamp-none">
             등록된 아이디어를 칸반 보드에서 검토하고, 진행 확정된 항목을 <strong>프로젝트</strong>로 전환하여 로드맵을 관리할 수 있습니다.
           </p>
         </div>
 
         {/* 우측 퀵 컨트롤 버튼들 */}
-        <div className="flex flex-wrap items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-1 max-w-full w-full lg:w-auto lg:shrink-0 text-sm">
           {/* 저장 상태 인디케이터 */}
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 
@@ -665,7 +665,7 @@ export function BacklogView() {
         </div>
 
         {/* 검색 입력창 및 끝난 보관함 열기 */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
           <button
             onClick={() => setIsArchiveModalOpen(true)}
             className="px-2.5 py-1.5 rounded-md font-medium text-sm transition-colors cursor-pointer flex items-center gap-1.5 border shrink-0 bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low border-outline-variant"
@@ -678,7 +678,7 @@ export function BacklogView() {
             </span>
           </button>
 
-          <div className="relative sm:w-64">
+          <div className="relative w-full sm:w-64">
             <Search
               size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none"

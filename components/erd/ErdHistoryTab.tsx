@@ -17,7 +17,7 @@ export function ErdHistoryTab({
 }: ErdHistoryTabProps) {
   return (
     <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 shadow-xs space-y-5">
-      <div className="flex items-center justify-between pb-3 border-b border-outline-variant/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-3 border-b border-outline-variant/60">
         <div className="flex items-center gap-2">
           <History size={18} className="text-primary" />
           <h2 className="ui-section-title">형상관리 커밋 타임라인 ({revisions.length}건)</h2>

@@ -206,22 +206,22 @@ export function BlogView() {
   return (
     <div className="w-full space-y-4">
       {/* ================= 1. 상단 플랫 헤더 ================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="ui-page-title text-on-surface">인사이트 & 테크 블로그</h1>
-            <span className="ui-badge px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+        <div className="min-w-0 flex-1 w-full">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <h1 className="ui-page-title text-on-surface break-keep">인사이트 & 테크 블로그</h1>
+            <span className="ui-badge px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold shrink-0">
               BLOG
             </span>
           </div>
-          <p className="ui-page-subtitle block mt-0.5">
+          <p className="ui-page-subtitle block mt-0.5 break-keep text-xs sm:text-sm text-on-surface-variant line-clamp-2 md:line-clamp-none">
             기술 아티클, 업무 노하우, 생산성 인사이트 및 다양한 생각과 기록을 공유하는 블로그 공간입니다.
           </p>
         </div>
 
         <button
           onClick={() => setIsWriteOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-on-primary font-medium ui-button hover:opacity-90 transition-all cursor-pointer shadow-xs"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-on-primary font-medium ui-button hover:opacity-90 transition-all cursor-pointer shadow-xs shrink-0 self-start md:self-auto"
         >
           <Plus size={13} />
           <span>아티클 작성</span>
@@ -229,9 +229,9 @@ export function BlogView() {
       </div>
 
       {/* ================= 2. 카테고리 & 검색 필터 ================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-3">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-3">
         {/* 카테고리 칩 */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-1 max-w-full w-full md:w-auto md:flex-1">
           {categories.map((cat) => (
             <button
               key={cat}
@@ -248,14 +248,14 @@ export function BlogView() {
         </div>
 
         {/* 검색 폼 */}
-        <form onSubmit={handleSearch} className="relative">
+        <form onSubmit={handleSearch} className="relative w-full md:w-auto shrink-0">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="아티클 검색..."
-            className="pl-8 pr-3 py-1.5 bg-surface-container-low border border-outline-variant rounded-lg text-xs text-on-surface outline-hidden focus:border-primary"
+            className="w-full md:w-56 pl-8 pr-3 py-1.5 bg-surface-container-low border border-outline-variant rounded-lg text-xs text-on-surface outline-hidden focus:border-primary"
           />
         </form>
       </div>

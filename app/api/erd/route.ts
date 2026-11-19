@@ -267,4 +267,5 @@ async function handleDelete(request: Request) {
 
 export const GET = withAudit(handleGet, "ERD 및 프로젝트 명세서 조회");
 export const POST = withAudit(handlePost, "ERD 및 프로젝트 명세서 생성/업데이트/형상관리");
+export const PUT = withAudit(handlePost, "ERD 및 프로젝트 명세서 수정");
 export const DELETE = withAudit(handleDelete, "ERD 및 프로젝트 명세서 삭제");

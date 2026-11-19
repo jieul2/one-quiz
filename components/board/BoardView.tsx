@@ -280,23 +280,23 @@ export function BoardView() {
   return (
     <div className="w-full space-y-4">
       {/* ================= 1. 상단 플랫 헤더 ================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="ui-page-title text-on-surface">커뮤니티 광장</h1>
-            <span className="ui-badge px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+        <div className="min-w-0 flex-1 w-full">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <h1 className="ui-page-title text-on-surface break-keep">커뮤니티 광장</h1>
+            <span className="ui-badge px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold shrink-0">
               COMMUNITY
             </span>
           </div>
-          <p className="ui-page-subtitle block mt-0.5">
+          <p className="ui-page-subtitle block mt-0.5 break-keep text-xs sm:text-sm text-on-surface-variant line-clamp-2 md:line-clamp-none">
             자유로운 소통과 토론, 질문과 정보 공유, 프로젝트 동료 모집까지 폭넓은 이야기를 나누세요.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0 self-start md:self-auto">
           <Link
             href="/calendar"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container hover:bg-surface-container-high border border-outline-variant text-on-surface font-medium ui-button transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container hover:bg-surface-container-high border border-outline-variant text-on-surface font-medium ui-button transition-colors cursor-pointer text-xs"
           >
             <Calendar size={13} className="text-primary" />
             <span>캘린더 보기</span>
@@ -304,7 +304,7 @@ export function BoardView() {
 
           <button
             onClick={() => setIsWriteOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-on-primary font-medium ui-button hover:opacity-90 transition-all cursor-pointer shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-on-primary font-medium ui-button hover:opacity-90 transition-all cursor-pointer shadow-xs text-xs"
           >
             <Plus size={13} />
             <span>글쓰기</span>
@@ -313,9 +313,9 @@ export function BoardView() {
       </div>
 
       {/* ================= 2. 카테고리 & 검색 필터 ================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-3">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-surface-container-lowest border border-outline-variant rounded-xl p-3">
         {/* 카테고리 칩 */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-1 max-w-full w-full md:w-auto md:flex-1">
           {categories.map((cat) => (
             <button
               key={cat}
@@ -332,22 +332,22 @@ export function BoardView() {
         </div>
 
         {/* 검색 및 정렬 */}
-        <div className="flex items-center gap-2">
-          <form onSubmit={handleSearchSubmit} className="relative">
+        <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+          <form onSubmit={handleSearchSubmit} className="relative flex-1 sm:flex-initial">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="게시판 검색..."
-              className="pl-8 pr-3 py-1.5 bg-surface-container-low border border-outline-variant rounded-lg text-xs text-on-surface outline-hidden focus:border-primary"
+              className="w-full sm:w-48 pl-8 pr-3 py-1.5 bg-surface-container-low border border-outline-variant rounded-lg text-xs text-on-surface outline-hidden focus:border-primary"
             />
           </form>
 
           <select
             value={sortOption}
             onChange={(e) => setSortOption(e.target.value as "latest" | "popular")}
-            className="px-2.5 py-1.5 bg-surface-container-low border border-outline-variant rounded-lg text-xs text-on-surface outline-hidden cursor-pointer"
+            className="px-2.5 py-1.5 bg-surface-container-low border border-outline-variant rounded-lg text-xs text-on-surface outline-hidden cursor-pointer shrink-0"
           >
             <option value="latest">최신순</option>
             <option value="popular">조회순</option>

@@ -637,9 +637,9 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
   return (
     <div className="flex flex-col w-full gap-space-lg text-on-surface">
       {/* 1. 상단 액션 바 (라운딩 박스 없이 플랫 헤더) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-outline-variant">
-        <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="ui-page-title">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pb-2 border-b border-outline-variant">
+        <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1 w-full">
+          <h1 className="ui-page-title break-keep">
             일기
           </h1>
           {/* 탭 전환 스위처 */}
@@ -668,7 +668,7 @@ export function DiaryView({ initialTab = "diary" }: { initialTab?: "diary" | "no
         </div>
 
         {/* 우측 도구 버튼들 */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-1 max-w-full shrink-0 text-sm">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-1 max-w-full w-full lg:w-auto lg:shrink-0 text-sm">
           {/* 저장 상태 인디케이터 */}
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 

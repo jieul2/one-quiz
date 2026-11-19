@@ -164,15 +164,15 @@ export function DriveView() {
   return (
     <div className="flex flex-col w-full gap-space-lg text-on-surface">
       {/* 1. 플랫 헤더 표준 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
-        <div className="flex items-center gap-2">
-          <h1 className="ui-page-title">드라이브</h1>
-          <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+        <div className="flex items-center gap-2 min-w-0 flex-1 w-full">
+          <h1 className="ui-page-title break-keep">드라이브</h1>
+          <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono shrink-0">
             {docs.length}개
           </span>
         </div>
 
-        <div className="flex items-center gap-2 relative text-sm">
+        <div className="flex items-center gap-2 relative text-sm overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-0.5 max-w-full w-full md:w-auto md:shrink-0">
           {session?.user ? (
             <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
           ) : (
@@ -260,10 +260,10 @@ export function DriveView() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => handleDelete(doc.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 text-on-surface-variant hover:text-red-500 rounded-md transition-all cursor-pointer"
+                  className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-1.5 text-on-surface-variant hover:text-red-500 rounded-md transition-all cursor-pointer"
                   title="문서 삭제"
                 >
                   <Trash2 className="w-4 h-4" />

@@ -96,17 +96,17 @@ export function ProjectsView() {
   return (
     <div className="flex flex-col w-full gap-space-lg">
       {/* Top Action Bar (라운딩 박스 없이 플랫 헤더) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
-        <div className="flex items-center gap-2">
-          <h1 className="ui-page-title">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+        <div className="flex items-center gap-2 min-w-0 flex-1 w-full">
+          <h1 className="ui-page-title break-keep">
             프로젝트
           </h1>
-          <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono">
+          <span className="ui-badge px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono shrink-0">
             {projects.length}개
           </span>
         </div>
 
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-0.5 max-w-full w-full md:w-auto md:shrink-0 text-xs">
           <div className="flex items-center bg-surface-container-low p-0.5 rounded-md border border-outline-variant">
             <button
               onClick={() => setViewMode("grid")}
@@ -181,10 +181,10 @@ export function ProjectsView() {
                   </span>
                 </div>
 
-                <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface group-hover:text-primary transition-colors mt-1">
+                <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface group-hover:text-primary transition-colors mt-1 break-keep">
                   {proj.title}
                 </h3>
-                <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-3">
+                <p className="font-body-sm text-body-sm text-on-surface-variant line-clamp-3 break-keep">
                   {proj.description || "설명이 등록되지 않았습니다."}
                 </p>
               </div>

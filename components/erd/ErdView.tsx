@@ -525,6 +525,124 @@ export function ErdView() {
     triggerAutoSave(tables, relations, architectureMd, functionalSpecs, apiSpecs);
   };
 
+  // 🌟 스마트 자동 정렬 (Auto Layout: 겹침 방지 및 다이내믹 바운딩 박스 정렬)
+  const handleAutoLayout = () => {
+    if (tables.length === 0) return;
+    const COLS = Math.min(3, Math.max(2, Math.ceil(Math.sqrt(tables.length))));
+    const PADDING_X = 140; // 테이블 간 수평 여백 (관계선 통로 확보)
+    const PADDING_Y = 100; // 테이블 간 수직 여백
+    const START_X = 80;
+    const START_Y = 80;
+
+    // 1. 각 행(row)에 위치할 테이블들의 실제 렌더링 높이의 최대값 계산
+    const rowMaxHeights: number[] = [];
+    tables.forEach((t, idx) => {
+      const row = Math.floor(idx / COLS);
+      const estHeight = 52 + Math.max(1, t.fields.length) * 38 + 56;
+      rowMaxHeights[row] = Math.max(rowMaxHeights[row] || 0, estHeight);
+    });
+
+    // 2. 행별 시작 Y 좌표 누적 계산 (아무리 컬럼이 많아도 절대 아래 행과 겹치지 않음)
+    const rowYPositions: number[] = [START_Y];
+    for (let r = 0; r < rowMaxHeights.length - 1; r++) {
+      rowYPositions.push(rowYPositions[r] + rowMaxHeights[r] + PADDING_Y);
+    }
+
+    const colWidth = 310 + PADDING_X; // CARD_WIDTH(310) + 여백(140) = 450px
+
+    const updated = tables.map((t, idx) => {
+      const col = idx % COLS;
+      const row = Math.floor(idx / COLS);
+      return {
+        ...t,
+        x: START_X + col * colWidth,
+        y: rowYPositions[row],
+      };
+    });
+
+    setTables(updated);
+    setPan({ x: 40, y: 40 });
+    setZoom(1);
+    triggerAutoSave(updated, relations, architectureMd, functionalSpecs, apiSpecs);
+    toast.success("테이블이 겹침 없이 완벽하게 자동 정렬되었습니다! ✨");
+  };
+
+  // 🌟 테이블 복제 (Duplicate)
+  const handleDuplicateTable = (tableId: string) => {
+    const src = tables.find((t) => t.id === tableId);
+    if (!src) return;
+    const duplicated: ErdTable = {
+      ...src,
+      id: `tbl_${Date.now()}`,
+      name: `${src.name}_copy`,
+      x: src.x + 40,
+      y: src.y + 40,
+      fields: src.fields.map((f) => ({
+        ...f,
+        id: `fld_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      })),
+    };
+    const updated = [...tables, duplicated];
+    setTables(updated);
+    triggerAutoSave(updated, relations, architectureMd, functionalSpecs, apiSpecs);
+    toast.success(`'${duplicated.name}' 테이블이 복제되었습니다.`);
+  };
+
+  // 🌟 테이블 색상 변경 (Change Color)
+  const handleChangeTableColor = (tableId: string, color: string) => {
+    const updated = tables.map((t) => (t.id === tableId ? { ...t, color } : t));
+    setTables(updated);
+    triggerAutoSave(updated, relations, architectureMd, functionalSpecs, apiSpecs);
+  };
+
+  // 🌟 마우스 드래그 직접 관계선 잇기 (Interactive Drag Connection: 객체/컬럼 단위 연결)
+  const handleConnectRelation = (
+    fromTableId: string,
+    toTableId: string,
+    fromFieldId?: string,
+    toFieldId?: string
+  ) => {
+    if (fromTableId === toTableId && fromFieldId === toFieldId) {
+      toast.warning("자기 자신과의 관계는 연결할 수 없습니다.");
+      return;
+    }
+    const fromT = tables.find((t) => t.id === fromTableId);
+    const toT = tables.find((t) => t.id === toTableId);
+    if (!fromT || !toT) return;
+
+    const fromFk = fromFieldId
+      ? fromT.fields.find((f) => f.id === fromFieldId || f.name === fromFieldId)
+      : fromT.fields.find((f) => f.isPrimaryKey) || fromT.fields[0];
+
+    const toFk = toFieldId
+      ? toT.fields.find((f) => f.id === toFieldId || f.name === toFieldId)
+      : toT.fields.find((f) => f.isPrimaryKey) || toT.fields[0];
+
+    const exists = relations.some(
+      (r) =>
+        (r.fromTable === fromTableId && r.fromField === fromFk?.id && r.toTable === toTableId && r.toField === toFk?.id) ||
+        (r.fromTable === toTableId && r.fromField === toFk?.id && r.toTable === fromTableId && r.toField === fromFk?.id)
+    );
+    if (exists) {
+      toast.info(`이미 '${fromT.name}.${fromFk?.name}' ↔ '${toT.name}.${toFk?.name}' 관계가 연결되어 있습니다.`);
+      return;
+    }
+
+    const newRel: ErdRelation = {
+      id: `rel_${Date.now()}`,
+      fromTable: fromTableId,
+      fromField: fromFk?.id || "",
+      toTable: toTableId,
+      toField: toFk?.id || "",
+      type: "1:N",
+      comment: `${fromT.name}.${fromFk?.name || "id"} - ${toT.name}.${toFk?.name || "id"}`,
+    };
+    const updated = [...relations, newRel];
+    setRelations(updated);
+    triggerAutoSave(tables, updated, architectureMd, functionalSpecs, apiSpecs);
+    toast.success(`🔗 '${fromT.name}.${fromFk?.name || "id"}' ↔ '${toT.name}.${toFk?.name || "id"}' 관계가 성공적으로 연결되었습니다!`);
+  };
+
   // ========================================================
   // F. 관계(Relations) 조작
   // ========================================================
@@ -568,6 +686,20 @@ export function ErdView() {
     setRelations(updated);
     triggerAutoSave(tables, updated, architectureMd, functionalSpecs, apiSpecs);
     toast.success("관계선이 삭제되었습니다.");
+  };
+
+  // 🌟 관계 카디널리티 순환 변경 (1:1 -> 1:N -> N:M)
+  const handleToggleRelationType = (relId: string) => {
+    const cycleMap: Record<string, "1:1" | "1:N" | "N:M"> = {
+      "1:1": "1:N",
+      "1:N": "N:M",
+      "N:M": "1:1",
+    };
+    const updated = relations.map((r) =>
+      r.id === relId ? { ...r, type: cycleMap[r.type] || "1:N" } : r
+    );
+    setRelations(updated);
+    triggerAutoSave(tables, updated, architectureMd, functionalSpecs, apiSpecs);
   };
 
   // ========================================================
@@ -730,6 +862,11 @@ export function ErdView() {
           onDeleteRelation={handleDeleteRelation}
           onUpdateTablePos={handleUpdateTablePos}
           onDragEnd={handleTableDragEnd}
+          onAutoLayout={handleAutoLayout}
+          onDuplicateTable={handleDuplicateTable}
+          onChangeTableColor={handleChangeTableColor}
+          onConnectRelation={handleConnectRelation}
+          onToggleRelationType={handleToggleRelationType}
         />
       )}
 

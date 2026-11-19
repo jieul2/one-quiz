@@ -135,24 +135,69 @@ export function SettingsLayout({ activeModule, children }: SettingsLayoutProps) 
   return (
     <div className="w-full space-y-4">
       {/* ================= 1. 최상단 플랫 헤더 ================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
-        <div>
-          <h1 className="ui-page-title text-on-surface">설정</h1>
-          <span className="ui-page-subtitle block mt-0.5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+        <div className="min-w-0 flex-1 w-full">
+          <h1 className="ui-page-title text-on-surface break-keep">설정</h1>
+          <span className="ui-page-subtitle block mt-0.5 break-keep text-xs sm:text-sm text-on-surface-variant">
             {getSubTitle(currentKey)}
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0 self-start md:self-auto">
           {/* 저장 상태 인디케이터 (실시간 동기화) */}
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
         </div>
       </div>
 
+      {/* 모바일 전용 상단 수평 스크롤 탭 바 */}
+      <div className="flex md:hidden items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none pb-1">
+        {navTabs.map((tab) => (
+          <Link
+            key={tab.id}
+            href={tab.href}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors flex items-center gap-1 ${
+              currentKey === tab.id
+                ? "bg-primary text-on-primary shadow-xs"
+                : "bg-surface-container-low text-on-surface-variant hover:text-on-surface border border-outline-variant"
+            }`}
+          >
+            <span>{tab.label}</span>
+            {tab.hasGoogle && <GoogleMarkIcon />}
+          </Link>
+        ))}
+        {subNavTabs.map((tab) => (
+          <Link
+            key={tab.id}
+            href={tab.href}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
+              currentKey === tab.id
+                ? "bg-primary text-on-primary shadow-xs"
+                : "bg-surface-container-low text-on-surface-variant hover:text-on-surface border border-outline-variant"
+            }`}
+          >
+            <span>{tab.label}</span>
+          </Link>
+        ))}
+        {isAdmin && adminTabs.map((tab) => (
+          <Link
+            key={tab.id}
+            href={tab.href}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors flex items-center gap-1 ${
+              currentKey === tab.id
+                ? "bg-primary text-on-primary shadow-xs"
+                : "bg-surface-container-low text-on-surface-variant hover:text-on-surface border border-outline-variant"
+            }`}
+          >
+            <tab.icon size={12} />
+            <span>{tab.label}</span>
+          </Link>
+        ))}
+      </div>
+
       {/* ================= 2열 구조 (좌측 사이드 탭 + 우측 컨텐츠) ================= */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-        {/* ================= 좌측 세로 탭 메뉴 ================= */}
-        <div className="md:col-span-3 space-y-0.5 bg-surface-container-lowest p-1.5 rounded-lg border border-outline-variant select-none">
+        {/* ================= 좌측 세로 탭 메뉴 (데스크톱 전용) ================= */}
+        <div className="hidden md:block md:col-span-3 space-y-0.5 bg-surface-container-lowest p-1.5 rounded-lg border border-outline-variant select-none">
           {/* 1. 일반 서비스 탭 */}
           {navTabs.map((tab) => {
             const isActive = currentKey === tab.id;

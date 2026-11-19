@@ -186,7 +186,7 @@ export function AppShell({ children }: AppShellProps) {
             : "md:pl-60"
         }`}
       >
-        <main className="p-3.5 sm:p-6 md:p-8 w-full flex flex-col gap-4 sm:gap-6 transition-all duration-200">
+        <main className="p-3 sm:p-5 md:p-8 w-full flex flex-col gap-3.5 sm:gap-5 md:gap-6 transition-all duration-200">
           {children}
         </main>
       </div>

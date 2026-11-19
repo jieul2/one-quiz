@@ -139,16 +139,16 @@ export function LearningView() {
   return (
     <div className="w-full space-y-6 text-on-surface">
       {/* ================= 최상단 헤더 ================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="ui-page-title">러닝기록 & 학습 진도</h1>
-            <span className="ui-badge px-2.5 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30 flex items-center gap-1">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+        <div className="min-w-0 flex-1 w-full">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="ui-page-title break-keep min-w-0">학습 성장 리포트</h1>
+            <span className="ui-badge px-2.5 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30 flex items-center gap-1 shrink-0">
               <Sparkles size={12} />
               <span>Study Analytics</span>
             </span>
           </div>
-          <p className="ui-page-subtitle mt-0.5">
+          <p className="ui-page-subtitle mt-0.5 break-keep text-xs sm:text-sm text-on-surface-variant line-clamp-2 md:line-clamp-none">
             학습 잔디, 스트릭, 기출문제 정답률 및 과목별 취약 영역 분석을 통해 나의 성장을 확인하세요.
           </p>
         </div>
@@ -156,7 +156,7 @@ export function LearningView() {
         <button
           onClick={fetchLearningData}
           disabled={isLoading}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-low hover:bg-surface-container border border-outline-variant text-on-surface ui-caption font-medium transition-colors cursor-pointer self-start sm:self-auto"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-low hover:bg-surface-container border border-outline-variant text-on-surface ui-caption font-medium transition-colors cursor-pointer self-start md:self-auto shrink-0"
         >
           <RefreshCw size={12} className={isLoading ? "animate-spin text-primary" : ""} />
           <span>새로고침</span>

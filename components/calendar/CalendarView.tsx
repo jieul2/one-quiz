@@ -739,12 +739,12 @@ export function CalendarView() {
   return (
     <div className="w-full space-y-4 text-on-surface">
       {/* ================= 1. 최상단 헤더 (플랫 헤더 표준) ================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
-        <div>
-          <h1 className="ui-page-title">캘린더</h1>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+        <div className="min-w-0 flex-1 w-full">
+          <h1 className="ui-page-title break-keep">캘린더</h1>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-0.5 shrink-0">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-0.5 max-w-full w-full md:w-auto md:shrink-0">
           {/* 저장 상태 인디케이터 */}
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 
@@ -772,7 +772,7 @@ export function CalendarView() {
       {/* ================= 2. 서브 컨트롤 툴바 (사진1) ================= */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-sm">
         {/* 좌측: 카테고리 필터 + 이전/다음 월 + 오늘 버튼 */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap sm:flex-wrap py-0.5 max-w-full shrink-0">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-0.5 max-w-full w-full md:w-auto md:flex-1">
           <div className="relative shrink-0">
             <button
               onClick={() => setIsCategoryFilterOpen(!isCategoryFilterOpen)}
@@ -920,9 +920,10 @@ export function CalendarView() {
 
       {/* ================= 3. 메인 월간 그리드 뷰 (사진2 가로 연속 바 완벽 구현) ================= */}
       {viewMode === "month" && (
-        <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden flex flex-col">
-          {/* 요일 헤더: 사진2 기준 월, 화, 수, 목, 금, 토, 일 */}
-          <div className="grid grid-cols-7 border-b border-outline-variant bg-surface-container-low text-center text-sm font-semibold py-2.5 text-on-surface-variant">
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-x-auto scrollbar-thin">
+          <div className="min-w-[620px] md:min-w-0 flex flex-col">
+            {/* 요일 헤더: 사진2 기준 월, 화, 수, 목, 금, 토, 일 */}
+            <div className="grid grid-cols-7 border-b border-outline-variant bg-surface-container-low text-center text-sm font-semibold py-2.5 text-on-surface-variant">
             <span>월</span>
             <span>화</span>
             <span>수</span>
@@ -1259,6 +1260,7 @@ export function CalendarView() {
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
       )}

@@ -27,6 +27,7 @@ import {
   Hand,
   Move,
   Palette,
+  Copy,
 } from "lucide-react";
 import { SaveStatusIndicator, SaveStatus } from "@/components/common/SaveStatusIndicator";
 import { toast } from "@/lib/toast";
@@ -143,6 +144,21 @@ export function CanvasView() {
 
   const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
+
+  // 🌟 우클릭 컨텍스트 메뉴 상태
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    type: "canvas" | "item";
+    targetItem?: CanvasItemData;
+  } | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = () => setContextMenu(null);
+    window.addEventListener("click", handleClickOutside);
+    return () => window.removeEventListener("click", handleClickOutside);
+  }, []);
 
   const markSaved = useCallback(() => {
     const now = new Date();
@@ -640,6 +656,113 @@ export function CanvasView() {
     };
   };
 
+  // 🌟 스마트 자동 정렬 (Auto Layout: 포스트잇 및 안건 카드를 겹치지 않게 바둑판 격자로 정렬)
+  const handleAutoLayout = async () => {
+    if (items.length === 0) return;
+    const COLS = Math.min(4, Math.max(2, Math.ceil(Math.sqrt(items.length))));
+    const GAP_X = 280;
+    const GAP_Y = 250;
+    const START_X = 80;
+    const START_Y = 80;
+
+    const updated = items.map((it, idx) => {
+      const col = idx % COLS;
+      const row = Math.floor(idx / COLS);
+      return {
+        ...it,
+        x: START_X + col * GAP_X,
+        y: START_Y + row * GAP_Y,
+      };
+    });
+
+    setItems(updated);
+    setPanOffset({ x: 0, y: 0 });
+    setZoomLevel(1);
+    toast.success("캔버스 아이템이 깔끔하게 자동 정렬되었습니다! ✨");
+
+    setSaveStatus("saving");
+    try {
+      await Promise.all(
+        updated.map((it) =>
+          fetch("/api/canvas", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: it._id, x: it.x, y: it.y }),
+          })
+        )
+      );
+      markSaved();
+    } catch {
+      setSaveStatus("error");
+    }
+  };
+
+  // 🌟 아이템 복제 (Duplicate)
+  const handleDuplicateItem = async (item: CanvasItemData) => {
+    setSaveStatus("saving");
+    try {
+      const res = await fetch("/api/canvas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          boardId: activeRoomId,
+          type: item.type,
+          x: item.x + 30,
+          y: item.y + 30,
+          width: item.width,
+          height: item.height,
+          color: item.color,
+          content: item.content,
+          authorName: userName,
+          stickers: item.stickers || [],
+          votes: 0,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setItems((prev) => [...prev, data.item]);
+        markSaved();
+        toast.success("아이템이 복제되었습니다.");
+      }
+    } catch {
+      setSaveStatus("error");
+    }
+  };
+
+  // 🌟 아이템 색상 변경
+  const handleChangeItemColor = async (id: string, color: string) => {
+    setItems((prev) => prev.map((it) => (it._id === id ? { ...it, color } : it)));
+    setSaveStatus("saving");
+    try {
+      await fetch("/api/canvas", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, color }),
+      });
+      markSaved();
+    } catch {
+      setSaveStatus("error");
+    }
+  };
+
+  // 🌟 우클릭 컨텍스트 메뉴 트리거
+  const handleContextMenu = (e: React.MouseEvent, targetItem?: CanvasItemData) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    setContextMenu({
+      visible: true,
+      x,
+      y,
+      type: targetItem ? "item" : "canvas",
+      targetItem,
+    });
+  };
+
   // 캔버스 배경 드래그(화면 이동 / Pan) 시작
   const handleMouseDownCanvas = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
@@ -1034,8 +1157,8 @@ export function CanvasView() {
   return (
     <div className="w-full space-y-3.5 select-none" onMouseUp={handleMouseUp}>
       {/* ================= 1. 최상단 헤더 ================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pb-3 border-b border-outline-variant">
+        <div className="flex items-start sm:items-center gap-2 flex-wrap sm:flex-nowrap min-w-0 flex-1 w-full">
           {/* 목록으로 돌아가기 버튼 */}
           <button
             type="button"
@@ -1043,22 +1166,22 @@ export function CanvasView() {
               setSelectedRoomId(null);
               router.push("/canvas");
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant text-xs font-bold text-on-surface transition-colors cursor-pointer mr-1 shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant text-xs font-bold text-on-surface transition-colors cursor-pointer mr-1 shadow-xs shrink-0 mt-0.5 sm:mt-0"
             title="캔버스 목록으로 돌아가기"
           >
             <ArrowLeft size={14} className="text-primary" />
-            <span>캔버스 목록</span>
+            <span>목록</span>
           </button>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="ui-page-title text-on-surface">{currentRoom.title}</h1>
-              <span className="ui-badge px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <h1 className="ui-page-title text-on-surface break-keep truncate max-w-[240px] sm:max-w-md md:max-w-xl">{currentRoom.title}</h1>
+              <span className="ui-badge px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold shrink-0">
                 {currentRoom.category}
               </span>
 
               {/* 회의실 선택 드롭다운 */}
-              <div className="relative">
+              <div className="relative shrink-0">
                 <button
                   onClick={() => setIsRoomMenuOpen((prev) => !prev)}
                   className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-surface-container hover:bg-surface-container-high border border-outline-variant text-[11px] font-semibold text-on-surface transition-colors cursor-pointer"
@@ -1111,13 +1234,13 @@ export function CanvasView() {
                 )}
               </div>
             </div>
-            <span className="ui-page-subtitle block mt-0.5">
+            <span className="ui-page-subtitle block mt-0.5 text-xs sm:text-sm text-on-surface-variant line-clamp-2 md:line-clamp-none break-keep">
               피그마처럼 자유롭게 포스트잇을 붙이고, 실시간 스티커 투표 및 회의 아젠다를 관리하세요. (Ctrl + 휠로 캔버스 줌)
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none flex-nowrap py-1 max-w-full w-full xl:w-auto xl:shrink-0 text-sm">
           {/* 회의 타이머 위젯 */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container border border-outline-variant text-on-surface">
             <Clock size={13} className="text-primary" />
@@ -1221,6 +1344,16 @@ export function CanvasView() {
 
         {/* 우측 줌 & 화면 이동 도구 */}
         <div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+          {/* 🌟 스마트 자동 정렬 버튼 */}
+          <button
+            onClick={handleAutoLayout}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-surface-container hover:bg-surface-container-high border border-outline-variant text-on-surface font-semibold text-xs transition-colors cursor-pointer shrink-0"
+            title="포스트잇과 회의 안건 카드를 바둑판 격자로 깔끔하게 자동 정렬"
+          >
+            <LayoutGrid size={13} className="text-secondary shrink-0" />
+            <span className="hidden sm:inline">자동 정렬</span>
+          </button>
+
           <div className="flex items-center bg-surface-container-low p-0.5 rounded-lg border border-outline-variant mr-1">
             <button
               type="button"
@@ -1290,6 +1423,7 @@ export function CanvasView() {
       {/* ================= 3. 2D 캔버스 작업 영역 ================= */}
       <div
         ref={canvasRef}
+        onContextMenu={(e) => handleContextMenu(e)}
         onMouseDown={(e) => {
           if (e.target === canvasRef.current || isHandToolActive || isSpaceHeld) {
             handleMouseDownCanvas(e);
@@ -1354,6 +1488,7 @@ export function CanvasView() {
               return (
                 <div
                   key={item._id}
+                  onContextMenu={(e) => handleContextMenu(e, item)}
                   onMouseDown={(e) => handleMouseDown(e, item)}
                   onTouchStart={(e) => handleTouchStartItem(e, item)}
                   onClick={() => {
@@ -1435,6 +1570,7 @@ export function CanvasView() {
             return (
               <div
                 key={item._id}
+                onContextMenu={(e) => handleContextMenu(e, item)}
                 onMouseDown={(e) => handleMouseDown(e, item)}
                 onTouchStart={(e) => handleTouchStartItem(e, item)}
                 onClick={() => {
@@ -1579,7 +1715,149 @@ export function CanvasView() {
           <span><strong>M</strong>: 회의안건</span>
           <span>•</span>
           <span><strong>Del</strong>: 삭제</span>
+          <span>•</span>
+          <span className="text-primary font-semibold">우클릭: 빠른 메뉴</span>
         </div>
+
+        {/* 🌟 우클릭 컨텍스트 메뉴 (Context Menu Popup) */}
+        {contextMenu && (
+          <div
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+            className="absolute z-50 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-2xl p-1.5 min-w-[170px] animate-in fade-in zoom-in-95 duration-100 text-xs font-medium text-on-surface"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {contextMenu.type === "item" && contextMenu.targetItem ? (
+              <div className="space-y-0.5">
+                <div className="px-2.5 py-1 text-[11px] font-bold text-on-surface-variant border-b border-outline-variant/50 flex items-center justify-between">
+                  <span>{contextMenu.targetItem.authorName}의 아이템</span>
+                  <span className="text-[10px] font-mono opacity-70">
+                    {contextMenu.targetItem.type === "meeting_card" ? "회의안건" : "포스트잇"}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleDuplicateItem(contextMenu.targetItem!);
+                    setContextMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container text-left cursor-pointer"
+                >
+                  <Copy size={13} className="text-primary" />
+                  <span>아이템 복제</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleVote(contextMenu.targetItem!._id);
+                    setContextMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container text-left cursor-pointer"
+                >
+                  <ThumbsUp size={13} className="text-secondary" />
+                  <span>투표 (+1)</span>
+                </button>
+
+                <div className="pt-1 border-t border-outline-variant/50">
+                  <span className="px-2.5 py-1 text-[10px] text-on-surface-variant block font-semibold">
+                    색상 변경
+                  </span>
+                  <div className="flex items-center gap-1.5 px-2 py-1">
+                    {COLOR_PRESETS.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          handleChangeItemColor(contextMenu.targetItem!._id, c.id);
+                          setContextMenu(null);
+                        }}
+                        className={`w-4 h-4 rounded-full transition-transform cursor-pointer shadow-xs ${
+                          c.id === "yellow"
+                            ? "bg-amber-300"
+                            : c.id === "pink"
+                            ? "bg-pink-300"
+                            : c.id === "green"
+                            ? "bg-emerald-300"
+                            : c.id === "blue"
+                            ? "bg-sky-300"
+                            : "bg-purple-300"
+                        } hover:scale-125`}
+                        title={c.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="h-px bg-outline-variant/50 my-1" />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleDeleteItem(contextMenu.targetItem!._id);
+                    setContextMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-error/15 text-error text-left cursor-pointer"
+                >
+                  <Trash2 size={13} />
+                  <span>아이템 삭제</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleAddSticky();
+                    setContextMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container text-left cursor-pointer"
+                >
+                  <Plus size={13} className="text-primary" />
+                  <span>새 포스트잇 메모 (N)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleAddMeetingCard();
+                    setContextMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container text-left cursor-pointer"
+                >
+                  <CheckSquare size={13} className="text-secondary" />
+                  <span>새 회의 안건 카드 (M)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleAutoLayout();
+                    setContextMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container text-left cursor-pointer"
+                >
+                  <LayoutGrid size={13} className="text-emerald-500" />
+                  <span>스마트 자동 정렬</span>
+                </button>
+
+                <div className="h-px bg-outline-variant/50 my-1" />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleResetView();
+                    setContextMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container text-left cursor-pointer"
+                >
+                  <RotateCcw size={13} />
+                  <span>화면 초기화 (100%)</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 회의실 개설 모달 */}
