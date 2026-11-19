@@ -211,11 +211,11 @@ export function Sidebar({
         className={`fixed left-0 top-0 h-screen h-[100dvh] max-h-[100dvh] bg-surface-container-lowest z-50 flex flex-col justify-between overflow-hidden md:overflow-visible border-r border-outline-variant shadow-xs ${
           enableTransitions ? "transition-all duration-300" : ""
         } ${
-          /* 모바일: 서랍식 슬라이드 (아이콘 모드 시 컴팩트 w-24, 펼침 모드 시 w-72) */
+          /* 모바일: 서랍식 슬라이드 (아이콘 모드 시 컴팩트 w-24, 펼침 모드 시 w-72 max-w-[85vw]) */
           isMobileOpen
             ? isIconOnly
-              ? "translate-x-0 w-24 pointer-events-auto"
-              : "translate-x-0 w-72 pointer-events-auto"
+              ? "translate-x-0 w-24 max-w-[85vw] pointer-events-auto"
+              : "translate-x-0 w-72 max-w-[85vw] pointer-events-auto"
             : isHidden
             ? "-translate-x-full md:-translate-x-full w-0 pointer-events-none opacity-0"
             : "-translate-x-full md:translate-x-0 opacity-100"

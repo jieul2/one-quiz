@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { Folder, RefreshCw, UserCheck, Mail, Globe2, Palette, LogOut } from "lucide-react";
+import { Folder, RefreshCw, UserCheck, Mail, Globe2, Palette, LogOut, GraduationCap } from "lucide-react";
 import { SwitchToggle } from "../common/SwitchToggle";
 import { ThemeModal } from "@/components/theme/ThemeModal";
 import { useSettings } from "../SettingsContext";
@@ -39,6 +39,28 @@ export function GeneralSettingsModule() {
     return "ko";
   });
 
+  // 🌟 기출문제 풀이 기본 설정 (기본값 20문제)
+  const [defaultQuestionCount, setDefaultQuestionCount] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("onequiz_default_question_count") || "20";
+    }
+    return "20";
+  });
+
+  const [defaultUnsolvedOnly, setDefaultUnsolvedOnly] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("onequiz_default_unsolved_only") === "true";
+    }
+    return false;
+  });
+
+  const [defaultSequential, setDefaultSequential] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("onequiz_default_sequential") === "true";
+    }
+    return false;
+  });
+
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
 
   const handleToggleDiscoverable = (val: boolean) => {
@@ -68,6 +90,34 @@ export function GeneralSettingsModule() {
     toast.success(
       `화면 언어가 '${lang === "ko" ? "한국어" : lang === "en" ? "English" : "日本語"}'(으)로 설정되었습니다.`
     );
+  };
+
+  const handleChangeQuestionCount = (count: string) => {
+    setDefaultQuestionCount(count);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("onequiz_default_question_count", count);
+    }
+    markSaved();
+    const countLabel = count === "all" ? "전체 문제" : `${count}문제`;
+    toast.success(`기출문제 기본 풀이 개수가 '${countLabel}'(으)로 설정되었습니다.`);
+  };
+
+  const handleToggleDefaultUnsolved = (val: boolean) => {
+    setDefaultUnsolvedOnly(val);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("onequiz_default_unsolved_only", String(val));
+    }
+    markSaved();
+    toast.success(val ? "기출문제 풀이 시 '안 푼 문제 우선'이 기본 적용됩니다." : "기본 '안 푼 문제 우선'이 해제되었습니다.");
+  };
+
+  const handleToggleDefaultSequential = (val: boolean) => {
+    setDefaultSequential(val);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("onequiz_default_sequential", String(val));
+    }
+    markSaved();
+    toast.success(val ? "기출문제 풀이 시 '순차적 번호순' 출제가 기본 적용됩니다." : "기본 '순차적 번호순' 출제가 해제되었습니다.");
   };
 
   return (
@@ -188,7 +238,79 @@ export function GeneralSettingsModule() {
         </p>
       </div>
 
-      {/* 4. 화면 언어 카드 */}
+      {/* 4. 기출문제 풀이 기본 설정 카드 */}
+      <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-4 space-y-3.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <GraduationCap size={16} className="text-primary" />
+            <h2 className="ui-card-title text-on-surface">기출문제 풀이 기본 설정</h2>
+          </div>
+          <span className="ui-badge px-2 py-0.5 rounded-full bg-primary/10 text-primary font-mono font-bold text-xs">
+            기본 {defaultQuestionCount === "all" ? "전체" : `${defaultQuestionCount}개`}
+          </span>
+        </div>
+
+        <p className="ui-body text-on-surface-variant leading-relaxed">
+          기출문제 풀이를 시작할 때 한 번에 출제될 기본 문제 수를 설정합니다. 풀이 화면에서도 언제든 변경할 수 있습니다.
+        </p>
+
+        {/* 문항 수 선택 버튼 그룹 */}
+        <div>
+          <span className="block ui-caption font-semibold text-on-surface-variant mb-1.5">한 번에 풀 문제 수</span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { id: "10", label: "10문제" },
+              { id: "20", label: "20문제 (기본)" },
+              { id: "30", label: "30문제" },
+              { id: "all", label: "전체 문제" },
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => handleChangeQuestionCount(opt.id)}
+                className={`px-3 py-2 rounded-lg border text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center justify-center ${
+                  defaultQuestionCount === opt.id
+                    ? "bg-primary text-on-primary border-primary shadow-xs ring-1 ring-primary"
+                    : "bg-surface-container-low text-on-surface border-outline-variant hover:bg-surface-container"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 부가 기본 옵션 (안 푼 문제 우선, 번호순 순차 출제) */}
+        <div className="space-y-2 pt-2 border-t border-outline-variant">
+          <div className="flex items-center justify-between py-1">
+            <div>
+              <span className="ui-body font-medium text-on-surface">안 푼 문제 우선 출제</span>
+              <p className="ui-caption text-on-surface-variant">풀이 이력이 없거나 적은 문제를 우선적으로 선정합니다.</p>
+            </div>
+            <SwitchToggle
+              checked={defaultUnsolvedOnly}
+              onChange={handleToggleDefaultUnsolved}
+              activeLabel="적용"
+              inactiveLabel="미적용"
+            />
+          </div>
+
+          <div className="flex items-center justify-between py-1">
+            <div>
+              <span className="ui-body font-medium text-on-surface">순차적 보기 (번호순 정렬)</span>
+              <p className="ui-caption text-on-surface-variant">문제를 랜덤 셔플하지 않고 원래 기출 번호 순서대로 나열합니다.</p>
+            </div>
+            <SwitchToggle
+              checked={defaultSequential}
+              onChange={handleToggleDefaultSequential}
+              activeLabel="순서대로"
+              inactiveLabel="랜덤 셔플"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 5. 화면 언어 카드 */}
       <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-4 space-y-2">
         <div className="flex items-center gap-1.5">
           <Globe2 size={15} className="text-primary" />

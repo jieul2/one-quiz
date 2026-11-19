@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  ListOrdered,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/ScrollArea";
 import { useTheme } from "next-themes";
@@ -149,21 +150,40 @@ function ExamContent() {
   // 문제별 풀이 기록 툴팁 열림 상태 관리
   const [openHistoryId, setOpenHistoryId] = useState<string | null>(null);
 
-  // 상단 컨트롤 바 설정 상태 (임시 상태)
-  const [pendingCountMode, setPendingCountMode] = useState<"10" | "20" | "30" | "all">("10");
+  // 상단 컨트롤 바 설정 상태 (기본값: 20문제, 개인설정 연동)
+  const [pendingCountMode, setPendingCountMode] = useState<"10" | "20" | "30" | "all">("20");
   const [pendingUnsolved, setPendingUnsolved] = useState(false);
   const [pendingSequential, setPendingSequential] = useState(false);
 
-  // 실제 적용된 설정 상태
-  const [appliedCountMode, setAppliedCountMode] = useState<"10" | "20" | "30" | "all">("10");
+  // 실제 적용된 설정 상태 (기본값: 20문제)
+  const [appliedCountMode, setAppliedCountMode] = useState<"10" | "20" | "30" | "all">("20");
   const [appliedUnsolved, setAppliedUnsolved] = useState(false);
   const [appliedSequential, setAppliedSequential] = useState(false);
 
   const [isSettingOpen, setIsSettingOpen] = useState(false);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(true);
+  // 화면이 줄어들었을 때(xl 미만) 문제번호 바로가기 팝업/바텀시트 상태
+  const [isQuickNavModalOpen, setIsQuickNavModalOpen] = useState(false);
   const { theme } = useTheme();
   const mounted = useMounted();
   const mainScrollRef = useRef<HTMLDivElement>(null);
+
+  // 개인설정(localStorage)에 저장된 사용자 기본 설정 동기화
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedCount = localStorage.getItem("onequiz_default_question_count") as "10" | "20" | "30" | "all" | null;
+      const savedUnsolved = localStorage.getItem("onequiz_default_unsolved_only") === "true";
+      const savedSequential = localStorage.getItem("onequiz_default_sequential") === "true";
+
+      const count = savedCount && ["10", "20", "30", "all"].includes(savedCount) ? savedCount : "20";
+      setPendingCountMode(count);
+      setAppliedCountMode(count);
+      setPendingUnsolved(savedUnsolved);
+      setAppliedUnsolved(savedUnsolved);
+      setPendingSequential(savedSequential);
+      setAppliedSequential(savedSequential);
+    }
+  }, []);
 
   // 변경사항 감지
   const hasSettingsChanged =
@@ -372,11 +392,11 @@ function ExamContent() {
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              {/* 우측 정답률 & 문제 바로가기 패널 열기/닫기 토글 버튼 */}
+              {/* 1) 화면이 클 때(xl 이상): 우측 사이드 패널 열기/닫기 토글 버튼 */}
               <button
                 type="button"
                 onClick={() => setIsSidePanelOpen(!isSidePanelOpen)}
-                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border font-medium transition-colors cursor-pointer ${
+                className={`hidden xl:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border font-medium transition-colors cursor-pointer ${
                   isSidePanelOpen
                     ? "bg-primary text-on-primary border-primary shadow-xs font-semibold"
                     : "bg-surface-container-low text-on-surface hover:bg-surface-container border-outline-variant"
@@ -386,6 +406,20 @@ function ExamContent() {
                 <Trophy size={13} />
                 <span>정답률 {accuracy}%</span>
                 {isSidePanelOpen ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+              </button>
+
+              {/* 2) 화면이 줄어들었을 때(xl 미만): 문제번호 바로가기 팝업 버튼 */}
+              <button
+                type="button"
+                onClick={() => setIsQuickNavModalOpen(true)}
+                className="xl:hidden flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-primary/40 bg-primary/10 text-primary font-bold transition-colors cursor-pointer hover:bg-primary/20 shadow-xs"
+                title="문제 번호 바로가기 및 실시간 정답률 확인"
+              >
+                <ListOrdered size={13} />
+                <span>문제 번호</span>
+                <span className="px-1.5 py-0.2 rounded bg-primary text-on-primary text-[10px] font-mono">
+                  {accuracy}%
+                </span>
               </button>
 
               <button
@@ -751,9 +785,9 @@ function ExamContent() {
         </div>
       </main>
 
-      {/* 우측 사이드 패널: 실시간 정답률 & 문제 바로가기 (열고 닫기 지원) */}
+      {/* 우측 사이드 패널: 실시간 정답률 & 문제 바로가기 (xl 이상 대화면에서만 고정 사이드바로 노출) */}
       {isSidePanelOpen && (
-        <aside className="w-full xl:w-72 bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-xs p-4 sm:p-5 flex flex-col gap-4 shrink-0 xl:sticky xl:top-6">
+        <aside className="hidden xl:flex xl:w-72 bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-xs p-4 sm:p-5 flex-col gap-4 shrink-0 sticky top-6">
           {/* 상단 성적 위젯 */}
           <div className="bg-surface-container-low border border-outline-variant rounded-xl p-4 flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -822,6 +856,122 @@ function ExamContent() {
             </ScrollArea>
           </div>
         </aside>
+      )}
+
+      {/* 🌟 화면이 줄어들었을 때(xl 미만) 문제 번호 바로가기 플로팅 버튼 */}
+      <button
+        type="button"
+        onClick={() => setIsQuickNavModalOpen(true)}
+        className="fixed bottom-20 right-6 z-30 xl:hidden px-3.5 py-2.5 bg-primary text-on-primary rounded-full shadow-lg hover:opacity-90 active:scale-95 transition-all cursor-pointer flex items-center gap-2 text-xs font-bold"
+        title="문제 번호 바로가기 및 정답률 확인"
+      >
+        <ListOrdered size={16} />
+        <span>문제 번호</span>
+        <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-mono font-bold">
+          {answeredCount}/{displayQuestions.length}
+        </span>
+      </button>
+
+      {/* 🌟 화면이 줄어들었을 때(xl 미만) 문제 번호 바로가기 팝업 모달 */}
+      {isQuickNavModalOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 xl:hidden flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-150"
+          onClick={() => setIsQuickNavModalOpen(false)}
+        >
+          <div
+            className="bg-surface-container-lowest border border-outline-variant rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[85vh] p-5 shadow-2xl flex flex-col gap-4 animate-in slide-in-from-bottom duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 상단 헤더 & 정답률 */}
+            <div className="flex items-center justify-between border-b border-outline-variant pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <ListOrdered size={16} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-on-surface">문제 번호 바로가기</h3>
+                  <span className="text-[11px] text-on-surface-variant font-mono">
+                    총 {displayQuestions.length}문항 중 {answeredCount}문제 완료
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-low border border-outline-variant">
+                  <Trophy size={13} className="text-primary" />
+                  <span className="text-xs font-bold text-primary font-mono">{accuracy}%</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsQuickNavModalOpen(false)}
+                  className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+                  title="닫기"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* 정답률 프로그레스 바 */}
+            <div className="space-y-1.5 bg-surface-container-low p-3 rounded-xl border border-outline-variant">
+              <div className="flex justify-between items-center text-xs font-medium text-on-surface-variant">
+                <span>실시간 풀이 현황</span>
+                <span className="font-bold text-primary">정답 {correctCount} / 오답 {answeredCount - correctCount}</span>
+              </div>
+              <div className="w-full h-2 bg-surface-container-highest rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-300 rounded-full"
+                  style={{ width: `${accuracy}%` }}
+                />
+              </div>
+            </div>
+
+            {/* 문제 번호 그리드 */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-on-surface-variant block">문제를 선택하면 해당 위치로 바로 이동합니다</span>
+              <ScrollArea orientation="vertical" maxHeight="300px" className="pr-1">
+                <ul className="grid grid-cols-5 sm:grid-cols-6 gap-2">
+                  {displayQuestions.map((q, idx) => {
+                    const isSubmitted = results[q._id] !== undefined;
+                    const isCorrect = results[q._id];
+                    let btnClass =
+                      "bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant";
+                    if (isSubmitted) {
+                      btnClass = isCorrect
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-extrabold ring-1 ring-emerald-500/50"
+                        : "bg-destructive/15 text-destructive border-destructive/30 font-extrabold ring-1 ring-destructive/50";
+                    }
+                    return (
+                      <li key={q._id} className="shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            scrollToQuestion(q._id);
+                            setIsQuickNavModalOpen(false);
+                          }}
+                          className={`w-full aspect-square flex items-center justify-center rounded-xl text-xs sm:text-sm font-bold transition-all shadow-2xs ${btnClass} cursor-pointer active:scale-95`}
+                        >
+                          {idx + 1}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </ScrollArea>
+            </div>
+
+            {/* 하단 닫기 버튼 */}
+            <div className="pt-2 border-t border-outline-variant flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsQuickNavModalOpen(false)}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-bold transition-colors cursor-pointer"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 🌟 최상단으로 이동 플로팅 버튼 */}

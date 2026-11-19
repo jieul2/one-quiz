@@ -79,6 +79,26 @@ export function AppShell({ children }: AppShellProps) {
     };
   }, []);
 
+  // 🌟 화면 너비 반응형 자동 감지: 화면이 줄어들면(768px <= width < 1150px) 자동으로 아이콘 모드로 축소 반응
+  const [isNarrowDesktop, setIsNarrowDesktop] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== "undefined") {
+        const width = window.innerWidth;
+        setIsNarrowDesktop(width >= 768 && width < 1150);
+      }
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // 유효 사이드바 모드: 화면이 좁아질 때 full 모드라면 작업공간 확보를 위해 자동으로 컴팩트 아이콘 모드(72px)로 스마트 축소
+  const effectiveSidebarMode: SidebarMode =
+    isNarrowDesktop && sidebarMode === "full" ? "icon" : sidebarMode;
+
   const handleChangeSidebarMode = (mode: SidebarMode) => {
     cachedSidebarMode = mode;
     setSidebarMode(mode);
@@ -107,7 +127,7 @@ export function AppShell({ children }: AppShellProps) {
       <Suspense fallback={null}>
         <Sidebar
           onOpenThemeModal={() => setIsThemeModalOpen(true)}
-          mode={sidebarMode}
+          mode={effectiveSidebarMode}
           onChangeMode={handleChangeSidebarMode}
           onCycleMode={handleCycleSidebarMode}
           isMobileOpen={isMobileNavOpen}
@@ -124,7 +144,7 @@ export function AppShell({ children }: AppShellProps) {
         >
           <button
             onClick={() => setIsMobileNavOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xs text-on-surface hover:text-primary active:scale-98 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-surface-container-lowest/95 backdrop-blur-md border border-outline-variant rounded-xl shadow-md text-on-surface hover:text-primary active:scale-95 transition-all cursor-pointer"
             title="사이드바 메뉴 열기"
           >
             <Menu size={18} className="text-primary shrink-0" />
@@ -134,7 +154,7 @@ export function AppShell({ children }: AppShellProps) {
       )}
 
       {/* 2-1. PC 데스크톱에서 사이드바가 아예 없을 때(hidden) 즉시 꺼낼 수 있는 플로팅 토글러 */}
-      {sidebarMode === "hidden" && (
+      {effectiveSidebarMode === "hidden" && (
         <div className="fixed top-3.5 left-3.5 z-40 hidden md:flex items-center gap-1.5 bg-surface-container-lowest border border-outline-variant rounded-xl p-1 shadow-xs transition-colors hover:border-primary/50">
           <button
             onClick={() => handleChangeSidebarMode("icon")}
@@ -159,9 +179,9 @@ export function AppShell({ children }: AppShellProps) {
       <div
         className={`min-h-screen ${enableTransitions ? "transition-all duration-300" : ""} w-full ${
           /* 3단계 사이드바 반응형 오프셋 */
-          sidebarMode === "hidden"
+          effectiveSidebarMode === "hidden"
             ? "md:pl-0"
-            : sidebarMode === "icon"
+            : effectiveSidebarMode === "icon"
             ? "md:pl-[72px]"
             : "md:pl-60"
         }`}
