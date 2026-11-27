@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useMounted } from "@/lib/hooks/useMounted";
 import {
   CheckCircle,
@@ -102,6 +102,22 @@ const MarkdownRenderer = ({ content }: { content: string }) => {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
+  // 코드 블록 테마 스타일의 배경색을 투명으로 오버라이드하여 원래 배경색 유지
+  const cleanStyle = useMemo(() => {
+    const baseStyle = isDark ? atomDark : oneLight;
+    const newStyle: { [key: string]: React.CSSProperties } = {};
+    for (const key in baseStyle) {
+      if (Object.prototype.hasOwnProperty.call(baseStyle, key)) {
+        newStyle[key] = {
+          ...baseStyle[key],
+          background: "transparent",
+          backgroundColor: "transparent",
+        };
+      }
+    }
+    return newStyle;
+  }, [isDark]);
+
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -110,9 +126,22 @@ const MarkdownRenderer = ({ content }: { content: string }) => {
           const match = /language-(\w+)/.exec(className || "");
           return !inline && match ? (
             <SyntaxHighlighter
-              style={isDark ? atomDark : oneLight}
+              style={cleanStyle}
               language={match[1]}
               PreTag="div"
+              customStyle={{
+                background: "transparent",
+                backgroundColor: "transparent",
+                margin: 0,
+                padding: 0,
+                border: "none",
+              }}
+              codeTagProps={{
+                style: {
+                  background: "transparent",
+                  backgroundColor: "transparent",
+                },
+              }}
               {...props}
             >
               {String(children).replace(/\n$/, "")}
@@ -126,6 +155,9 @@ const MarkdownRenderer = ({ content }: { content: string }) => {
               {children}
             </code>
           );
+        },
+        pre({ children }) {
+          return <div className="bg-transparent p-0 m-0 overflow-x-auto">{children}</div>;
         },
         table({ children }) {
           return (
@@ -503,6 +535,20 @@ export default function AdminQuestionsPage() {
   const openEditModal = (q: QuestionType) => {
     setEditMode(true);
     setCurrentEditId(q._id);
+
+    // 정답 안전 파싱: 배열, 숫자, 문자열(쉼표 구분 등) 유연 대응하여 1로 초기화되는 현상 원천 방지
+    const parsedCorrectAnswer: string[] = (() => {
+      const raw = (q as unknown as { correctAnswer?: unknown; answer?: unknown }).correctAnswer ?? (q as unknown as { answer?: unknown }).answer;
+      if (Array.isArray(raw) && raw.length > 0) {
+        const mapped = raw.map((item) => String(item).trim()).filter(Boolean);
+        if (mapped.length > 0) return mapped;
+      } else if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
+        const split = String(raw).split(",").map((s) => s.trim()).filter(Boolean);
+        if (split.length > 0) return split;
+      }
+      return ["1"];
+    })();
+
     setFormData({
       subject: q.subject,
       examType: q.examType,
@@ -511,8 +557,7 @@ export default function AdminQuestionsPage() {
       title: q.title,
       codeSnippet: q.codeSnippet || "",
       options: q.options && q.options.length >= 2 ? q.options : ["", "", "", ""],
-      correctAnswer:
-        Array.isArray(q.correctAnswer) && q.correctAnswer.length > 0 ? q.correctAnswer : ["1"],
+      correctAnswer: parsedCorrectAnswer,
       currentTagInput: "",
       explanation: q.explanation || "",
     });
@@ -529,10 +574,26 @@ export default function AdminQuestionsPage() {
   };
 
   const handleTypeChange = (type: "multiple-choice" | "short-answer") => {
+    setFormData((prev) => {
+      if (prev.questionType === type) return prev;
+      return {
+        ...prev,
+        questionType: type,
+        correctAnswer:
+          prev.correctAnswer.length > 0
+            ? prev.correctAnswer
+            : type === "multiple-choice"
+              ? ["1"]
+              : [],
+      };
+    });
+  };
+
+  const handleSelectCorrectOption = (optNum: number) => {
+    const optStr = String(optNum);
     setFormData((prev) => ({
       ...prev,
-      questionType: type,
-      correctAnswer: type === "multiple-choice" ? ["1"] : [],
+      correctAnswer: [optStr],
     }));
   };
 
@@ -1978,9 +2039,14 @@ export default function AdminQuestionsPage() {
                     {formData.questionType === "multiple-choice" && (
                       <div className="space-y-3 p-4 sm:p-5 bg-surface-container-low rounded-xl border border-outline-variant">
                         <div className="flex justify-between items-center mb-2">
-                          <h3 className="text-xs sm:text-sm font-semibold text-on-surface">
-                            객관식 보기 입력 (최소 2개 이상)
-                          </h3>
+                          <div>
+                            <h3 className="text-xs sm:text-sm font-semibold text-on-surface">
+                              객관식 보기 입력 (최소 2개 이상)
+                            </h3>
+                            <p className="text-[11px] text-on-surface-variant">
+                              보기 번호(원형 숫자)를 클릭하면 해당 번호가 정답으로 지정됩니다.
+                            </p>
+                          </div>
                           <button
                             type="button"
                             onClick={handleAddOption}
@@ -1990,31 +2056,52 @@ export default function AdminQuestionsPage() {
                           </button>
                         </div>
 
-                        {formData.options.map((option, index) => (
-                          <div key={index} className="flex items-center gap-3">
-                            <span className="w-7 h-7 rounded-full bg-surface-container text-on-surface flex items-center justify-center text-xs font-bold shrink-0">
-                              {index + 1}
-                            </span>
-                            <input
-                              required={formData.questionType === "multiple-choice"}
-                              type="text"
-                              value={option}
-                              onChange={(e) => handleOptionChange(index, e.target.value)}
-                              placeholder={`${index + 1}번 보기 입력...`}
-                              className="flex-1 bg-surface-container-lowest border border-outline-variant rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface transition-colors"
-                            />
-                            {formData.options.length > 2 && (
+                        {formData.options.map((option, index) => {
+                          const isCorrect = formData.correctAnswer.includes(String(index + 1));
+                          return (
+                            <div key={index} className="flex items-center gap-3">
                               <button
                                 type="button"
-                                onClick={() => handleRemoveOption(index)}
-                                className="p-2 text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer transition-colors"
-                                title="보기 삭제"
+                                onClick={() => handleSelectCorrectOption(index + 1)}
+                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all cursor-pointer ${
+                                  isCorrect
+                                    ? "bg-primary text-on-primary ring-2 ring-primary/40 shadow-xs"
+                                    : "bg-surface-container text-on-surface hover:bg-surface-container-high border border-outline-variant"
+                                }`}
+                                title={`클릭하여 ${index + 1}번을 정답으로 지정`}
                               >
-                                <Minus size={16} />
+                                {index + 1}
                               </button>
-                            )}
-                          </div>
-                        ))}
+                              <input
+                                required={formData.questionType === "multiple-choice"}
+                                type="text"
+                                value={option}
+                                onChange={(e) => handleOptionChange(index, e.target.value)}
+                                placeholder={`${index + 1}번 보기 입력...`}
+                                className={`flex-1 bg-surface-container-lowest border rounded-xl p-3 text-xs sm:text-sm focus:border-primary focus:outline-none text-on-surface transition-colors ${
+                                  isCorrect
+                                    ? "border-primary/50 ring-1 ring-primary/30"
+                                    : "border-outline-variant"
+                                }`}
+                              />
+                              {isCorrect && (
+                                <span className="text-[11px] font-bold text-primary shrink-0 px-2.5 py-1 bg-primary/10 border border-primary/20 rounded-md">
+                                  정답
+                                </span>
+                              )}
+                              {formData.options.length > 2 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveOption(index)}
+                                  className="p-2 text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer transition-colors"
+                                  title="보기 삭제"
+                                >
+                                  <Minus size={16} />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
 

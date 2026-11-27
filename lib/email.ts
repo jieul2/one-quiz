@@ -10,6 +10,7 @@ interface FeedbackEmailParams {
 }
 
 const typeLabels: Record<string, string> = {
+  report: "🚨 문제 오류 신고",
   bug: "🐛 버그 제보",
   feature: "💡 기능 제안",
   inquiry: "❓ 서비스 문의",
@@ -39,7 +40,7 @@ export async function sendFeedbackNotificationEmail(params: FeedbackEmailParams)
   // SMTP 환경변수가 미설정된 경우 모의 발송 로그 처리 (오류 없이 안전 동작)
   if (!user || !pass) {
     console.log(
-      `[Email Notification (Mock)] 관리자(${adminEmail})에게 피드백 알림: [${typeName}] ${title} from ${userEmail}`
+      `[Email Notification (Mock)] 관리자(${adminEmail})에게 피드백 알림: [${typeName}] ${title} from ${userEmail}`,
     );
     return true;
   }

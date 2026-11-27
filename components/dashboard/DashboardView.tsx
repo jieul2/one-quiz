@@ -14,6 +14,11 @@ import {
   Flag,
   Bookmark,
   CloudSun,
+  Sun,
+  Cloud,
+  CloudRain,
+  CloudSnow,
+  RotateCw,
   FileText,
   Folder,
   Kanban,
@@ -1558,44 +1563,162 @@ function BookmarksWidget() {
   );
 }
 
-// 7. 날씨 위젯 (현재 시각 및 날씨 정보)
+interface WeatherData {
+  success: boolean;
+  source: string;
+  location: string;
+  temperature: number;
+  status: string;
+  pty: number;
+  humidity: number;
+  windSpeed: number;
+  rain: number;
+  updatedAt: string;
+  hourly: Array<{
+    time: string;
+    temp: number;
+    sky: string;
+    pty: number;
+  }>;
+}
+
+// 7. 날씨 위젯 (대한민국 기상청 공공데이터 API 실시간 연동)
 function WeatherWidget() {
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedCity, setSelectedCity] = useState("seoul");
+
+  const fetchWeather = useCallback(async (cityKey?: string) => {
+    setLoading(true);
+    try {
+      const city = cityKey || selectedCity;
+      const res = await fetch(`/api/weather?city=${city}`);
+      if (res.ok) {
+        const data = await res.json();
+        setWeather(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch weather data:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCity]);
+
+  useEffect(() => {
+    fetchWeather();
+  }, [fetchWeather]);
+
+  const handleCityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newCity = e.target.value;
+    setSelectedCity(newCity);
+    fetchWeather(newCity);
+  };
+
+  // 날씨 상태에 따른 아이콘 선택
+  const renderWeatherIcon = (status?: string, pty?: number, size = 36) => {
+    if (pty === 1 || pty === 4 || status === "비" || status === "소나기") {
+      return <CloudRain size={size} className="text-primary shrink-0" />;
+    }
+    if (pty === 2 || pty === 3 || status === "눈" || status === "비/눈") {
+      return <CloudSnow size={size} className="text-primary shrink-0" />;
+    }
+    if (status === "흐림") {
+      return <Cloud size={size} className="text-primary shrink-0" />;
+    }
+    if (status === "구름많음") {
+      return <CloudSun size={size} className="text-primary shrink-0" />;
+    }
+    return <Sun size={size} className="text-primary shrink-0" />;
+  };
+
   return (
     <div className="flex flex-col justify-between h-full space-y-2 text-on-surface">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <CloudSun size={36} className="text-primary shrink-0" />
+          {renderWeatherIcon(weather?.status, weather?.pty, 36)}
           <div>
             <div className="text-2xl sm:text-3xl font-extrabold font-mono leading-none text-on-surface">
-              15°C
+              {weather ? `${weather.temperature}°C` : "--°C"}
             </div>
-            <div className="text-xs text-on-surface-variant mt-1">
-              서울특별시 송파구 · 맑음
+            <div className="text-xs text-on-surface-variant mt-1 flex items-center gap-1.5">
+              <span>{weather?.location || "서울특별시"} · {weather?.status || "맑음"}</span>
+              {weather?.updatedAt && (
+                <span className="text-[10px] text-on-surface-variant/70">
+                  ({weather.updatedAt} 발표)
+                </span>
+              )}
             </div>
           </div>
+        </div>
+
+        {/* 도시 선택 & 새로고침 액션 */}
+        <div className="flex items-center gap-1.5">
+          <select
+            value={selectedCity}
+            onChange={handleCityChange}
+            className="text-[11px] font-semibold bg-surface-container-low border border-outline-variant rounded-lg px-2 py-1 text-on-surface focus:outline-none focus:border-primary cursor-pointer"
+          >
+            <option value="seoul">서울</option>
+            <option value="incheon">인천</option>
+            <option value="suwon">수원</option>
+            <option value="daejeon">대전</option>
+            <option value="daegu">대구</option>
+            <option value="busan">부산</option>
+            <option value="gwangju">광주</option>
+            <option value="ulsan">울산</option>
+            <option value="gangneung">강릉</option>
+            <option value="jeju">제주</option>
+            <option value="sejong">세종</option>
+          </select>
+
+          <button
+            type="button"
+            onClick={() => fetchWeather()}
+            disabled={loading}
+            className="p-1 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+            title="기상청 실시간 날씨 새로고침"
+          >
+            <RotateCw size={13} className={loading ? "animate-spin text-primary" : ""} />
+          </button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-xs text-on-surface font-mono bg-surface-container-low border border-outline-variant p-2 rounded-lg">
         <div className="flex items-center gap-1.5">
-          <Droplets size={12} className="text-primary" /> 습도 58%
+          <Droplets size={12} className="text-primary" /> 습도 {weather?.humidity ?? 58}%
         </div>
         <div className="flex items-center gap-1.5">
-          <Wind size={12} className="text-primary" /> 바람 1.8m/s
+          <Wind size={12} className="text-primary" /> 바람 {weather?.windSpeed ?? 1.5}m/s
         </div>
         <div className="flex items-center gap-1.5">
-          <Umbrella size={12} className="text-primary" /> 강수확률 10%
+          <Umbrella size={12} className="text-primary" /> 강수량 {weather?.rain ?? 0}mm
         </div>
-        <div className="text-on-surface-variant">내일 최고/최저 17°/6°</div>
+        <div className="text-on-surface-variant text-[11px] flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+          <span>기상청 공공데이터</span>
+        </div>
       </div>
 
-      <div className="flex justify-between text-center font-mono text-[11px] text-on-surface-variant border-t border-outline-variant pt-1.5">
-        <div>12시<br />15°</div>
-        <div>15시<br />17°</div>
-        <div>18시<br />14°</div>
-        <div>21시<br />11°</div>
-        <div>00시<br />9°</div>
-        <div>03시<br />7°</div>
+      {/* 시간대별 초단기 예보 */}
+      <div className="flex justify-between text-center font-mono text-[11px] text-on-surface-variant border-t border-outline-variant pt-1.5 overflow-x-auto no-scrollbar">
+        {weather?.hourly && weather.hourly.length > 0 ? (
+          weather.hourly.slice(0, 6).map((h, idx) => (
+            <div key={idx} className="flex-1 px-1">
+              <div>{h.time}</div>
+              <div className="font-bold text-on-surface mt-0.5">{h.temp}°</div>
+              <div className="text-[10px] text-primary">{h.sky}</div>
+            </div>
+          ))
+        ) : (
+          <>
+            <div>12시<br />15°</div>
+            <div>15시<br />17°</div>
+            <div>18시<br />14°</div>
+            <div>21시<br />11°</div>
+            <div>00시<br />9°</div>
+            <div>03시<br />7°</div>
+          </>
+        )}
       </div>
     </div>
   );

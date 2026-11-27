@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import {
   MessageSquarePlus,
   X,
@@ -18,6 +19,7 @@ import { toast } from "@/lib/toast";
 
 export function FeedbackModal() {
   const { data: session } = useSession();
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [type, setType] = useState<"bug" | "feature" | "inquiry" | "feedback">("feedback");
   const [rating, setRating] = useState(5);
@@ -26,6 +28,11 @@ export function FeedbackModal() {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+
+  // 문제 풀이 화면(/exam) 등 다른 페이지의 UI(상단 이동 버튼 등)를 가리지 않도록 설정창(/settings)에서만 노출
+  if (!pathname?.startsWith("/settings")) {
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

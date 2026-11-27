@@ -347,7 +347,7 @@ export function GeneralSettingsModule() {
         <div>
           <h2 className="ui-card-title text-on-surface">테마 및 계정 관리</h2>
           <p className="ui-caption text-on-surface-variant mt-0.5">
-            원하는 테마로 색상 환경을 전환하거나 안전하게 로그아웃할 수 있습니다.
+            라이트 또는 블랙/다크 테마 환경을 전환하거나 안전하게 로그아웃할 수 있습니다.
           </p>
         </div>
 
@@ -370,7 +370,7 @@ export function GeneralSettingsModule() {
         </div>
       </div>
 
-      {/* 24개 테마 모달 */}
+      {/* 테마 모달 (라이트 / 블랙 다크 2종) */}
       <ThemeModal isOpen={isThemeModalOpen} onClose={() => setIsThemeModalOpen(false)} />
     </div>
   );

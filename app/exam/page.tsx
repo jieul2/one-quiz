@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
 import { useMounted } from "@/lib/hooks/useMounted";
 import {
   Trophy,
@@ -15,7 +15,7 @@ import {
   ChevronRight,
   X,
   ListOrdered,
-} from "lucide-react";
+  } from "lucide-react";
 import { ScrollArea } from "@/components/ui/ScrollArea";
 import { useTheme } from "next-themes";
 import { useSearchParams } from "next/navigation";
@@ -54,17 +54,52 @@ const MarkdownRenderer = ({
 }) => {
   const isDark = currentTheme === "dark";
 
+  // 코드 블록 테마 스타일의 배경색을 투명으로 오버라이드하여 원래 배경색 유지
+  const cleanStyle = useMemo(() => {
+    const baseStyle = isDark ? atomDark : oneLight;
+    const newStyle: { [key: string]: React.CSSProperties } = {};
+    for (const key in baseStyle) {
+      if (Object.prototype.hasOwnProperty.call(baseStyle, key)) {
+        newStyle[key] = {
+          ...baseStyle[key],
+          background: "transparent",
+          backgroundColor: "transparent",
+        };
+      }
+    }
+    return newStyle;
+  }, [isDark]);
+
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        code({ inline, className, children, style: _style, ...props }: React.ComponentPropsWithoutRef<"code"> & { inline?: boolean; node?: unknown }) {
+        code({
+          inline,
+          className,
+          children,
+          style: _style,
+          ...props
+        }: React.ComponentPropsWithoutRef<"code"> & { inline?: boolean; node?: unknown }) {
           const match = /language-(\w+)/.exec(className || "");
           return !inline && match ? (
             <SyntaxHighlighter
-              style={isDark ? atomDark : oneLight}
+              style={cleanStyle}
               language={match[1]}
               PreTag="div"
+              customStyle={{
+                background: "transparent",
+                backgroundColor: "transparent",
+                margin: 0,
+                padding: 0,
+                border: "none",
+              }}
+              codeTagProps={{
+                style: {
+                  background: "transparent",
+                  backgroundColor: "transparent",
+                },
+              }}
               {...props}
             >
               {String(children).replace(/\n$/, "")}
@@ -79,6 +114,9 @@ const MarkdownRenderer = ({
             </code>
           );
         },
+        pre({ children }) {
+          return <div className="bg-transparent p-0 m-0 overflow-x-auto">{children}</div>;
+        },
         table({ children }) {
           return (
             <div className="overflow-x-auto my-4 rounded-xl border border-outline-variant shadow-xs">
@@ -89,17 +127,11 @@ const MarkdownRenderer = ({
           );
         },
         thead({ children }) {
-          return (
-            <thead className="bg-surface-container-low text-on-surface">
-              {children}
-            </thead>
-          );
+          return <thead className="bg-surface-container-low text-on-surface">{children}</thead>;
         },
         th({ children }) {
           return (
-            <th className="border-b border-outline-variant px-4 py-2.5 font-bold">
-              {children}
-            </th>
+            <th className="border-b border-outline-variant px-4 py-2.5 font-bold">{children}</th>
           );
         },
         td({ children }) {
@@ -168,14 +200,32 @@ function ExamContent() {
   const mounted = useMounted();
   const mainScrollRef = useRef<HTMLDivElement>(null);
 
+  // 불필요한 마킹 localStorage 키 정리
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const uEmail = session?.user?.email || "guest";
+        localStorage.removeItem(`onequiz_exam_marked_${uEmail}`);
+      } catch {
+        // ignore
+      }
+    }
+  }, [session?.user?.email]);
+
   // 개인설정(localStorage)에 저장된 사용자 기본 설정 동기화
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedCount = localStorage.getItem("onequiz_default_question_count") as "10" | "20" | "30" | "all" | null;
+      const savedCount = localStorage.getItem("onequiz_default_question_count") as
+        | "10"
+        | "20"
+        | "30"
+        | "all"
+        | null;
       const savedUnsolved = localStorage.getItem("onequiz_default_unsolved_only") === "true";
       const savedSequential = localStorage.getItem("onequiz_default_sequential") === "true";
 
-      const count = savedCount && ["10", "20", "30", "all"].includes(savedCount) ? savedCount : "20";
+      const count =
+        savedCount && ["10", "20", "30", "all"].includes(savedCount) ? savedCount : "20";
       setPendingCountMode(count);
       setAppliedCountMode(count);
       setPendingUnsolved(savedUnsolved);
@@ -249,9 +299,7 @@ function ExamContent() {
             originalIndex: idx + 1,
           }));
 
-          const shuffled = sequential
-            ? [...originalWithIndex]
-            : shuffleArray(originalWithIndex);
+          const shuffled = sequential ? [...originalWithIndex] : shuffleArray(originalWithIndex);
 
           const newOptions = shuffled.map((item) => item.text);
 
@@ -318,14 +366,33 @@ function ExamContent() {
     setUserAnswers((prev) => ({ ...prev, [qId]: optionNumber }));
   };
 
+  // 보기 번호(또는 옵션) 더블클릭 시: 해당 번호 선택과 동시에 즉시 정답 확인(채점 및 기록 저장) 수행
+  const handleOptionDoubleClick = async (
+    qId: string,
+    question: QuestionType,
+    optionNumber: string
+  ) => {
+    if (results[qId] !== undefined) return;
+    await handleSubmit(qId, question, optionNumber);
+  };
+
   const handleTextChange = (qId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     setUserAnswers((prev) => ({ ...prev, [qId]: e.target.value }));
   };
 
-  const handleSubmit = async (qId: string, question: QuestionType) => {
-    const rawAnswer = userAnswers[qId]?.trim() || "";
+  const handleSubmit = async (
+    qId: string,
+    question: QuestionType,
+    explicitAnswer?: string
+  ) => {
+    const targetAnswer = explicitAnswer !== undefined ? explicitAnswer : userAnswers[qId];
+    const rawAnswer = targetAnswer?.trim() || "";
     const userAnswer = rawAnswer.toLowerCase();
     if (!userAnswer) return;
+
+    if (explicitAnswer !== undefined) {
+      setUserAnswers((prev) => ({ ...prev, [qId]: explicitAnswer }));
+    }
 
     const activeCorrectAnswer =
       shuffledOptionsMap[qId]?.newCorrectAnswer ?? question.correctAnswer;
@@ -557,7 +624,7 @@ function ExamContent() {
                         </div>
                         <div className="flex justify-between mb-2">
                           <span className="text-on-surface-variant">누적 오답:</span>{" "}
-                          <span className="text-destructive font-bold">
+                          <span className="text-red-600 dark:text-red-400 font-bold">
                             {attemptCount - correctCount}회
                           </span>
                         </div>
@@ -574,7 +641,7 @@ function ExamContent() {
                                   className={
                                     h.isCorrect
                                       ? "text-emerald-500 font-bold"
-                                      : "text-destructive font-bold"
+                                      : "text-red-600 dark:text-red-400 font-bold"
                                   }
                                 >
                                   {h.isCorrect ? "정답" : "오답"}
@@ -593,11 +660,30 @@ function ExamContent() {
 
                   {/* 본문 문제 영역 */}
                   <div className="p-5 sm:p-6 md:p-8">
-                    <div className="flex gap-3 sm:gap-4 mb-4 sm:mb-6">
-                      <span className="text-primary font-black text-xl sm:text-2xl shrink-0 mt-0.5">
+                    <div className="flex gap-3 sm:gap-4 mb-4 sm:mb-6 items-start">
+                      <span
+                        onDoubleClick={(e) => {
+                          e.preventDefault();
+                          if (!isSubmitted) {
+                            if (userAnswers[q._id] && userAnswers[q._id].trim() !== "") {
+                              handleSubmit(q._id, q);
+                            } else {
+                              toast.info("먼저 보기를 선택해주세요.");
+                            }
+                          }
+                        }}
+                        title={
+                          !isSubmitted
+                            ? userAnswers[q._id]
+                              ? "더블클릭: 즉시 정답 확인"
+                              : "더블클릭으로 정답 확인 (보기를 먼저 선택해주세요)"
+                            : "문제 번호"
+                        }
+                        className="font-black text-xl sm:text-2xl text-primary shrink-0 select-none cursor-pointer"
+                      >
                         {q.questionNumber || idx + 1}.
                       </span>
-                      <div className="text-base sm:text-lg font-bold text-on-surface leading-relaxed prose dark:prose-invert max-w-none">
+                      <div className="text-base sm:text-lg font-bold text-on-surface leading-relaxed prose dark:prose-invert max-w-none flex-1">
                         <MarkdownRenderer content={q.title} currentTheme={theme} />
                       </div>
                     </div>
@@ -631,7 +717,7 @@ function ExamContent() {
                                   "bg-emerald-500/15 border-emerald-500 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500 z-10";
                               else if (isSelected && !isOptCorrect)
                                 buttonClass =
-                                  "bg-destructive/15 border-destructive text-destructive ring-1 ring-destructive";
+                                  "bg-red-500/15 border-red-500 text-red-600 dark:text-red-400 ring-1 ring-red-500";
                               else
                                 buttonClass =
                                   "bg-surface-container-low border-outline-variant text-on-surface-variant opacity-50 cursor-not-allowed";
@@ -640,11 +726,17 @@ function ExamContent() {
                             return (
                               <button
                                 key={oIdx}
-                                onClick={() =>
-                                  !isSubmitted && handleOptionSelect(q._id, optionNum)
-                                }
+                                type="button"
+                                onClick={() => !isSubmitted && handleOptionSelect(q._id, optionNum)}
+                                onDoubleClick={(e) => {
+                                  e.preventDefault();
+                                  if (!isSubmitted) {
+                                    handleOptionDoubleClick(q._id, q, optionNum);
+                                  }
+                                }}
                                 disabled={isSubmitted}
-                                className={`w-full text-left p-3.5 sm:p-4 rounded-xl border transition-all flex items-center gap-3 sm:gap-4 ${buttonClass} cursor-pointer`}
+                                title={!isSubmitted ? "클릭: 보기 선택 | 더블클릭: 즉시 정답 확인" : undefined}
+                                className={`w-full text-left p-3.5 sm:p-4 rounded-xl border transition-all flex items-center gap-3 sm:gap-4 ${buttonClass} cursor-pointer select-none`}
                               >
                                 <span
                                   className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold shrink-0 shadow-xs ${
@@ -654,7 +746,7 @@ function ExamContent() {
                                       : activeCorrectAnswer === optionNum)
                                       ? "bg-emerald-500 text-white"
                                       : isSubmitted && isSelected
-                                        ? "bg-destructive text-white"
+                                        ? "bg-red-500 text-white"
                                         : isSelected
                                           ? "bg-primary text-on-primary"
                                           : "bg-surface-container text-on-surface-variant border border-outline-variant"
@@ -676,8 +768,14 @@ function ExamContent() {
                             value={userAnswers[q._id] || ""}
                             onChange={(e) => handleTextChange(q._id, e)}
                             disabled={isSubmitted}
-                            placeholder="주관식 정답을 입력하세요"
-                            className="w-full max-w-md bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 sm:py-3.5 text-sm sm:text-base text-on-surface focus:outline-none focus:border-primary disabled:opacity-50"
+                            onKeyDown={(e) => { if (e.key === "Enter" && !isSubmitted && userAnswers[q._id]?.trim()) { handleSubmit(q._id, q); } }} placeholder="주관식 정답을 입력하세요 (Enter: 정답 확인)"
+                            className={`w-full max-w-md bg-surface-container-low border rounded-xl px-4 py-3 sm:py-3.5 text-sm sm:text-base text-on-surface focus:outline-none focus:border-primary disabled:opacity-80 transition-colors ${
+                              isSubmitted
+                                ? results[q._id]
+                                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold"
+                                  : "border-red-500 bg-red-500/10 text-red-600 dark:text-red-400 font-semibold"
+                                : "border-outline-variant"
+                            }`}
                           />
                         </div>
                       )}
@@ -693,7 +791,7 @@ function ExamContent() {
                           disabled={!userAnswers[q._id] || userAnswers[q._id].trim() === ""}
                           className="w-full sm:w-auto bg-primary hover:opacity-90 disabled:opacity-30 text-on-primary font-bold py-3 sm:py-2.5 px-6 sm:px-8 rounded-xl transition-all shadow-xs text-sm cursor-pointer"
                         >
-                          정답 제출 및 기록 저장
+                          정답 확인
                         </button>
                       </div>
                     ) : (
@@ -702,13 +800,13 @@ function ExamContent() {
                           className={`p-3.5 sm:p-4 rounded-xl flex items-center gap-2 sm:gap-3 font-bold text-sm sm:text-base shadow-xs ${
                             results[q._id]
                               ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                              : "bg-destructive/10 text-destructive border border-destructive/20"
+                              : "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
                           }`}
                         >
                           {results[q._id] ? (
-                            <CheckCircle size={20} className="shrink-0" />
+                            <CheckCircle size={20} className="shrink-0 text-emerald-500" />
                           ) : (
-                            <XCircle size={20} className="shrink-0" />
+                            <XCircle size={20} className="shrink-0 text-red-500" />
                           )}
                           <span>{results[q._id] ? "정답입니다!" : "오답입니다."}</span>
                         </div>
@@ -758,7 +856,7 @@ function ExamContent() {
                                     if (res.ok) {
                                       alertModal.success(
                                         "관리자에게 문제 오류 신고가 접수되었습니다. 검토 후 신속히 반영하겠습니다!",
-                                        "신고 접수 완료"
+                                        "신고 접수 완료",
                                       );
                                     } else {
                                       alertModal.error("신고 접수 중 오류가 발생했습니다.");
@@ -817,7 +915,9 @@ function ExamContent() {
             </div>
 
             <div className="flex justify-between items-center text-[11px] text-on-surface-variant font-medium pt-1">
-              <span>푼 문제: {answeredCount} / {displayQuestions.length}</span>
+              <span>
+                푼 문제: {answeredCount} / {displayQuestions.length}
+              </span>
               <span className="font-bold text-primary">{correctCount}개 정답</span>
             </div>
           </div>
@@ -839,14 +939,15 @@ function ExamContent() {
                   if (isSubmitted) {
                     btnClass = isCorrect
                       ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-extrabold"
-                      : "bg-destructive/15 text-destructive border-destructive/30 font-extrabold";
+                      : "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30 font-extrabold ring-1 ring-red-500/30";
                   }
                   return (
-                    <li key={q._id} className="shrink-0">
+                    <li key={q._id} className="shrink-0 relative">
                       <button
                         onClick={() => scrollToQuestion(q._id)}
-                        className={`w-full aspect-square flex items-center justify-center rounded-xl text-xs font-bold transition-all shadow-2xs ${btnClass} cursor-pointer`}
+                        className={`w-full aspect-square flex items-center justify-center rounded-xl text-xs font-bold transition-all shadow-2xs ${btnClass} cursor-pointer relative`}
                       >
+                        
                         {idx + 1}
                       </button>
                     </li>
@@ -916,7 +1017,9 @@ function ExamContent() {
             <div className="space-y-1.5 bg-surface-container-low p-3 rounded-xl border border-outline-variant">
               <div className="flex justify-between items-center text-xs font-medium text-on-surface-variant">
                 <span>실시간 풀이 현황</span>
-                <span className="font-bold text-primary">정답 {correctCount} / 오답 {answeredCount - correctCount}</span>
+                <span className="font-bold text-primary">
+                  정답 {correctCount} / 오답 {answeredCount - correctCount}
+                </span>
               </div>
               <div className="w-full h-2 bg-surface-container-highest rounded-full overflow-hidden">
                 <div
@@ -928,7 +1031,9 @@ function ExamContent() {
 
             {/* 문제 번호 그리드 */}
             <div className="space-y-2">
-              <span className="text-xs font-bold text-on-surface-variant block">문제를 선택하면 해당 위치로 바로 이동합니다</span>
+              <span className="text-xs font-bold text-on-surface-variant block">
+                문제를 선택하면 해당 위치로 바로 이동합니다
+              </span>
               <ScrollArea orientation="vertical" maxHeight="300px" className="pr-1">
                 <ul className="grid grid-cols-5 sm:grid-cols-6 gap-2">
                   {displayQuestions.map((q, idx) => {
@@ -939,18 +1044,19 @@ function ExamContent() {
                     if (isSubmitted) {
                       btnClass = isCorrect
                         ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-extrabold ring-1 ring-emerald-500/50"
-                        : "bg-destructive/15 text-destructive border-destructive/30 font-extrabold ring-1 ring-destructive/50";
+                        : "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30 font-extrabold ring-1 ring-red-500/50";
                     }
                     return (
-                      <li key={q._id} className="shrink-0">
+                      <li key={q._id} className="shrink-0 relative">
                         <button
                           type="button"
                           onClick={() => {
                             scrollToQuestion(q._id);
                             setIsQuickNavModalOpen(false);
                           }}
-                          className={`w-full aspect-square flex items-center justify-center rounded-xl text-xs sm:text-sm font-bold transition-all shadow-2xs ${btnClass} cursor-pointer active:scale-95`}
+                          className={`w-full aspect-square flex items-center justify-center rounded-xl text-xs sm:text-sm font-bold transition-all shadow-2xs ${btnClass} cursor-pointer active:scale-95 relative`}
                         >
+                          
                           {idx + 1}
                         </button>
                       </li>

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions, User } from "@/lib/auth";
 import dbConnect from "@/lib/mongodb";
 import Feedback from "@/models/Feedback";
+import Report from "@/models/Report";
 import { sendFeedbackNotificationEmail } from "@/lib/email";
 
 // 1. 피드백 등록 (모든 사용자/게스트 가능)
@@ -13,10 +14,7 @@ export async function POST(req: Request) {
     const { type, title, content, rating, userEmail, userName } = body;
 
     if (!title || !content) {
-      return NextResponse.json(
-        { error: "제목과 내용을 모두 입력해주세요." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "제목과 내용을 모두 입력해주세요." }, { status: 400 });
     }
 
     const email = session?.user?.email || userEmail || "anonymous@one-quiz.com";
@@ -44,16 +42,10 @@ export async function POST(req: Request) {
       rating: newFeedback.rating,
     }).catch((err) => console.error("Email send error:", err));
 
-    return NextResponse.json(
-      { success: true, feedback: newFeedback },
-      { status: 201 }
-    );
+    return NextResponse.json({ success: true, feedback: newFeedback }, { status: 201 });
   } catch (error) {
     console.error("POST /api/feedback error:", error);
-    return NextResponse.json(
-      { error: "피드백 접수 중 오류가 발생했습니다." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "피드백 접수 중 오류가 발생했습니다." }, { status: 500 });
   }
 }
 
@@ -73,6 +65,65 @@ export async function GET(req: Request) {
       const dbUser = await User.findOne({ email: session.user.email });
       if (dbUser?.role === "admin") {
         isAdmin = true;
+      }
+    }
+
+    // 관리자 조회 시 기존 Report 데이터 중 Feedback에 미등록된 항목 자동 동기화
+    if (isAdmin) {
+      try {
+        const unlinkedReports = await Report.find({}).lean();
+        if (unlinkedReports.length > 0) {
+          const reportIds = unlinkedReports.map((r: { _id: unknown }) => r._id);
+          const existingFbs = await Feedback.find(
+            { reportId: { $in: reportIds } },
+            { reportId: 1 }
+          ).lean();
+          const existingIdSet = new Set(
+            existingFbs.map((f: { reportId?: unknown }) => String(f.reportId))
+          );
+          const missingReports = unlinkedReports.filter(
+            (r: { _id: unknown }) => !existingIdSet.has(String(r._id))
+          );
+
+          if (missingReports.length > 0) {
+            const syncDocs = missingReports.map((r: {
+              _id: unknown;
+              subject?: string;
+              examType?: string;
+              questionNumber?: number;
+              reportReason?: string;
+              questionText?: string;
+              userEmail?: string;
+              status?: string;
+              questionId?: unknown;
+              createdAt?: Date;
+            }) => {
+              const titleParts = [
+                r.subject,
+                r.examType,
+                r.questionNumber !== undefined ? `${r.questionNumber}번` : "",
+              ].filter(Boolean).join(" ");
+
+              return {
+                userEmail: r.userEmail && r.userEmail !== "anonymous" ? r.userEmail : "anonymous@one-quiz.com",
+                userName: "문제 오류 제보",
+                type: "report",
+                title: `[문제 오류 신고] ${titleParts || "문항 오류"}`.trim(),
+                content: `[신고 사유]\n${r.reportReason || "사유 미작성"}\n\n[문제 지문]\n${r.questionText || "지문 정보 없음"}\n\n[과목/회차/문항]: ${r.subject || "-"} / ${r.examType || "-"} / ${r.questionNumber ?? "-"}번`,
+                status: r.status === "RESOLVED" ? "resolved" : "pending",
+                questionId: r.questionId || undefined,
+                subject: r.subject || undefined,
+                examType: r.examType || undefined,
+                questionNumber: r.questionNumber !== undefined ? Number(r.questionNumber) : undefined,
+                reportId: r._id,
+                createdAt: r.createdAt || new Date(),
+              };
+            });
+            await Feedback.insertMany(syncDocs);
+          }
+        }
+      } catch (syncError) {
+        console.error("Report sync to Feedback warning:", syncError);
       }
     }
 
@@ -118,21 +169,15 @@ export async function GET(req: Request) {
     const baseUserQuery = !isAdmin ? { userEmail: session.user.email } : {};
 
     const skip = (page - 1) * limit;
-    const [
-      feedbacks,
-      total,
-      pendingCount,
-      inProgressCount,
-      resolvedCount,
-      allCount,
-    ] = await Promise.all([
-      Feedback.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-      Feedback.countDocuments(query),
-      Feedback.countDocuments({ ...baseUserQuery, status: "pending" }),
-      Feedback.countDocuments({ ...baseUserQuery, status: "in_progress" }),
-      Feedback.countDocuments({ ...baseUserQuery, status: { $in: ["resolved", "dismissed"] } }),
-      Feedback.countDocuments(baseUserQuery),
-    ]);
+    const [feedbacks, total, pendingCount, inProgressCount, resolvedCount, allCount] =
+      await Promise.all([
+        Feedback.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+        Feedback.countDocuments(query),
+        Feedback.countDocuments({ ...baseUserQuery, status: "pending" }),
+        Feedback.countDocuments({ ...baseUserQuery, status: "in_progress" }),
+        Feedback.countDocuments({ ...baseUserQuery, status: { $in: ["resolved", "dismissed"] } }),
+        Feedback.countDocuments(baseUserQuery),
+      ]);
 
     const activeCount = pendingCount + inProgressCount;
     const completedCount = resolvedCount;
@@ -151,10 +196,7 @@ export async function GET(req: Request) {
     });
   } catch (error) {
     console.error("GET /api/feedback error:", error);
-    return NextResponse.json(
-      { error: "피드백 목록을 가져오지 못했습니다." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "피드백 목록을 가져오지 못했습니다." }, { status: 500 });
   }
 }
 
@@ -203,12 +245,16 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "해당 피드백을 찾을 수 없습니다." }, { status: 404 });
     }
 
+    // 연동된 Report 컬렉션 문서 상태도 동기화
+    if (updated.reportId) {
+      const reportStatus =
+        status === "resolved" || status === "dismissed" ? "RESOLVED" : "PENDING";
+      await Report.findByIdAndUpdate(updated.reportId, { status: reportStatus });
+    }
+
     return NextResponse.json({ success: true, feedback: updated });
   } catch (error) {
     console.error("PUT /api/feedback error:", error);
-    return NextResponse.json(
-      { error: "피드백 업데이트 중 오류가 발생했습니다." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "피드백 업데이트 중 오류가 발생했습니다." }, { status: 500 });
   }
 }

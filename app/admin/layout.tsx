@@ -17,7 +17,6 @@ import {
   Loader2,
 } from "lucide-react";
 
-
 interface AdminNavItem {
   label: string;
   href: string;
@@ -41,7 +40,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <AppShell>
         <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-center">
           <Loader2 size={28} className="animate-spin text-primary" />
-          <span className="text-xs font-semibold text-on-surface-variant">관리자 권한 확인 중...</span>
+          <span className="text-xs font-semibold text-on-surface-variant">
+            관리자 권한 확인 중...
+          </span>
         </div>
         <div className="hidden" aria-hidden="true">
           {children}
@@ -131,9 +132,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-outline-variant pb-3">
           <div className="min-w-0 flex-1 w-full">
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-              <h1 className="ui-page-title break-keep">
-                문항 관리
-              </h1>
+              <h1 className="ui-page-title break-keep">문항 관리</h1>
               <span className="ui-badge px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 shrink-0">
                 Admin
               </span>
@@ -157,9 +156,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex md:hidden items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none pb-1">
           {adminNav.map((item) => {
             const isActive =
-              item.href === "/admin"
-                ? pathname === "/admin"
-                : pathname.startsWith(item.href);
+              item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
             const Icon = item.icon;
             return (
               <Link
@@ -184,9 +181,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="hidden md:block md:col-span-3 space-y-0.5 bg-surface-container-lowest p-1.5 rounded-lg border border-outline-variant">
             {adminNav.map((item) => {
               const isActive =
-                item.href === "/admin"
-                  ? pathname === "/admin"
-                  : pathname.startsWith(item.href);
+                item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
               const Icon = item.icon;
 
               return (
@@ -200,7 +195,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <Icon size={14} className={isActive ? "text-primary" : "text-on-surface-variant"} />
+                    <Icon
+                      size={14}
+                      className={isActive ? "text-primary" : "text-on-surface-variant"}
+                    />
                     <span>{item.label}</span>
                   </div>
                   {isActive && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
@@ -222,12 +220,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
 
           {/* ================= 우측 상세 컨텐츠 영역 ================= */}
-          <div className="md:col-span-9 min-w-0">
-            {children}
-          </div>
+          <div className="md:col-span-9 min-w-0">{children}</div>
         </div>
       </div>
     </AppShell>
   );
 }
-
