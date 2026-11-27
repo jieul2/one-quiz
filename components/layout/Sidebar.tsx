@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signIn, signOut } from "next-auth/react";
+import { useTheme } from "next-themes";
 import { useMounted } from "@/lib/hooks/useMounted";
 import { CustomScrollArea } from "@/components/common/CustomScrollArea";
 import {
@@ -21,6 +22,8 @@ import {
   MessageSquare,
   BookHeart,
   Palette,
+  Sun,
+  Moon,
   Settings,
   Bell,
   LogOut,
@@ -46,7 +49,7 @@ import {
 export type SidebarMode = "hidden" | "icon" | "full";
 
 export interface SidebarProps {
-  onOpenThemeModal: () => void;
+  onOpenThemeModal?: () => void;
   mode?: SidebarMode;
   onChangeMode?: (mode: SidebarMode) => void;
   onCycleMode?: () => void;
@@ -58,7 +61,7 @@ export interface SidebarProps {
 }
 
 export function Sidebar({
-  onOpenThemeModal,
+  onOpenThemeModal: _onOpenThemeModal,
   mode,
   onChangeMode,
   isCollapsed: legacyCollapsed,
@@ -69,6 +72,13 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const isDark = (resolvedTheme || theme) === "dark";
+
+  const toggleTheme = () => {
+    setTheme(isDark ? "light" : "dark");
+  };
+
   const [searchQuery, setSearchQuery] = useState("");
 
   // 3단계 모드 ("hidden": 아예 없음, "icon": 아이콘만, "full": 아이콘+글씨)
@@ -439,16 +449,20 @@ export function Sidebar({
               isIconOnly ? "flex-col gap-2" : "justify-around"
             }`}
           >
-            {/* 테마 변경 버튼 */}
+            {/* 테마 변경 버튼: 1클릭 라이트 ↔ 다크 즉시 전환 */}
             <button
               type="button"
-              onClick={onOpenThemeModal}
-              onMouseEnter={(e) => handleMouseEnterItem(e, "테마 설정")}
+              onClick={toggleTheme}
+              onMouseEnter={(e) => handleMouseEnterItem(e, isDark ? "라이트 모드로 전환" : "다크 모드로 전환")}
               onMouseLeave={handleMouseLeaveItem}
-              className="p-1.5 rounded-lg hover:bg-surface-container-low text-primary transition-colors cursor-pointer group"
-              title={isIconOnly ? undefined : "24개 다중 테마 선택"}
+              className="p-1.5 rounded-lg hover:bg-surface-container-low text-on-surface hover:text-primary transition-all cursor-pointer group active:scale-95"
+              title={isIconOnly ? undefined : (isDark ? "라이트 모드로 전환" : "다크 모드로 전환")}
             >
-              <Palette className="w-4 h-4" />
+              {isDark ? (
+                <Sun className="w-4 h-4 text-amber-500" />
+              ) : (
+                <Moon className="w-4 h-4 text-primary" />
+              )}
             </button>
 
             {/* 환경 설정 (개인 설정) */}

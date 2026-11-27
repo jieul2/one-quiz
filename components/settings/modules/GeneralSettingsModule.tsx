@@ -2,9 +2,9 @@
 
 import React, { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { Folder, RefreshCw, UserCheck, Mail, Globe2, Palette, LogOut, GraduationCap } from "lucide-react";
+import { useTheme } from "next-themes";
+import { Folder, RefreshCw, UserCheck, Mail, Globe2, Palette, Sun, Moon, LogOut, GraduationCap } from "lucide-react";
 import { SwitchToggle } from "../common/SwitchToggle";
-import { ThemeModal } from "@/components/theme/ThemeModal";
 import { useSettings } from "../SettingsContext";
 import { toast } from "@/lib/toast";
 
@@ -61,7 +61,8 @@ export function GeneralSettingsModule() {
     return false;
   });
 
-  const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const isDark = (resolvedTheme || theme) === "dark";
 
   const handleToggleDiscoverable = (val: boolean) => {
     setDiscoverable(val);
@@ -352,12 +353,28 @@ export function GeneralSettingsModule() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* 1클릭 즉시 테마 전환 버튼 */}
           <button
-            onClick={() => setIsThemeModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant ui-button transition-colors cursor-pointer"
+            type="button"
+            onClick={() => {
+              const nextTheme = isDark ? "light" : "dark";
+              setTheme(nextTheme);
+              toast.success(nextTheme === "dark" ? "다크 모드가 적용되었습니다." : "라이트 모드가 적용되었습니다.");
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant ui-button transition-all cursor-pointer active:scale-95"
+            title={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
           >
-            <Palette size={14} className="text-primary" />
-            <span>테마 변경</span>
+            {isDark ? (
+              <>
+                <Sun size={14} className="text-amber-500" />
+                <span>라이트 모드로 전환</span>
+              </>
+            ) : (
+              <>
+                <Moon size={14} className="text-primary" />
+                <span>다크 모드로 전환</span>
+              </>
+            )}
           </button>
 
           <button
@@ -369,9 +386,6 @@ export function GeneralSettingsModule() {
           </button>
         </div>
       </div>
-
-      {/* 테마 모달 (라이트 / 블랙 다크 2종) */}
-      <ThemeModal isOpen={isThemeModalOpen} onClose={() => setIsThemeModalOpen(false)} />
     </div>
   );
 }

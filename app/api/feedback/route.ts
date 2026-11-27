@@ -76,49 +76,57 @@ export async function GET(req: Request) {
           const reportIds = unlinkedReports.map((r: { _id: unknown }) => r._id);
           const existingFbs = await Feedback.find(
             { reportId: { $in: reportIds } },
-            { reportId: 1 }
+            { reportId: 1 },
           ).lean();
           const existingIdSet = new Set(
-            existingFbs.map((f: { reportId?: unknown }) => String(f.reportId))
+            existingFbs.map((f: { reportId?: unknown }) => String(f.reportId)),
           );
           const missingReports = unlinkedReports.filter(
-            (r: { _id: unknown }) => !existingIdSet.has(String(r._id))
+            (r: { _id: unknown }) => !existingIdSet.has(String(r._id)),
           );
 
           if (missingReports.length > 0) {
-            const syncDocs = missingReports.map((r: {
-              _id: unknown;
-              subject?: string;
-              examType?: string;
-              questionNumber?: number;
-              reportReason?: string;
-              questionText?: string;
-              userEmail?: string;
-              status?: string;
-              questionId?: unknown;
-              createdAt?: Date;
-            }) => {
-              const titleParts = [
-                r.subject,
-                r.examType,
-                r.questionNumber !== undefined ? `${r.questionNumber}번` : "",
-              ].filter(Boolean).join(" ");
+            const syncDocs = missingReports.map(
+              (r: {
+                _id: unknown;
+                subject?: string;
+                examType?: string;
+                questionNumber?: number;
+                reportReason?: string;
+                questionText?: string;
+                userEmail?: string;
+                status?: string;
+                questionId?: unknown;
+                createdAt?: Date;
+              }) => {
+                const titleParts = [
+                  r.subject,
+                  r.examType,
+                  r.questionNumber !== undefined ? `${r.questionNumber}번` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
 
-              return {
-                userEmail: r.userEmail && r.userEmail !== "anonymous" ? r.userEmail : "anonymous@one-quiz.com",
-                userName: "문제 오류 제보",
-                type: "report",
-                title: `[문제 오류 신고] ${titleParts || "문항 오류"}`.trim(),
-                content: `[신고 사유]\n${r.reportReason || "사유 미작성"}\n\n[문제 지문]\n${r.questionText || "지문 정보 없음"}\n\n[과목/회차/문항]: ${r.subject || "-"} / ${r.examType || "-"} / ${r.questionNumber ?? "-"}번`,
-                status: r.status === "RESOLVED" ? "resolved" : "pending",
-                questionId: r.questionId || undefined,
-                subject: r.subject || undefined,
-                examType: r.examType || undefined,
-                questionNumber: r.questionNumber !== undefined ? Number(r.questionNumber) : undefined,
-                reportId: r._id,
-                createdAt: r.createdAt || new Date(),
-              };
-            });
+                return {
+                  userEmail:
+                    r.userEmail && r.userEmail !== "anonymous"
+                      ? r.userEmail
+                      : "anonymous@one-quiz.com",
+                  userName: "문제 오류 제보",
+                  type: "report",
+                  title: `[문제 오류 신고] ${titleParts || "문항 오류"}`.trim(),
+                  content: `[신고 사유]\n${r.reportReason || "사유 미작성"}\n\n[문제 지문]\n${r.questionText || "지문 정보 없음"}\n\n[과목/회차/문항]: ${r.subject || "-"} / ${r.examType || "-"} / ${r.questionNumber ?? "-"}번`,
+                  status: r.status === "RESOLVED" ? "resolved" : "pending",
+                  questionId: r.questionId || undefined,
+                  subject: r.subject || undefined,
+                  examType: r.examType || undefined,
+                  questionNumber:
+                    r.questionNumber !== undefined ? Number(r.questionNumber) : undefined,
+                  reportId: r._id,
+                  createdAt: r.createdAt || new Date(),
+                };
+              },
+            );
             await Feedback.insertMany(syncDocs);
           }
         }
@@ -247,8 +255,7 @@ export async function PUT(req: Request) {
 
     // 연동된 Report 컬렉션 문서 상태도 동기화
     if (updated.reportId) {
-      const reportStatus =
-        status === "resolved" || status === "dismissed" ? "RESOLVED" : "PENDING";
+      const reportStatus = status === "resolved" || status === "dismissed" ? "RESOLVED" : "PENDING";
       await Report.findByIdAndUpdate(updated.reportId, { status: reportStatus });
     }
 

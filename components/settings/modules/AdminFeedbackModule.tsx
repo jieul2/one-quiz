@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
 import {
   MessageSquareText,
   RefreshCw,
@@ -17,13 +16,13 @@ import {
   Send,
   AlertCircle,
   Clock,
-  ExternalLink,
   Edit3,
   Copy,
   X,
   Save,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
+import { QuestionFormModal } from "@/components/admin/QuestionFormModal";
 
 export interface FeedbackItem {
   _id: string;
@@ -66,139 +65,15 @@ export function AdminFeedbackModule() {
     resolvedCount: 0,
   });
 
-  // 🌟 문항 오류 직접 수정 모달 상태
+  // 🌟 문항 오류 직접 수정 모달 상태 (QuestionFormModal 공통 컴포넌트 연동)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [editingFeedback, setEditingFeedback] = useState<FeedbackItem | null>(null);
-  const [isLoadingQuestion, setIsLoadingQuestion] = useState(false);
-  const [isSavingQuestion, setIsSavingQuestion] = useState(false);
-  const [editFormData, setEditFormData] = useState({
-    subject: "",
-    examType: "",
-    questionNumber: "1",
-    questionType: "multiple-choice" as "multiple-choice" | "short-answer",
-    title: "",
-    codeSnippet: "",
-    options: ["", "", "", ""],
-    correctAnswer: ["1"] as string[],
-    explanation: "",
-  });
 
-  // 문항 수정 모달 열기 및 원본 데이터 페칭
-  const handleOpenQuestionEditModal = async (questionId?: string, fb?: FeedbackItem) => {
-    setIsEditModalOpen(true);
+  const handleOpenQuestionEditModal = (questionId?: string, fb?: FeedbackItem) => {
     setEditingQuestionId(questionId || null);
     setEditingFeedback(fb || null);
-    setIsLoadingQuestion(true);
-
-    // 초기 폼 설정
-    setEditFormData({
-      subject: fb?.subject || "",
-      examType: fb?.examType || "",
-      questionNumber: String(fb?.questionNumber ?? 1),
-      questionType: "multiple-choice",
-      title: "",
-      codeSnippet: "",
-      options: ["", "", "", ""],
-      correctAnswer: ["1"],
-      explanation: "",
-    });
-
-    try {
-      let targetQ: any = null;
-      if (questionId) {
-        const res = await fetch(`/api/questions?id=${questionId}`);
-        if (res.ok) {
-          const data = await res.json();
-          targetQ = Array.isArray(data) ? data[0] : data;
-        }
-      }
-
-      if (targetQ) {
-        setEditingQuestionId(targetQ._id);
-        const parsedAnswers: string[] = (() => {
-          const raw = targetQ.correctAnswer ?? targetQ.answer;
-          if (Array.isArray(raw) && raw.length > 0) return raw.map(String);
-          if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
-            return String(raw).split(",").map((s: string) => s.trim()).filter(Boolean);
-          }
-          return ["1"];
-        })();
-
-        setEditFormData({
-          subject: targetQ.subject || fb?.subject || "",
-          examType: targetQ.examType || fb?.examType || "",
-          questionNumber: String(targetQ.questionNumber ?? fb?.questionNumber ?? 1),
-          questionType: targetQ.questionType || "multiple-choice",
-          title: targetQ.title || "",
-          codeSnippet: targetQ.codeSnippet || "",
-          options: targetQ.options && targetQ.options.length >= 2 ? targetQ.options : ["", "", "", ""],
-          correctAnswer: parsedAnswers,
-          explanation: targetQ.explanation || "",
-        });
-      }
-    } catch (err) {
-      console.error("문항 상세 조회 오류:", err);
-      toast.error("문항 상세 정보를 불러오는 중 오류가 발생했습니다.");
-    } finally {
-      setIsLoadingQuestion(false);
-    }
-  };
-
-  // 문항 수정 저장 (및 선택적 신고 해결 처리)
-  const handleSaveQuestion = async (resolveFeedback: boolean = false) => {
-    if (!editingQuestionId) {
-      toast.error("수정할 문항 ID가 없습니다.");
-      return;
-    }
-    if (!editFormData.title.trim()) {
-      toast.warning("문제 지문을 입력해주세요.");
-      return;
-    }
-    if (editFormData.correctAnswer.length === 0) {
-      toast.warning("최소 한 개 이상의 정답을 지정해주세요.");
-      return;
-    }
-
-    setIsSavingQuestion(true);
-    try {
-      const res = await fetch("/api/questions", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          _id: editingQuestionId,
-          subject: editFormData.subject,
-          examType: editFormData.examType,
-          questionNumber: Number(editFormData.questionNumber) || 1,
-          questionType: editFormData.questionType,
-          title: editFormData.title,
-          codeSnippet: editFormData.codeSnippet,
-          options: editFormData.questionType === "multiple-choice" ? editFormData.options : [],
-          correctAnswer: editFormData.correctAnswer,
-          explanation: editFormData.explanation,
-        }),
-      });
-
-      if (res.ok) {
-        toast.success("문항이 성공적으로 수정되어 반영되었습니다.");
-        if (resolveFeedback && editingFeedback) {
-          await handleUpdateFeedbackStatus(
-            editingFeedback._id,
-            "resolved",
-            `신고해주신 문항(과목: ${editFormData.subject || "-"}, #${editFormData.questionNumber}번)의 오류가 정상 수정 및 반영되었습니다. 소중한 제보 감사합니다!`
-          );
-        }
-        setIsEditModalOpen(false);
-      } else {
-        const err = await res.json();
-        toast.error(err.error || "문항 수정 중 오류가 발생했습니다.");
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("네트워크 통신 중 오류가 발생했습니다.");
-    } finally {
-      setIsSavingQuestion(false);
-    }
+    setIsEditModalOpen(true);
   };
 
   const fetchFeedbacks = useCallback(async () => {
@@ -745,75 +620,42 @@ export function AdminFeedbackModule() {
                   </div>
                 </div>
 
-                {/* 문항 오류 신고인 경우 문항 메타정보 및 문항 바로가기 배너 */}
-                {(fb.subject || fb.examType || fb.questionNumber !== undefined || fb.questionId || fb.type === "report") && (
-                  <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-xl bg-surface-container/70 border border-outline-variant text-xs text-on-surface">
-                    <span className="font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5 shrink-0">
-                      <AlertCircle size={14} />
-                      문항 정보:
-                    </span>
-                    {fb.subject && (
-                      <span className="px-2 py-0.5 rounded-md bg-surface-container-high font-medium text-[11.5px] border border-outline-variant/60">
-                        과목: {fb.subject}
-                      </span>
-                    )}
-                    {fb.examType && (
-                      <span className="px-2 py-0.5 rounded-md bg-surface-container-high font-medium text-[11.5px] border border-outline-variant/60">
-                        회차: {fb.examType}
-                      </span>
-                    )}
-                    {fb.questionNumber !== undefined && (
-                      <span className="px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 font-mono font-bold text-[11.5px] border border-rose-500/25">
-                        #{fb.questionNumber}번 문항
-                      </span>
-                    )}
-                    {fb.questionId && (
-                      <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-surface-container-high font-mono text-[11px] border border-outline-variant/60">
-                        <span className="text-on-surface-variant font-sans text-[11px]">문항 ID:</span>
-                        <span className="font-bold text-primary select-all">{fb.questionId}</span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigator.clipboard.writeText(fb.questionId!);
-                            toast.success("문항 ID가 복사되었습니다.");
-                          }}
-                          className="text-on-surface-variant hover:text-on-surface p-0.5 rounded hover:bg-surface-container-highest cursor-pointer transition-colors"
-                          title="문항 ID 클립보드 복사"
-                        >
-                          <Copy size={11} />
-                        </button>
-                      </span>
-                    )}
-
-                    <div className="ml-auto flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenQuestionEditModal(fb.questionId, fb)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary text-on-primary hover:opacity-90 text-[11.5px] font-bold transition-all cursor-pointer shadow-2xs active:scale-95"
-                        title="신고된 문항 내용/정답 바로 수정하기"
-                      >
-                        <Edit3 size={12} />
-                        <span>수정하기</span>
-                      </button>
-                      <Link
-                        href="/settings/questions"
-                        className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-on-surface-variant hover:text-primary transition-colors"
-                      >
-                        <span>문항 관리</span>
-                        <ExternalLink size={12} />
-                      </Link>
-                    </div>
-                  </div>
-                )}
-
-                {/* 피드백 제목 및 본문 */}
-                <div>
-                  <h3 className="ui-card-title text-on-surface font-bold text-sm sm:text-base mb-1.5">
+                {/* 피드백 제목 및 문항 직접 수정 버튼 */}
+                <div className="flex items-center justify-between gap-3 mb-1.5 flex-wrap">
+                  <h3 className="ui-card-title text-on-surface font-bold text-sm sm:text-base">
                     {fb.title}
                   </h3>
+                  {(fb.questionId || fb.type === "report") && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenQuestionEditModal(fb.questionId, fb)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-on-primary hover:opacity-90 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
+                      title="신고된 문항 내용 및 정답 바로 수정하기"
+                    >
+                      <Edit3 size={13} />
+                      <span>수정하기</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* 피드백 본문 (문항 오류 신고 시 본문 내 문항 ID 명시) */}
+                <div>
                   <p className="ui-body text-on-surface whitespace-pre-wrap bg-surface-container-low/70 p-3.5 rounded-xl border border-outline-variant/60 font-light leading-relaxed">
-                    {fb.content}
+                    {(() => {
+                      if (fb.type === "report" && fb.content) {
+                        let clean = fb.content;
+                        // 기존 중복된 [과목/회차/문항] 줄 제거
+                        clean = clean.replace(/\[과목\/회차\/문항\]:\s*.*$/, "").trim();
+                        // 본문에 [문항 ID]가 없거나 [문항 ID]: - 인 경우 실제 fb.questionId로 매핑
+                        if (!clean.includes("[문항 ID]:") && fb.questionId) {
+                          clean = `${clean}\n\n[문항 ID]: ${fb.questionId}`;
+                        } else if (clean.includes("[문항 ID]:") && fb.questionId) {
+                          clean = clean.replace(/\[문항 ID\]:\s*-?/, `[문항 ID]: ${fb.questionId}`);
+                        }
+                        return clean;
+                      }
+                      return fb.content;
+                    })()}
                   </p>
                 </div>
 
@@ -927,289 +769,23 @@ export function AdminFeedbackModule() {
         </div>
       )}
 
-      {/* ================= 🌟 문항 오류 직접 수정 모달 ================= */}
-      {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="p-4 sm:p-5 border-b border-outline-variant flex items-center justify-between bg-surface-container-low/50">
-              <div>
-                <h3 className="ui-section-title text-on-surface font-bold flex items-center gap-2">
-                  <Edit3 size={18} className="text-primary" />
-                  <span>신고 문항 직접 수정</span>
-                </h3>
-                <p className="ui-caption text-on-surface-variant mt-0.5">
-                  지문, 보기, 정답, 해설을 수정하면 문제 풀이와 DB에 실시간으로 즉시 반영됩니다.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-4 sm:p-6 overflow-y-auto space-y-4 max-h-[calc(90vh-140px)]">
-              {isLoadingQuestion ? (
-                <div className="py-12 text-center space-y-3">
-                  <Loader2 size={24} className="animate-spin text-primary mx-auto" />
-                  <p className="ui-caption text-on-surface-variant">문항 원본 데이터를 불러오는 중입니다...</p>
-                </div>
-              ) : (
-                <>
-                  {/* 문항 ID & 메타정보 배너 */}
-                  <div className="p-3 rounded-xl bg-surface-container/60 border border-outline-variant flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-on-surface-variant">문항 ID:</span>
-                      <span className="font-mono font-bold text-primary select-all">
-                        {editingQuestionId || "신규/미연결"}
-                      </span>
-                      {editingQuestionId && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(editingQuestionId);
-                            toast.success("문항 ID가 복사되었습니다.");
-                          }}
-                          className="p-1 rounded hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface cursor-pointer"
-                          title="ID 복사"
-                        >
-                          <Copy size={12} />
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-on-surface-variant text-[11px]">
-                      <span>과목: {editFormData.subject || "-"}</span>
-                      <span>•</span>
-                      <span>회차: {editFormData.examType || "-"}</span>
-                      <span>•</span>
-                      <span>#{editFormData.questionNumber}번</span>
-                    </div>
-                  </div>
-
-                  {/* 과목, 회차, 문항 번호 수정 */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="ui-caption font-semibold text-on-surface block mb-1">과목명</label>
-                      <input
-                        type="text"
-                        value={editFormData.subject}
-                        onChange={(e) => setEditFormData((prev) => ({ ...prev, subject: e.target.value }))}
-                        className="w-full bg-surface-container-low border border-outline-variant rounded-xl px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary"
-                        placeholder="예: 전자계산기구조"
-                      />
-                    </div>
-                    <div>
-                      <label className="ui-caption font-semibold text-on-surface block mb-1">회차명</label>
-                      <input
-                        type="text"
-                        value={editFormData.examType}
-                        onChange={(e) => setEditFormData((prev) => ({ ...prev, examType: e.target.value }))}
-                        className="w-full bg-surface-container-low border border-outline-variant rounded-xl px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary"
-                        placeholder="예: 2024년 1회"
-                      />
-                    </div>
-                    <div>
-                      <label className="ui-caption font-semibold text-on-surface block mb-1">문항 번호</label>
-                      <input
-                        type="number"
-                        value={editFormData.questionNumber}
-                        onChange={(e) => setEditFormData((prev) => ({ ...prev, questionNumber: e.target.value }))}
-                        className="w-full bg-surface-container-low border border-outline-variant rounded-xl px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary"
-                        min="1"
-                      />
-                    </div>
-                  </div>
-
-                  {/* 문제 유형 선택 */}
-                  <div>
-                    <label className="ui-caption font-semibold text-on-surface block mb-1">문제 유형</label>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setEditFormData((prev) => ({ ...prev, questionType: "multiple-choice" }))}
-                        className={`flex-1 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
-                          editFormData.questionType === "multiple-choice"
-                            ? "bg-primary text-on-primary border-primary shadow-xs"
-                            : "bg-surface-container-low text-on-surface-variant border-outline-variant hover:text-on-surface"
-                        }`}
-                      >
-                        객관식 (4지선다)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditFormData((prev) => ({ ...prev, questionType: "short-answer" }))}
-                        className={`flex-1 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
-                          editFormData.questionType === "short-answer"
-                            ? "bg-primary text-on-primary border-primary shadow-xs"
-                            : "bg-surface-container-low text-on-surface-variant border-outline-variant hover:text-on-surface"
-                        }`}
-                      >
-                        주관식 (단답형)
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 문제 지문 (제목) */}
-                  <div>
-                    <label className="ui-caption font-semibold text-on-surface block mb-1">문제 지문</label>
-                    <textarea
-                      value={editFormData.title}
-                      onChange={(e) => setEditFormData((prev) => ({ ...prev, title: e.target.value }))}
-                      rows={3}
-                      className="w-full bg-surface-container-low border border-outline-variant rounded-xl p-3 text-xs sm:text-sm text-on-surface focus:outline-none focus:border-primary leading-relaxed resize-y"
-                      placeholder="문제 지문을 입력하세요"
-                    />
-                  </div>
-
-                  {/* 코드 스니펫 (선택) */}
-                  <div>
-                    <label className="ui-caption font-semibold text-on-surface block mb-1">
-                      코드 스니펫 / 첨부 텍스트 (선택)
-                    </label>
-                    <textarea
-                      value={editFormData.codeSnippet}
-                      onChange={(e) => setEditFormData((prev) => ({ ...prev, codeSnippet: e.target.value }))}
-                      rows={3}
-                      className="w-full bg-surface-container-low border border-outline-variant rounded-xl p-3 text-xs font-mono text-on-surface focus:outline-none focus:border-primary resize-y"
-                      placeholder="예: 소스코드나 표, 추가 설명 텍스트 (마크다운 지원)"
-                    />
-                  </div>
-
-                  {/* 객관식 보기 및 정답 설정 */}
-                  {editFormData.questionType === "multiple-choice" ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <label className="ui-caption font-semibold text-on-surface">
-                          보기 목록 및 정답 선택 (번호를 눌러 정답 지정/해제)
-                        </label>
-                        <span className="text-[11px] text-primary font-bold">
-                          현재 정답: {editFormData.correctAnswer.join(", ") || "없음"}번
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        {editFormData.options.map((opt, idx) => {
-                          const optNum = String(idx + 1);
-                          const isCorrect = editFormData.correctAnswer.includes(optNum);
-                          return (
-                            <div key={idx} className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditFormData((prev) => {
-                                    const exists = prev.correctAnswer.includes(optNum);
-                                    const nextAnswers = exists
-                                      ? prev.correctAnswer.filter((a) => a !== optNum)
-                                      : [...prev.correctAnswer, optNum];
-                                    return {
-                                      ...prev,
-                                      correctAnswer: nextAnswers.length > 0 ? nextAnswers : [optNum],
-                                    };
-                                  });
-                                }}
-                                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all cursor-pointer border ${
-                                  isCorrect
-                                    ? "bg-emerald-500 text-white border-emerald-500 shadow-xs"
-                                    : "bg-surface-container text-on-surface-variant border-outline-variant hover:border-primary"
-                                }`}
-                                title={`보기 ${optNum}번 정답 지정/해제`}
-                              >
-                                {optNum}
-                              </button>
-                              <input
-                                type="text"
-                                value={opt}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setEditFormData((prev) => {
-                                    const newOpts = [...prev.options];
-                                    newOpts[idx] = val;
-                                    return { ...prev, options: newOpts };
-                                  });
-                                }}
-                                className={`flex-1 bg-surface-container-low border rounded-xl px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary ${
-                                  isCorrect ? "border-emerald-500/50 bg-emerald-500/5" : "border-outline-variant"
-                                }`}
-                                placeholder={`보기 ${optNum} 내용`}
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="ui-caption font-semibold text-on-surface block mb-1">
-                        주관식 정답 (쉼표로 복수 정답 구분 가능)
-                      </label>
-                      <input
-                        type="text"
-                        value={editFormData.correctAnswer.join(", ")}
-                        onChange={(e) => {
-                          const split = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
-                          setEditFormData((prev) => ({ ...prev, correctAnswer: split }));
-                        }}
-                        className="w-full bg-surface-container-low border border-outline-variant rounded-xl px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary font-bold"
-                        placeholder="예: 스택, stack"
-                      />
-                    </div>
-                  )}
-
-                  {/* 해설 */}
-                  <div>
-                    <label className="ui-caption font-semibold text-on-surface block mb-1">해설 (설명)</label>
-                    <textarea
-                      value={editFormData.explanation}
-                      onChange={(e) => setEditFormData((prev) => ({ ...prev, explanation: e.target.value }))}
-                      rows={3}
-                      className="w-full bg-surface-container-low border border-outline-variant rounded-xl p-3 text-xs sm:text-sm text-on-surface focus:outline-none focus:border-primary leading-relaxed resize-y"
-                      placeholder="해설 내용을 입력하세요"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-3.5 sm:p-4 border-t border-outline-variant flex flex-wrap items-center justify-between gap-2.5 bg-surface-container-low/50">
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(false)}
-                className="px-3.5 py-2 rounded-xl border border-outline-variant bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-semibold cursor-pointer transition-colors"
-              >
-                취소
-              </button>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleSaveQuestion(false)}
-                  disabled={isSavingQuestion || isLoadingQuestion}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-on-primary hover:opacity-90 text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                >
-                  {isSavingQuestion ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                  <span>수정 사항 저장</span>
-                </button>
-
-                {editingFeedback && (
-                  <button
-                    type="button"
-                    onClick={() => handleSaveQuestion(true)}
-                    disabled={isSavingQuestion || isLoadingQuestion}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                  >
-                    {isSavingQuestion ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                    <span>수정 & 해결완료 보관</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ================= 🌟 문항 오류 직접 수정 모달 (QuestionFormModal 공통 컴포넌트) ================= */}
+      <QuestionFormModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        questionId={editingQuestionId}
+        feedbackId={editingFeedback?._id}
+        defaultSubject={editingFeedback?.subject}
+        defaultExamType={editingFeedback?.examType}
+        defaultQuestionNumber={editingFeedback?.questionNumber}
+        onSuccess={() => {
+          fetchFeedbacks();
+        }}
+        onResolveFeedback={async (fId, reply) => {
+          await handleUpdateFeedbackStatus(fId, "resolved", reply);
+          fetchFeedbacks();
+        }}
+      />
     </div>
   );
 }

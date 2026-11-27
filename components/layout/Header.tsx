@@ -2,10 +2,11 @@
 
 import React from "react";
 import { usePathname } from "next/navigation";
-import { Palette, Maximize } from "lucide-react";
+import { useTheme } from "next-themes";
+import { Maximize, Sun, Moon } from "lucide-react";
 
 interface HeaderProps {
-  onOpenThemeModal: () => void;
+  onOpenThemeModal?: () => void;
 }
 
 const PAGE_TITLES: Record<string, { title: string; subtitle?: string }> = {
@@ -33,9 +34,15 @@ const PAGE_TITLES: Record<string, { title: string; subtitle?: string }> = {
 };
 
 export function Header({
-  onOpenThemeModal,
+  onOpenThemeModal: _onOpenThemeModal,
 }: HeaderProps) {
   const pathname = usePathname();
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const isDark = (resolvedTheme || theme) === "dark";
+
+  const toggleTheme = () => {
+    setTheme(isDark ? "light" : "dark");
+  };
 
   // Find matching page info
   let pageInfo = PAGE_TITLES[pathname];
@@ -70,15 +77,21 @@ export function Header({
 
       {/* Right: Actions Toolbar */}
       <div className="flex items-center gap-space-xs shrink-0">
-        {/* Theme Palette Button */}
+        {/* Theme Toggle Button (라이트 ↔ 다크 1클릭 전환) */}
         <button
           type="button"
-          onClick={onOpenThemeModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface font-label-sm text-label-sm transition-colors border border-outline-variant"
-          title="테마 변경"
+          onClick={toggleTheme}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface font-label-sm text-label-sm transition-all border border-outline-variant cursor-pointer active:scale-95"
+          title={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
         >
-          <Palette className="w-4 h-4 text-primary" />
-          <span className="hidden sm:inline font-semibold">테마</span>
+          {isDark ? (
+            <Sun className="w-4 h-4 text-amber-500" />
+          ) : (
+            <Moon className="w-4 h-4 text-primary" />
+          )}
+          <span className="hidden sm:inline font-semibold">
+            {isDark ? "라이트 모드" : "다크 모드"}
+          </span>
         </button>
 
         {/* Fullscreen Button */}

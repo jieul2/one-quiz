@@ -4,7 +4,9 @@ import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/mongodb";
 import Feedback from "@/models/Feedback";
 
-export async function GET() {
+export async function GET(req: Request) {
+  // Accessing request properties marks the handler as explicitly dynamic
+  new URL(req.url);
   try {
     const session = await getServerSession(authOptions);
     if (!session || session.user?.role !== "admin") {

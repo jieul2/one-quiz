@@ -72,9 +72,10 @@ export async function GET(req: NextRequest) {
   const nxParam = searchParams.get("nx");
   const nyParam = searchParams.get("ny");
 
-  let nx = 60;
-  let ny = 127;
-  let locationName = "서울특별시";
+  // 디폴트 좌표 및 지역명: 대전광역시 (nx: 67, ny: 100)
+  let nx = 67;
+  let ny = 100;
+  let locationName = "대전광역시";
 
   if (cityParam && CITY_COORDINATES[cityParam]) {
     const c = CITY_COORDINATES[cityParam];
@@ -88,11 +89,32 @@ export async function GET(req: NextRequest) {
       const grid = convertLatLngToGrid(lat, lng);
       nx = grid.nx;
       ny = grid.ny;
-      locationName = "현재 위치";
+
+      // 가장 인접한 주요 도시명 감지
+      let closestCityName = "";
+      let minDistance = Infinity;
+      for (const key in CITY_COORDINATES) {
+        const c = CITY_COORDINATES[key];
+        const dist = Math.hypot(grid.nx - c.nx, grid.ny - c.ny);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestCityName = c.name;
+        }
+      }
+
+      if (minDistance <= 6 && closestCityName) {
+        const shortName = closestCityName
+          .replace("광역시", "")
+          .replace("특별자치시", "")
+          .replace("특별자치도", "");
+        locationName = `현재 위치 (${shortName})`;
+      } else {
+        locationName = "현재 위치";
+      }
     }
   } else if (nxParam && nyParam) {
-    nx = parseInt(nxParam, 10) || 60;
-    ny = parseInt(nyParam, 10) || 127;
+    nx = parseInt(nxParam, 10) || 67;
+    ny = parseInt(nyParam, 10) || 100;
   }
 
   const cacheKey = `${nx}_${ny}`;

@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { Sidebar, SidebarMode } from "./Sidebar";
-import { ThemeModal } from "@/components/theme/ThemeModal";
 import { FeedbackModal } from "@/components/feedback/FeedbackModal";
 import { Menu, PanelLeft, PanelLeftOpen } from "lucide-react";
 
@@ -27,10 +26,7 @@ if (typeof window !== "undefined") {
 }
 
 export function AppShell({ children }: AppShellProps) {
-  // 1. 24개 테마 선택 모달 상태
-  const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
-
-  // 2. 사이드바 반응형 상태 (3단계 모드: "hidden"(아예 없음) | "icon"(아이콘만) | "full"(아이콘+글씨))
+  // 1. 사이드바 반응형 상태 (3단계 모드: "hidden"(아예 없음) | "icon"(아이콘만) | "full"(아이콘+글씨))
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   // 최초 하이드레이션 시점(!hasAppHydrated)에는 SSR pre-render 결과("full")와 100% 일치시켜 Hydration Mismatch 방지
@@ -126,7 +122,6 @@ export function AppShell({ children }: AppShellProps) {
       {/* 1. 반응형 사이드바 (3단계: 완전 숨김 / 아이콘만 / 아이콘+글씨) */}
       <Suspense fallback={null}>
         <Sidebar
-          onOpenThemeModal={() => setIsThemeModalOpen(true)}
           mode={effectiveSidebarMode}
           onChangeMode={handleChangeSidebarMode}
           onCycleMode={handleCycleSidebarMode}
@@ -191,13 +186,7 @@ export function AppShell({ children }: AppShellProps) {
         </main>
       </div>
 
-      {/* 4. 24개 테마 선택 모달 */}
-      <ThemeModal
-        isOpen={isThemeModalOpen}
-        onClose={() => setIsThemeModalOpen(false)}
-      />
-
-      {/* 5. 전역 플로팅 피드백 & 버그 제보 모달 */}
+      {/* 4. 전역 플로팅 피드백 & 버그 제보 모달 */}
       <FeedbackModal />
     </div>
   );

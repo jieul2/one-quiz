@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       .join(" ");
 
     const reportTitle = `[문제 오류 신고] ${titleParts || "문항 오류"}`.trim();
-    const reportContent = `[신고 사유]\n${reportReason}\n\n[문제 지문]\n${questionText || "지문 정보 없음"}\n\n[과목/회차/문항]: ${subject || "-"} / ${examType || "-"} / ${questionNumber ?? "-"}번`;
+    const reportContent = `[신고 사유]\n${reportReason}\n\n[문제 지문]\n${questionText || "지문 정보 없음"}\n\n[문항 ID]: ${questionId || "-"}`;
 
     const newFeedback = await Feedback.create({
       userEmail: email,

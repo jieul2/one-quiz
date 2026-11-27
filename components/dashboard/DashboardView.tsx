@@ -1582,17 +1582,17 @@ interface WeatherData {
   }>;
 }
 
-// 7. 날씨 위젯 (대한민국 기상청 공공데이터 API 실시간 연동)
+// 7. 날씨 위젯 (대한민국 기상청 공공데이터 API 실시간 연동 - 현재위치 기준 & 기본 대전)
 function WeatherWidget() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedCity, setSelectedCity] = useState("seoul");
+  const [selectedCity, setSelectedCity] = useState("current");
 
-  const fetchWeather = useCallback(async (cityKey?: string) => {
+  // 도시명 기준 날씨 조회
+  const fetchCityWeather = useCallback(async (cityKey: string) => {
     setLoading(true);
     try {
-      const city = cityKey || selectedCity;
-      const res = await fetch(`/api/weather?city=${city}`);
+      const res = await fetch(`/api/weather?city=${cityKey}`);
       if (res.ok) {
         const data = await res.json();
         setWeather(data);
@@ -1602,16 +1602,65 @@ function WeatherWidget() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCity]);
+  }, []);
 
+  // 현재 위치(GPS) 기반 날씨 조회 (실패 또는 거부 시 기본값 대전으로 자동 폴백)
+  const fetchCurrentLocationWeather = useCallback(() => {
+    setLoading(true);
+    if (typeof window !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          try {
+            const { latitude, longitude } = pos.coords;
+            const res = await fetch(`/api/weather?lat=${latitude}&lng=${longitude}`);
+            if (res.ok) {
+              const data = await res.json();
+              setWeather(data);
+              setLoading(false);
+              return;
+            }
+          } catch (e) {
+            console.warn("GPS weather fetch error, fallback to Daejeon:", e);
+          }
+          // 위치 API 호출 실패 시 대전으로 폴백
+          setSelectedCity("daejeon");
+          fetchCityWeather("daejeon");
+        },
+        (err) => {
+          // 위치 권한 거부, 타임아웃 등 실패 시 대전으로 폴백
+          console.warn("Geolocation denied or unavailable, fallback to Daejeon:", err.message);
+          setSelectedCity("daejeon");
+          fetchCityWeather("daejeon");
+        },
+        { timeout: 8000, maximumAge: 300000, enableHighAccuracy: false }
+      );
+    } else {
+      setSelectedCity("daejeon");
+      fetchCityWeather("daejeon");
+    }
+  }, [fetchCityWeather]);
+
+  // 최초 진입 시 현재 위치 기준 조회 (안되면 대전으로 자동 폴백)
   useEffect(() => {
-    fetchWeather();
-  }, [fetchWeather]);
+    fetchCurrentLocationWeather();
+  }, [fetchCurrentLocationWeather]);
 
   const handleCityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newCity = e.target.value;
     setSelectedCity(newCity);
-    fetchWeather(newCity);
+    if (newCity === "current") {
+      fetchCurrentLocationWeather();
+    } else {
+      fetchCityWeather(newCity);
+    }
+  };
+
+  const handleRefresh = () => {
+    if (selectedCity === "current") {
+      fetchCurrentLocationWeather();
+    } else {
+      fetchCityWeather(selectedCity);
+    }
   };
 
   // 날씨 상태에 따른 아이콘 선택
@@ -1641,7 +1690,7 @@ function WeatherWidget() {
               {weather ? `${weather.temperature}°C` : "--°C"}
             </div>
             <div className="text-xs text-on-surface-variant mt-1 flex items-center gap-1.5">
-              <span>{weather?.location || "서울특별시"} · {weather?.status || "맑음"}</span>
+              <span>{weather?.location || (selectedCity === "daejeon" ? "대전광역시" : "현재 위치")} · {weather?.status || "맑음"}</span>
               {weather?.updatedAt && (
                 <span className="text-[10px] text-on-surface-variant/70">
                   ({weather.updatedAt} 발표)
@@ -1658,10 +1707,11 @@ function WeatherWidget() {
             onChange={handleCityChange}
             className="text-[11px] font-semibold bg-surface-container-low border border-outline-variant rounded-lg px-2 py-1 text-on-surface focus:outline-none focus:border-primary cursor-pointer"
           >
+            <option value="current">📍 현재 위치</option>
+            <option value="daejeon">대전 (기본)</option>
             <option value="seoul">서울</option>
             <option value="incheon">인천</option>
             <option value="suwon">수원</option>
-            <option value="daejeon">대전</option>
             <option value="daegu">대구</option>
             <option value="busan">부산</option>
             <option value="gwangju">광주</option>
@@ -1673,7 +1723,7 @@ function WeatherWidget() {
 
           <button
             type="button"
-            onClick={() => fetchWeather()}
+            onClick={handleRefresh}
             disabled={loading}
             className="p-1 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
             title="기상청 실시간 날씨 새로고침"
