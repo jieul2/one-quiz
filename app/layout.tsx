@@ -21,6 +21,11 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var m=localStorage.getItem("onequiz_sidebar_mode");if(m!=="hidden"&&m!=="icon"&&m!=="full"){m=localStorage.getItem("onequiz_sidebar_collapsed")==="true"?"icon":"full";}document.documentElement.dataset.sidebarMode=m;}catch(e){}`,
+          }}
+        />
         <link
           rel="preload"
           href="/fonts/PretendardVariable.woff2"

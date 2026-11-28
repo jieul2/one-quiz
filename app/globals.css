@@ -317,3 +317,25 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* 🌟 사이드바 모드 SSR/라우팅 전환 시 너비 깜빡임(240px -> 72px 점프) 원천 방지 */
+@media (min-width: 768px) {
+  html[data-sidebar-mode="icon"] aside[data-app-sidebar] {
+    width: 72px !important;
+  }
+  html[data-sidebar-mode="icon"] [data-sidebar-content-offset] {
+    padding-left: 72px !important;
+  }
+  html[data-sidebar-mode="icon"] [data-sidebar-full-only] {
+    display: none !important;
+  }
+  html[data-sidebar-mode="hidden"] aside[data-app-sidebar] {
+    width: 0px !important;
+    transform: translateX(-100%) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  html[data-sidebar-mode="hidden"] [data-sidebar-content-offset] {
+    padding-left: 0px !important;
+  }
+}

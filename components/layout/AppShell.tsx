@@ -38,24 +38,34 @@ export function AppShell({ children }: AppShellProps) {
     return cachedSidebarMode;
   });
 
-  // 최초 SSR 마운트 직후 "full" -> "icon" 동기화 시 300ms 애니메이션이 동작하지 않도록 마운트 완료 후 트랜지션 활성화
-  const [enableTransitions, setEnableTransitions] = useState(() => hasAppHydrated);
+  // 최초 마운트·라우트 전환 직후에는 너비 애니메이션을 비활성화해 깜빡임/점프를 차단하고, 안정화 후 사용자 토글용 트랜지션 활성화
+  const [enableTransitions, setEnableTransitions] = useState(false);
 
   // 초기 마운트 시 로컬스토리지 최신 설정 동기화
   useEffect(() => {
     hasAppHydrated = true;
-    try {
-      const savedMode = localStorage.getItem("onequiz_sidebar_mode");
-      if (savedMode === "hidden" || savedMode === "icon" || savedMode === "full") {
-        cachedSidebarMode = savedMode;
-        setSidebarMode(savedMode);
-      }
-    } catch {}
+    const syncTimer = setTimeout(() => {
+      try {
+        const savedMode = localStorage.getItem("onequiz_sidebar_mode");
+        if (savedMode === "hidden" || savedMode === "icon" || savedMode === "full") {
+          cachedSidebarMode = savedMode;
+          setSidebarMode(savedMode);
+          document.documentElement.dataset.sidebarMode = savedMode;
+        } else if (localStorage.getItem("onequiz_sidebar_collapsed") === "true") {
+          cachedSidebarMode = "icon";
+          setSidebarMode("icon");
+          document.documentElement.dataset.sidebarMode = "icon";
+        }
+      } catch {}
+    }, 0);
 
-    const timer = setTimeout(() => {
+    const transitionTimer = setTimeout(() => {
       setEnableTransitions(true);
-    }, 50);
-    return () => clearTimeout(timer);
+    }, 80);
+    return () => {
+      clearTimeout(syncTimer);
+      clearTimeout(transitionTimer);
+    };
   }, []);
 
   // 🌟 전역 드래그 시작 시 기존 텍스트 선택(드래그) 영역 자동 해제 (잔상 방지)
@@ -95,9 +105,19 @@ export function AppShell({ children }: AppShellProps) {
   const effectiveSidebarMode: SidebarMode =
     isNarrowDesktop && sidebarMode === "full" ? "icon" : sidebarMode;
 
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.sidebarMode = effectiveSidebarMode;
+    }
+  }, [effectiveSidebarMode]);
+
   const handleChangeSidebarMode = (mode: SidebarMode) => {
     cachedSidebarMode = mode;
     setSidebarMode(mode);
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.sidebarMode =
+        isNarrowDesktop && mode === "full" ? "icon" : mode;
+    }
     if (typeof window !== "undefined") {
       localStorage.setItem("onequiz_sidebar_mode", mode);
       localStorage.setItem("onequiz_sidebar_collapsed", String(mode === "icon"));
@@ -109,6 +129,10 @@ export function AppShell({ children }: AppShellProps) {
       const next: SidebarMode =
         prev === "full" ? "icon" : prev === "icon" ? "hidden" : "full";
       cachedSidebarMode = next;
+      if (typeof document !== "undefined") {
+        document.documentElement.dataset.sidebarMode =
+          isNarrowDesktop && next === "full" ? "icon" : next;
+      }
       if (typeof window !== "undefined") {
         localStorage.setItem("onequiz_sidebar_mode", next);
         localStorage.setItem("onequiz_sidebar_collapsed", String(next === "icon"));
@@ -172,7 +196,8 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* 3. 메인 컨텐츠 영역 (네브바 제외한 남은 공간을 100% 쾌적하게 활용하도록 유동적 레이아웃 적용) */}
       <div
-        className={`min-h-screen ${enableTransitions ? "transition-all duration-300" : ""} w-full ${
+        data-sidebar-content-offset="true"
+        className={`min-h-screen ${enableTransitions ? "transition-[padding] duration-200" : ""} w-full ${
           /* 3단계 사이드바 반응형 오프셋 */
           effectiveSidebarMode === "hidden"
             ? "md:pl-0"

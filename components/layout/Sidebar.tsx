@@ -263,8 +263,9 @@ export function Sidebar({
 
       {/* 사이드바 본체 */}
       <aside
+        data-app-sidebar="true"
         className={`fixed left-0 top-0 h-screen h-[100dvh] max-h-[100dvh] bg-surface-container-lowest z-50 flex flex-col justify-between overflow-hidden md:overflow-visible border-r border-outline-variant shadow-xs ${
-          enableTransitions ? "transition-all duration-300" : ""
+          enableTransitions ? "transition-[width,transform,opacity] duration-200" : ""
         } ${
           /* 모바일: 서랍식 슬라이드 (아이콘 모드 시 컴팩트 w-24, 펼침 모드 시 w-72 max-w-[85vw]) */
           isMobileOpen
@@ -329,7 +330,7 @@ export function Sidebar({
                   />
                 </div>
 
-                <div className="flex flex-col min-w-0 overflow-hidden">
+                <div data-sidebar-full-only="true" className="flex flex-col min-w-0 overflow-hidden">
                   <span className="text-[17px] font-black tracking-tight text-on-surface leading-tight truncate">
                     원퀴즈
                   </span>
@@ -399,7 +400,7 @@ export function Sidebar({
 
           {/* 검색창: 펼쳐진 상태에서만 노출 */}
           {!isIconOnly && (
-            <div className="relative flex items-center mt-1">
+            <div data-sidebar-full-only="true" className="relative flex items-center mt-1">
               <Search className="w-4 h-4 absolute left-2.5 text-on-surface-variant pointer-events-none" />
               <input
                 type="text"
@@ -424,7 +425,7 @@ export function Sidebar({
               <div key={section.title} className="flex flex-col gap-1">
                 {/* 대분류 제목 (전체 펼침 모드일 때만 표시) */}
                 {!isIconOnly && (
-                  <div className="px-3 pt-2 pb-0.5 text-[11px] font-bold text-on-surface-variant/70 tracking-wider">
+                  <div data-sidebar-full-only="true" className="px-3 pt-2 pb-0.5 text-[11px] font-bold text-on-surface-variant/70 tracking-wider">
                     {section.title}
                   </div>
                 )}
@@ -473,7 +474,7 @@ export function Sidebar({
                               active ? "text-primary" : "text-on-surface-variant"
                             }`}
                           />
-                          <span className="truncate whitespace-nowrap">
+                          <span data-sidebar-full-only="true" className="truncate whitespace-nowrap">
                             {item.label}
                           </span>
                         </div>
