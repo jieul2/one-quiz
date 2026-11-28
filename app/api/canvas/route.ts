@@ -3,17 +3,65 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/mongodb";
 import CanvasItem from "@/models/CanvasItem";
+import CanvasRoom from "@/models/CanvasRoom";
+import { getCollabAccess } from "@/lib/collaborationServer";
 
-// 1. 캔버스 아이템 목록 조회
+async function verifyRoomAccess(boardId: string, userEmail: string) {
+  const room = await CanvasRoom.findOne({ roomId: boardId }).lean();
+  if (!room) {
+    return {
+      room: null,
+      canRead: false,
+      canEdit: false,
+      role: null as "owner" | "editor" | "viewer" | null,
+    };
+  }
+  const access = await getCollabAccess(
+    "canvas",
+    boardId,
+    userEmail,
+    room.creatorEmail
+  );
+  return {
+    room,
+    canRead: access.canRead,
+    canEdit: access.canEdit,
+    role: access.role,
+  };
+}
+
+// 1. 캔버스 아이템 목록 조회 (소유자 또는 협업 그룹 멤버만 조회 가능)
 export async function GET(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    const userEmail = session?.user?.email;
+    if (!userEmail) {
+      return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
-    const boardId = searchParams.get("boardId") || "default-room";
+    const boardId = searchParams.get("boardId");
+    if (!boardId) {
+      return NextResponse.json({ error: "boardId가 필요합니다." }, { status: 400 });
+    }
 
     await dbConnect();
+    const access = await verifyRoomAccess(boardId, userEmail);
+    if (!access.room || !access.canRead) {
+      return NextResponse.json(
+        { error: "해당 캔버스 회의실에 접근할 권한이 없습니다." },
+        { status: 403 }
+      );
+    }
+
     const items = await CanvasItem.find({ boardId }).sort({ createdAt: 1 }).lean();
 
-    return NextResponse.json({ success: true, items });
+    return NextResponse.json({
+      success: true,
+      items,
+      myRole: access.role,
+      canEdit: access.canEdit,
+    });
   } catch (error) {
     console.error("GET /api/canvas error:", error);
     return NextResponse.json(
@@ -23,16 +71,21 @@ export async function GET(req: Request) {
   }
 }
 
-// 2. 신규 캔버스 아이템 생성
+// 2. 신규 캔버스 아이템 생성 (소유자 또는 editor 권한 멤버만 허용)
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    const userEmail = session?.user?.email || "anonymous@one-quiz.com";
-    const authorName = session?.user?.name || (session?.user?.email ? session.user.email.split("@")[0] : "학습자");
+    const userEmail = session?.user?.email;
+    if (!userEmail) {
+      return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    }
+
+    const authorName =
+      session.user?.name || userEmail.split("@")[0] || "학습자";
 
     const body = await req.json();
     const {
-      boardId = "default-room",
+      boardId,
       type = "sticky",
       x = 100,
       y = 100,
@@ -45,7 +98,18 @@ export async function POST(req: Request) {
       meetingStatus = "todo",
     } = body;
 
+    if (!boardId) {
+      return NextResponse.json({ error: "boardId가 필요합니다." }, { status: 400 });
+    }
+
     await dbConnect();
+    const access = await verifyRoomAccess(boardId, userEmail);
+    if (!access.room || !access.canEdit) {
+      return NextResponse.json(
+        { error: "편집 권한이 없습니다. (읽기 전용 또는 미인가)" },
+        { status: 403 }
+      );
+    }
 
     const newItem = await CanvasItem.create({
       userEmail,
@@ -76,6 +140,12 @@ export async function POST(req: Request) {
 // 3. 캔버스 아이템 업데이트 (위치 드래그, 내용 수정, 스티커/투표 등)
 export async function PUT(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    const userEmail = session?.user?.email;
+    if (!userEmail) {
+      return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    }
+
     const body = await req.json();
     const { id, ...updateData } = body;
 
@@ -85,14 +155,23 @@ export async function PUT(req: Request) {
 
     await dbConnect();
 
+    const existing = await CanvasItem.findById(id).lean();
+    if (!existing) {
+      return NextResponse.json({ error: "아이템을 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    const access = await verifyRoomAccess(existing.boardId, userEmail);
+    if (!access.canEdit) {
+      return NextResponse.json(
+        { error: "편집 권한이 없습니다." },
+        { status: 403 }
+      );
+    }
+
     const updated = await CanvasItem.findByIdAndUpdate(id, updateData, {
       new: true,
       returnDocument: "after",
     });
-
-    if (!updated) {
-      return NextResponse.json({ error: "아이템을 찾을 수 없습니다." }, { status: 404 });
-    }
 
     return NextResponse.json({ success: true, item: updated });
   } catch (error) {
@@ -107,6 +186,12 @@ export async function PUT(req: Request) {
 // 4. 캔버스 아이템 삭제
 export async function DELETE(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    const userEmail = session?.user?.email;
+    if (!userEmail) {
+      return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     const boardId = searchParams.get("boardId");
@@ -115,12 +200,32 @@ export async function DELETE(req: Request) {
     await dbConnect();
 
     if (clearAll && boardId) {
+      const access = await verifyRoomAccess(boardId, userEmail);
+      if (!access.canEdit) {
+        return NextResponse.json(
+          { error: "초기화 권한이 없습니다." },
+          { status: 403 }
+        );
+      }
       await CanvasItem.deleteMany({ boardId });
       return NextResponse.json({ success: true, message: "캔버스가 초기화되었습니다." });
     }
 
     if (!id) {
       return NextResponse.json({ error: "삭제할 아이템 ID가 필요합니다." }, { status: 400 });
+    }
+
+    const existing = await CanvasItem.findById(id).lean();
+    if (!existing) {
+      return NextResponse.json({ error: "아이템을 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    const access = await verifyRoomAccess(existing.boardId, userEmail);
+    if (!access.canEdit) {
+      return NextResponse.json(
+        { error: "삭제 권한이 없습니다." },
+        { status: 403 }
+      );
     }
 
     await CanvasItem.findByIdAndDelete(id);

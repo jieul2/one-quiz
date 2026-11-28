@@ -12,6 +12,7 @@ import {
   TableProperties,
   FileText,
   History,
+  Share2,
 } from "lucide-react";
 import { SaveStatusIndicator, SaveStatus } from "@/components/common/SaveStatusIndicator";
 import { ErdTab } from "./types";
@@ -32,6 +33,7 @@ interface ErdHeaderProps {
   onOpenNewProjectModal: () => void;
   onOpenCommitModal: () => void;
   onOpenExportModal: () => void;
+  onOpenShareModal?: () => void;
   onLoadSampleTemplate: () => void;
   onChangeTab: (tab: ErdTab) => void;
 }
@@ -52,6 +54,7 @@ export function ErdHeader({
   onOpenNewProjectModal,
   onOpenCommitModal,
   onOpenExportModal,
+  onOpenShareModal,
   onLoadSampleTemplate,
   onChangeTab,
 }: ErdHeaderProps) {
@@ -147,6 +150,19 @@ export function ErdHeader({
             <Download size={14} />
             <span>내보내기</span>
           </button>
+
+          {/* 협업 공유 버튼 */}
+          {onOpenShareModal && (
+            <button
+              type="button"
+              onClick={onOpenShareModal}
+              className="ui-button px-3 py-1.5 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary flex items-center gap-1.5 transition-colors font-semibold shrink-0 whitespace-nowrap text-xs cursor-pointer"
+              title="회원 이메일을 입력하여 이 ERD 명세서 협업 공유"
+            >
+              <Share2 size={14} />
+              <span>공유 · 협업</span>
+            </button>
+          )}
 
           {/* 스타터 샘플 로드 버튼 */}
           <button

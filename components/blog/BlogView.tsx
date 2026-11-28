@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import ReactMarkdown from "react-markdown";
+import { MarkdownRenderer } from "@/components/common/MarkdownRenderer";
+import { MarkdownEditor } from "@/components/common/MarkdownEditor";
 import {
   BookOpen,
   Plus,
@@ -320,7 +321,7 @@ export function BlogView() {
       {/* ================= 모달: 아티클 작성 ================= */}
       {isWriteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-          <div className="w-full max-w-2xl bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-4xl bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-2 border-b border-outline-variant">
               <h3 className="ui-section-title text-on-surface">블로그 아티클 발행</h3>
               <button
@@ -397,12 +398,11 @@ export function BlogView() {
                 <label className="block ui-caption font-semibold text-on-surface mb-1">
                   본문 (마크다운 지원) *
                 </label>
-                <textarea
+                <MarkdownEditor
                   value={writeContent}
-                  onChange={(e) => setWriteContent(e.target.value)}
+                  onChange={setWriteContent}
                   placeholder="# 대제목&#10;## 소제목&#10;학습한 내용, 코드 블록, 정리 사항을 자유롭게 작성하세요."
-                  className="w-full px-3 py-2 h-64 bg-surface-container-low border border-outline-variant rounded-md text-xs text-on-surface font-mono outline-hidden focus:border-primary resize-none leading-relaxed"
-                  required
+                  minHeightClass="min-h-[260px]"
                 />
               </div>
 
@@ -457,10 +457,8 @@ export function BlogView() {
             </div>
 
             {/* 마크다운 본문 스크롤 영역 */}
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1 text-on-surface leading-relaxed text-xs">
-              <div className="prose dark:prose-invert max-w-none prose-sm leading-relaxed">
-                <ReactMarkdown>{selectedArticle.content}</ReactMarkdown>
-              </div>
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1 text-on-surface leading-relaxed text-xs sm:text-sm">
+              <MarkdownRenderer content={selectedArticle.content} />
 
               {/* 태그 */}
               {selectedArticle.tags?.length > 0 && (

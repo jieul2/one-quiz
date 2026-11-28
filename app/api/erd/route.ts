@@ -3,9 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/mongodb";
 import ProjectSpec from "@/models/ProjectSpec";
+import CollaborationGroup from "@/models/CollaborationGroup";
+import CollaborationInvite from "@/models/CollaborationInvite";
 import { withAudit } from "@/lib/withAudit";
+import { getCollabAccess, getUserCollabGroups } from "@/lib/collaborationServer";
 
-// GET: 프로젝트 명세서 목록 또는 특정 명세서 단건 조회
+// GET: 프로젝트 명세서 목록 또는 특정 명세서 단건 조회 (본인 + 협업 수락된 명세서)
 async function handleGet(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -20,30 +23,71 @@ async function handleGet(request: Request) {
     const id = searchParams.get("id");
 
     if (id) {
-      const spec = await ProjectSpec.findOne({ _id: id, userEmail });
+      const spec = await ProjectSpec.findById(id).lean();
       if (!spec) {
-        return NextResponse.json({ error: "해당 프로젝트 명세서를 찾을 수 없습니다." }, { status: 404 });
+        return NextResponse.json(
+          { error: "해당 프로젝트 명세서를 찾을 수 없습니다." },
+          { status: 404 }
+        );
       }
-      return NextResponse.json(spec, { status: 200 });
+
+      const access = await getCollabAccess("erd", id, userEmail, spec.userEmail);
+      if (!access.canRead) {
+        return NextResponse.json(
+          { error: "해당 프로젝트 명세서에 접근할 권한이 없습니다." },
+          { status: 403 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          ...spec,
+          isOwner: access.isOwner,
+          collabRole: access.role,
+        },
+        { status: 200 }
+      );
     }
 
-    // 프로젝트 목록 요약 조회
-    const specs = await ProjectSpec.find({ userEmail })
-      .select("_id title description version status updatedAt createdAt tables revisions")
+    const groups = await getUserCollabGroups("erd", userEmail);
+    const groupById = new Map(groups.map((g) => [g.targetId, g]));
+    const sharedIds = groups
+      .filter((g) => g.ownerEmail !== userEmail)
+      .map((g) => g.targetId);
+
+    const specs = await ProjectSpec.find({
+      $or: [
+        { userEmail },
+        ...(sharedIds.length > 0 ? [{ _id: { $in: sharedIds } }] : []),
+      ],
+    })
+      .select("_id userEmail title description version status updatedAt createdAt tables revisions")
       .sort({ updatedAt: -1 })
       .lean();
 
-    const formatted = specs.map((s) => ({
-      _id: s._id,
-      title: s.title,
-      description: s.description,
-      version: s.version,
-      status: s.status,
-      tableCount: Array.isArray(s.tables) ? s.tables.length : 0,
-      revisionCount: Array.isArray(s.revisions) ? s.revisions.length : 0,
-      updatedAt: s.updatedAt,
-      createdAt: s.createdAt,
-    }));
+    const formatted = specs.map((s) => {
+      const idStr = String(s._id);
+      const isOwner = s.userEmail === userEmail;
+      const group = groupById.get(idStr);
+      const member = group?.members?.find((m) => m.email === userEmail);
+
+      return {
+        _id: s._id,
+        title: s.title,
+        description: s.description,
+        version: s.version,
+        status: s.status,
+        tableCount: Array.isArray(s.tables) ? s.tables.length : 0,
+        revisionCount: Array.isArray(s.revisions) ? s.revisions.length : 0,
+        updatedAt: s.updatedAt,
+        createdAt: s.createdAt,
+        isOwner,
+        isShared: !isOwner || (group?.members?.length || 0) > 0,
+        collabRole: isOwner ? "owner" : member?.role || "viewer",
+        ownerName: group?.ownerName || s.userEmail.split("@")[0],
+        memberCount: (group?.members?.length || 0) + 1,
+      };
+    });
 
     return NextResponse.json(formatted, { status: 200 });
   } catch (error) {
@@ -69,6 +113,24 @@ async function handlePost(request: Request) {
     const body = await request.json();
     const { action, id } = body;
 
+    if (id) {
+      const existingSpec = await ProjectSpec.findById(id).lean();
+      if (existingSpec) {
+        const access = await getCollabAccess(
+          "erd",
+          String(id),
+          userEmail,
+          existingSpec.userEmail
+        );
+        if (!access.canEdit) {
+          return NextResponse.json(
+            { error: "프로젝트 명세서를 수정할 권한이 없습니다." },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
     // 1. 형상관리 버전 커밋 (Revision Snapshot 생성)
     if (action === "commit" && id) {
       const { version, message, snapshot } = body;
@@ -87,15 +149,19 @@ async function handlePost(request: Request) {
         snapshot: snapshot || {},
       };
 
-      const updated = await ProjectSpec.findOneAndUpdate(
-        { _id: id, userEmail },
+      const updated = await ProjectSpec.findByIdAndUpdate(
+        id,
         {
           $set: {
             version,
             ...(snapshot?.tables ? { tables: snapshot.tables } : {}),
             ...(snapshot?.relations ? { relations: snapshot.relations } : {}),
-            ...(snapshot?.architectureMd !== undefined ? { architectureMd: snapshot.architectureMd } : {}),
-            ...(snapshot?.functionalSpecs ? { functionalSpecs: snapshot.functionalSpecs } : {}),
+            ...(snapshot?.architectureMd !== undefined
+              ? { architectureMd: snapshot.architectureMd }
+              : {}),
+            ...(snapshot?.functionalSpecs
+              ? { functionalSpecs: snapshot.functionalSpecs }
+              : {}),
             ...(snapshot?.apiSpecs ? { apiSpecs: snapshot.apiSpecs } : {}),
           },
           $push: { revisions: newRevision },
@@ -117,7 +183,7 @@ async function handlePost(request: Request) {
     // 2. 형상관리 롤백 (특정 버전 스냅샷으로 복원)
     if (action === "rollback" && id) {
       const { targetVersion } = body;
-      const targetDoc = await ProjectSpec.findOne({ _id: id, userEmail });
+      const targetDoc = await ProjectSpec.findById(id);
       if (!targetDoc) {
         return NextResponse.json({ error: "명세서를 찾을 수 없습니다." }, { status: 404 });
       }
@@ -137,7 +203,6 @@ async function handlePost(request: Request) {
       targetDoc.apiSpecs = revision.snapshot.apiSpecs || [];
       targetDoc.version = revision.version;
 
-      // 롤백 이력도 새 리비전으로 자동 기록
       targetDoc.revisions.push({
         version: `${revision.version}-restored`,
         message: `버전 ${revision.version} 스냅샷으로 복원됨`,
@@ -170,8 +235,8 @@ async function handlePost(request: Request) {
 
     let saved;
     if (id) {
-      saved = await ProjectSpec.findOneAndUpdate(
-        { _id: id, userEmail },
+      saved = await ProjectSpec.findByIdAndUpdate(
+        id,
         {
           $set: {
             title: title || "시스템 아키텍처 및 ERD 명세서",
@@ -185,10 +250,9 @@ async function handlePost(request: Request) {
             apiSpecs,
           },
         },
-        { returnDocument: "after", upsert: true }
+        { returnDocument: "after" }
       );
     } else {
-      // 신규 명세서 생성
       saved = await ProjectSpec.create({
         userEmail,
         title: title || "시스템 아키텍처 및 ERD 명세서",
@@ -232,7 +296,7 @@ async function handlePost(request: Request) {
   }
 }
 
-// DELETE: 프로젝트 명세서 삭제
+// DELETE: 프로젝트 명세서 삭제 (소유자 전용)
 async function handleDelete(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -252,10 +316,21 @@ async function handleDelete(request: Request) {
 
     const deleted = await ProjectSpec.findOneAndDelete({ _id: id, userEmail });
     if (!deleted) {
-      return NextResponse.json({ error: "삭제할 명세서를 찾을 수 없습니다." }, { status: 404 });
+      return NextResponse.json(
+        { error: "삭제할 명세서를 찾을 수 없거나 삭제 권한이 없습니다." },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json({ success: true, message: "명세서가 삭제되었습니다." }, { status: 200 });
+    await Promise.all([
+      CollaborationGroup.deleteMany({ moduleType: "erd", targetId: id }),
+      CollaborationInvite.deleteMany({ moduleType: "erd", targetId: id }),
+    ]);
+
+    return NextResponse.json(
+      { success: true, message: "명세서가 삭제되었습니다." },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("DELETE /api/erd error:", error);
     return NextResponse.json(

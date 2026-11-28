@@ -28,8 +28,10 @@ import {
   Move,
   Palette,
   Copy,
+  Share2,
 } from "lucide-react";
 import { SaveStatusIndicator, SaveStatus } from "@/components/common/SaveStatusIndicator";
+import { CollaborationShareModal } from "@/components/collaboration/CollaborationShareModal";
 import { toast } from "@/lib/toast";
 
 interface CanvasItemData {
@@ -70,7 +72,23 @@ export function CanvasView() {
   const [zoomLevel, setZoomLevel] = useState(1);
 
   // 🌟 회의실 룸 시스템 상태
-  const [rooms, setRooms] = useState<Array<{ roomId: string; title: string; category: string; description: string; creatorName?: string }>>([]);
+  const [rooms, setRooms] = useState<
+    Array<{
+      roomId: string;
+      title: string;
+      category: string;
+      description: string;
+      creatorName?: string;
+      isOwner?: boolean;
+      isShared?: boolean;
+      collabRole?: "owner" | "editor" | "viewer";
+      memberCount?: number;
+      ownerName?: string;
+    }>
+  >([]);
+  const [roomScopeFilter, setRoomScopeFilter] = useState<"all" | "mine" | "shared">("all");
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [canEditRoom, setCanEditRoom] = useState(true);
   const [categories, setCategories] = useState<string[]>([
     "전체",
     "브레인스토밍",
@@ -199,8 +217,13 @@ export function CanvasView() {
       }
     }
     fetchRooms();
+    const handleCollabUpdate = () => {
+      fetchRooms();
+    };
+    window.addEventListener("onequiz:collab-updated", handleCollabUpdate);
     return () => {
       ignore = true;
+      window.removeEventListener("onequiz:collab-updated", handleCollabUpdate);
     };
   }, []);
 
@@ -215,6 +238,7 @@ export function CanvasView() {
           const data = await res.json();
           if (Array.isArray(data.items)) {
             setItems(data.items);
+            setCanEditRoom(data.canEdit !== false);
             markSaved();
           }
         }
@@ -223,8 +247,10 @@ export function CanvasView() {
       }
     }
     loadCanvas();
+    const syncTimer = setInterval(loadCanvas, 6000);
     return () => {
       ignore = true;
+      clearInterval(syncTimer);
     };
   }, [selectedRoomId, markSaved]);
 
@@ -614,7 +640,7 @@ export function CanvasView() {
 
   // 드래그 시작 (PC 마우스)
   const handleMouseDown = (e: React.MouseEvent, item: CanvasItemData) => {
-    if ((e.target as HTMLElement).tagName === "TEXTAREA" || (e.target as HTMLElement).tagName === "BUTTON") {
+    if ((e.target as HTMLElement).closest("button, textarea, input, select, a")) {
       return;
     }
 
@@ -637,7 +663,7 @@ export function CanvasView() {
 
   // 터치 드래그 시작 (모바일 터치)
   const handleTouchStartItem = (e: React.TouchEvent, item: CanvasItemData) => {
-    if ((e.target as HTMLElement).tagName === "TEXTAREA" || (e.target as HTMLElement).tagName === "BUTTON") {
+    if ((e.target as HTMLElement).closest("button, textarea, input, select, a")) {
       return;
     }
     if (e.touches.length !== 1) return;
@@ -958,9 +984,32 @@ export function CanvasView() {
           </button>
         </div>
 
-        {/* 카테고리 필터 & 검색 */}
+        {/* 카테고리 필터 & 소유/공유 탭 & 검색 */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+            <div className="flex items-center bg-surface-container-low p-0.5 rounded-xl border border-outline-variant mr-1 shrink-0">
+              {(
+                [
+                  { id: "all", label: "전체" },
+                  { id: "mine", label: "내 회의실" },
+                  { id: "shared", label: "공유됨" },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setRoomScopeFilter(tab.id)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold cursor-pointer transition-colors ${
+                    roomScopeFilter === tab.id
+                      ? "bg-surface-container-lowest text-primary shadow-xs"
+                      : "text-on-surface-variant hover:text-on-surface"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
             {categories.map((cat) => (
               <button
                 key={cat}
@@ -1009,8 +1058,14 @@ export function CanvasView() {
           </div>
 
           {/* 회의실 카드들 */}
-          {filteredRooms.map((room) => {
-            const isDefault = room.roomId === "default-room" || room.roomId === "exam-strategy-room";
+          {filteredRooms
+            .filter((room) => {
+              if (roomScopeFilter === "mine") return room.isOwner !== false;
+              if (roomScopeFilter === "shared") return room.isOwner === false || room.isShared;
+              return true;
+            })
+            .map((room) => {
+            const canDelete = room.isOwner !== false;
             return (
               <div
                 key={room.roomId}
@@ -1022,12 +1077,23 @@ export function CanvasView() {
                 className="group relative bg-surface-container-lowest border border-outline-variant hover:border-primary/60 rounded-2xl p-5 flex flex-col justify-between shadow-xs hover:shadow-lg transition-all cursor-pointer"
               >
                 <div>
-                  <div className="flex items-center justify-between pb-3">
-                    <span className="ui-badge px-2.5 py-1 rounded-lg bg-primary/10 text-primary font-bold text-[11px]">
-                      {room.category}
-                    </span>
+                  <div className="flex items-center justify-between pb-3 gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="ui-badge px-2.5 py-1 rounded-lg bg-primary/10 text-primary font-bold text-[11px]">
+                        {room.category}
+                      </span>
+                      {room.isOwner === false ? (
+                        <span className="ui-badge px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
+                          공유받음 · {room.collabRole === "viewer" ? "읽기" : "편집"}
+                        </span>
+                      ) : room.isShared ? (
+                        <span className="ui-badge px-2 py-0.5 rounded-lg bg-surface-container text-primary font-semibold text-[10px]">
+                          협업 {room.memberCount || 2}명
+                        </span>
+                      ) : null}
+                    </div>
 
-                    {!isDefault && (
+                    {canDelete && (
                       <button
                         onClick={(e) => handleDeleteRoom(e, room.roomId)}
                         className="p-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-surface-container transition-colors cursor-pointer"
@@ -1265,6 +1331,22 @@ export function CanvasView() {
           </div>
 
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
+
+          {!canEditRoom && (
+            <span className="ui-badge px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+              읽기 전용
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsShareModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-bold transition-colors cursor-pointer shrink-0"
+            title="회원 이메일을 입력하여 이 회의실 협업 공유"
+          >
+            <Share2 size={13} />
+            <span>공유 · 협업</span>
+          </button>
         </div>
       </div>
 
@@ -1511,6 +1593,9 @@ export function CanvasView() {
                 >
                   <div className="flex items-center justify-between pb-1.5 border-b border-outline-variant">
                     <button
+                      type="button"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleToggleMeetingStatus(item._id);
@@ -1531,11 +1616,15 @@ export function CanvasView() {
                     </button>
 
                     <button
+                      type="button"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDeleteItem(item._id);
                       }}
-                      className="text-on-surface-variant hover:text-error p-0.5 rounded cursor-pointer"
+                      className="text-on-surface-variant hover:text-error p-1 rounded cursor-pointer"
+                      title="삭제"
                     >
                       <Trash2 size={12} />
                     </button>
@@ -1543,6 +1632,8 @@ export function CanvasView() {
 
                   <textarea
                     value={item.content}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
                     onChange={(e) => handleUpdateContent(item._id, e.target.value)}
                     placeholder="회의 아젠다 및 실행 방안을 작성하세요..."
                     className="w-full mt-2 h-18 bg-transparent resize-none text-xs text-on-surface outline-hidden placeholder:text-on-surface-variant/50 font-sans"
@@ -1552,6 +1643,9 @@ export function CanvasView() {
                   <div className="flex items-center justify-between pt-1 border-t border-outline-variant/50 mt-1">
                     <span className="text-[10px] text-on-surface-variant">{item.authorName}</span>
                     <button
+                      type="button"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleVote(item._id);
@@ -1596,6 +1690,9 @@ export function CanvasView() {
                   <span className="text-[11px] font-bold opacity-80">{item.authorName}</span>
                   <div className="flex items-center gap-1">
                     <button
+                      type="button"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleVote(item._id);
@@ -1607,6 +1704,9 @@ export function CanvasView() {
                       <span>{item.votes || 0}</span>
                     </button>
                     <button
+                      type="button"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDeleteItem(item._id);
@@ -1622,6 +1722,8 @@ export function CanvasView() {
                 {/* 메모 본문 */}
                 <textarea
                   value={item.content}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
                   onChange={(e) => handleUpdateContent(item._id, e.target.value)}
                   placeholder="아이디어, 메모, 질문을 입력하세요..."
                   className="w-full mt-2 h-24 bg-transparent resize-none text-xs outline-hidden placeholder:opacity-50 font-sans leading-relaxed"
@@ -1950,6 +2052,16 @@ export function CanvasView() {
           </div>
         </div>
       )}
+
+      {/* 협업 공유 모달 (캔버스 회의실 전용) */}
+      <CollaborationShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        moduleType="canvas"
+        targetId={selectedRoomId || activeRoomId}
+        targetTitle={currentRoom.title}
+        onChanged={loadRooms}
+      />
     </div>
   );
 }

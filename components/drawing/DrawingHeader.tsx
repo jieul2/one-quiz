@@ -12,6 +12,7 @@ import {
   Loader2,
   ChevronDown,
   FileImage,
+  Share2,
 } from "lucide-react";
 import { SaveStatusIndicator, SaveStatus } from "@/components/common/SaveStatusIndicator";
 
@@ -34,6 +35,7 @@ interface DrawingHeaderProps {
   onAddToTodayDiary: () => void;
   onNewDrawing: () => void;
   onCopyClipboard: () => void;
+  onOpenShareModal?: () => void;
   onToggleDownload: () => void;
   onDownload: (format: "png" | "jpg" | "svg" | "json") => void;
 }
@@ -57,6 +59,7 @@ export function DrawingHeader({
   onAddToTodayDiary,
   onNewDrawing,
   onCopyClipboard,
+  onOpenShareModal,
   onToggleDownload,
   onDownload,
 }: DrawingHeaderProps) {
@@ -168,6 +171,18 @@ export function DrawingHeader({
           <Copy size={15} />
           <span className="hidden sm:inline">복사</span>
         </button>
+
+        {onOpenShareModal && (
+          <button
+            type="button"
+            onClick={onOpenShareModal}
+            className="ui-button px-3 py-1.5 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary flex items-center gap-1.5 transition-colors font-semibold shrink-0 whitespace-nowrap cursor-pointer"
+            title="회원 이메일을 입력하여 이 스케치 협업 공유"
+          >
+            <Share2 size={14} />
+            <span>공유 · 협업</span>
+          </button>
+        )}
 
         {/* 다운로드 드롭다운 */}
         <div className="relative shrink-0">

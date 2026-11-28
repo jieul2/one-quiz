@@ -2,12 +2,11 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   Plus,
   Search,
-  Globe,
   Calendar,
   ArrowRight,
   CheckCircle2,
@@ -20,11 +19,15 @@ import {
   ChevronUp,
   CheckCheck,
   RotateCcw,
+  Share2,
+  Users,
+  Mail,
 } from "lucide-react";
 import { BacklogItem, ProjectRoadmap, RoadmapItem } from "@/lib/roadmapTypes";
 import { toast } from "@/lib/toast";
 import { SaveStatusIndicator, SaveStatus } from "@/components/common/SaveStatusIndicator";
 import { ScrollArea } from "@/components/ui/ScrollArea";
+import { CollaborationShareModal } from "@/components/collaboration/CollaborationShareModal";
 
 const COLUMNS: {
   id: BacklogItem["status"];
@@ -46,10 +49,35 @@ function generateId(prefix: string) {
 
 export function BacklogView() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const paramWorkspace = searchParams.get("workspace");
   const { data: session } = useSession();
+  const userEmail = session?.user?.email || "";
+  const userName = session?.user?.name || (userEmail ? userEmail.split("@")[0] : "회원");
 
-  // 1. 백로그 상태 (DB + localStorage 연동)
+  // 1. 백로그 상태 (DB + 계정별 localStorage 연동)
   const [backlogs, setBacklogs] = useState<BacklogItem[]>([]);
+  const [workspaces, setWorkspaces] = useState<
+    Array<{
+      ownerEmail: string;
+      ownerName: string;
+      targetTitle: string;
+      role: "owner" | "editor" | "viewer";
+      isOwn: boolean;
+      memberCount: number;
+    }>
+  >([]);
+  const [selectedWorkspaceOwner, setSelectedWorkspaceOwner] = useState<string>("");
+  const [myCollabRole, setMyCollabRole] = useState<"owner" | "editor" | "viewer">("owner");
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
+  // 카드 단위 즉시 이메일 공유 모달 상태
+  const [sharingCardId, setSharingCardId] = useState<string | null>(null);
+  const [cardShareEmailInput, setCardShareEmailInput] = useState("");
+  const [isCardShareBusy, setIsCardShareBusy] = useState(false);
+
+  const activeWorkspaceOwner = selectedWorkspaceOwner || paramWorkspace || userEmail;
+  const activeWorkspaceInfo = workspaces.find((w) => w.ownerEmail === activeWorkspaceOwner);
 
   // 저장 상태 인디케이터 관리
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
@@ -126,11 +154,16 @@ export function BacklogView() {
   // 영구 저장 헬퍼 (UI와 localStorage는 즉시 반응, DB 저장은 300ms 디바운스로 배치 전송)
   const persistBacklogs = useCallback(
     (items: BacklogItem[], immediate = false) => {
+      if (myCollabRole === "viewer") {
+        toast.error("읽기 전용 권한에서는 백로그를 수정할 수 없습니다.");
+        return;
+      }
       setSaveStatus("saving");
       setBacklogs(items);
+      const storageKey = `onequiz_backlog_items_${activeWorkspaceOwner || userEmail || "guest"}`;
       if (typeof window !== "undefined") {
         try {
-          localStorage.setItem("onequiz_backlog_items", JSON.stringify(items));
+          localStorage.setItem(storageKey, JSON.stringify(items));
         } catch {}
       }
 
@@ -140,7 +173,10 @@ export function BacklogView() {
 
       const sendToDb = async () => {
         try {
-          const res = await fetch("/api/ideas", {
+          const query = activeWorkspaceOwner
+            ? `?workspaceOwner=${encodeURIComponent(activeWorkspaceOwner)}`
+            : "";
+          const res = await fetch(`/api/ideas${query}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(items),
@@ -148,7 +184,7 @@ export function BacklogView() {
           if (!res.ok) throw new Error("DB 저장 실패");
           markSaved();
         } catch {
-          markSaved();
+          setSaveStatus("error");
         }
       };
 
@@ -158,88 +194,111 @@ export function BacklogView() {
         saveTimeoutRef.current = setTimeout(sendToDb, 300);
       }
     },
-    [markSaved]
+    [markSaved, myCollabRole, activeWorkspaceOwner, userEmail]
   );
 
-  // DB 로드 (실제 Idea DB 연동)
-  useEffect(() => {
-    let isMounted = true;
-    async function loadData() {
-      // 1. DB의 아이디어 목록 로드 (/api/ideas)
-      try {
-        const res = await fetch("/api/ideas");
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0 && isMounted) {
-            const normalized: BacklogItem[] = data.map((item: Record<string, unknown>) => {
-              let st: BacklogItem["status"] = "idea";
-              if (item.status === "completed") st = "completed";
-              else if (item.status === "progress" || item.status === "approved") st = "approved";
-              else if (item.status === "promoted") st = "promoted";
-              else if (item.status === "review") st = "review";
+  // DB 로드 (실제 Idea DB 연동 + 협업 워크스페이스 목록 동기화)
+  const loadData = useCallback(async () => {
+    if (!userEmail) return;
+    const targetOwner = selectedWorkspaceOwner || paramWorkspace || userEmail;
+    const storageKey = `onequiz_backlog_items_${targetOwner}`;
+    try {
+      const res = await fetch(
+        `/api/ideas?meta=true&workspaceOwner=${encodeURIComponent(targetOwner)}`
+      );
+      if (res.ok) {
+        const payload = await res.json();
+        const data = Array.isArray(payload) ? payload : payload.items || [];
+        if (Array.isArray(payload.workspaces)) {
+          setWorkspaces(payload.workspaces);
+        }
+        if (payload.myRole) {
+          setMyCollabRole(payload.myRole);
+        }
 
-              let pr: BacklogItem["priority"] = "medium";
-              if (item.priority === "urgent" || item.priority === "high" || item.priority === "low") {
-                pr = item.priority as BacklogItem["priority"];
-              }
+        const normalized: BacklogItem[] = data.map((item: Record<string, unknown>) => {
+          let st: BacklogItem["status"] = "idea";
+          if (item.status === "completed") st = "completed";
+          else if (item.status === "progress" || item.status === "approved") st = "approved";
+          else if (item.status === "promoted") st = "promoted";
+          else if (item.status === "review") st = "review";
 
-              const idVal = String(item.id || item._id || `backlog-${Date.now()}`);
-              return {
-                id: idVal,
-                _id: item._id ? String(item._id) : undefined,
-                title: String(item.title || "무제"),
-                description: String(item.description || ""),
-                status: st,
-                priority: pr,
-                isPublic: item.isPublic !== undefined ? Boolean(item.isPublic) : true,
-                tags: Array.isArray(item.tags) ? (item.tags as string[]) : [],
-                assignee: item.assignee ? String(item.assignee) : "",
-                promotedToProjectId: item.promotedToProjectId ? String(item.promotedToProjectId) : (st === "promoted" ? idVal : undefined),
-                startDate: item.startDate ? String(item.startDate) : undefined,
-                endDate: item.endDate ? String(item.endDate) : undefined,
-                color: item.color ? String(item.color) : undefined,
-                completedAt: item.completedAt ? String(item.completedAt) : undefined,
-                createdAt: item.createdAt ? String(item.createdAt).slice(0, 10) : "2026-11-04",
-              };
-            });
+          let pr: BacklogItem["priority"] = "medium";
+          if (item.priority === "urgent" || item.priority === "high" || item.priority === "low") {
+            pr = item.priority as BacklogItem["priority"];
+          }
 
-            setBacklogs(normalized);
+          const idVal = String(item.id || item._id || `backlog-${Date.now()}`);
+          return {
+            id: idVal,
+            _id: item._id ? String(item._id) : undefined,
+            title: String(item.title || "무제"),
+            description: String(item.description || ""),
+            status: st,
+            priority: pr,
+            isPublic: item.isPublic !== undefined ? Boolean(item.isPublic) : false,
+            authorEmail: item.authorEmail ? String(item.authorEmail) : undefined,
+            sharedWithEmails: Array.isArray(item.sharedWithEmails)
+              ? (item.sharedWithEmails as string[])
+              : [],
+            isCardShared: Boolean(item.isCardShared),
+            tags: Array.isArray(item.tags) ? (item.tags as string[]) : [],
+            assignee: item.assignee ? String(item.assignee) : "",
+            promotedToProjectId: item.promotedToProjectId
+              ? String(item.promotedToProjectId)
+              : st === "promoted"
+              ? idVal
+              : undefined,
+            startDate: item.startDate ? String(item.startDate) : undefined,
+            endDate: item.endDate ? String(item.endDate) : undefined,
+            color: item.color ? String(item.color) : undefined,
+            completedAt: item.completedAt ? String(item.completedAt) : undefined,
+            createdAt: item.createdAt ? String(item.createdAt).slice(0, 10) : "2026-11-04",
+          };
+        });
+
+        setBacklogs(normalized);
+        markSaved();
+        if (typeof window !== "undefined") {
+          localStorage.setItem(storageKey, JSON.stringify(normalized));
+        }
+        return;
+      }
+    } catch (e) {
+      console.warn("Ideas DB fetch failed, falling back to localStorage", e);
+    }
+
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            setBacklogs(parsed);
             markSaved();
-            if (typeof window !== "undefined") {
-              localStorage.setItem("onequiz_backlog_items", JSON.stringify(normalized));
-            }
             return;
           }
-        }
-      } catch (e) {
-        console.warn("Ideas DB fetch failed, falling back to localStorage", e);
-      }
-
-      if (typeof window !== "undefined") {
-        const saved = localStorage.getItem("onequiz_backlog_items");
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0 && isMounted) {
-              setBacklogs(parsed);
-              markSaved();
-              return;
-            }
-          } catch {}
-        }
-      }
-
-      if (isMounted) {
-        setBacklogs([]);
-        markSaved();
+        } catch {}
       }
     }
 
-    loadData();
-    return () => {
-      isMounted = false;
+    setBacklogs([]);
+    markSaved();
+  }, [userEmail, selectedWorkspaceOwner, paramWorkspace, markSaved]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadData();
+    }, 0);
+    const handleCollabUpdate = () => {
+      loadData();
     };
-  }, [markSaved]);
+    window.addEventListener("onequiz:collab-updated", handleCollabUpdate);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("onequiz:collab-updated", handleCollabUpdate);
+    };
+  }, [loadData]);
 
   // 모든 태그 수집
   const allTags = useMemo(() => {
@@ -318,7 +377,7 @@ export function BacklogView() {
             }
           : b
       );
-      persistBacklogs(updated);
+      persistBacklogs(updated, true);
     } else {
       const newItem: BacklogItem = {
         id: generateId("backlog"),
@@ -326,12 +385,14 @@ export function BacklogView() {
         description: formDescription.trim(),
         status: formStatus,
         priority: formPriority,
-        isPublic: true,
+        isPublic: false,
+        authorEmail: activeWorkspaceOwner || userEmail,
+        sharedWithEmails: [],
         tags: parsedTags,
         createdAt: new Date().toISOString().slice(0, 10),
         assignee: formAssignee.trim() || undefined,
       };
-      persistBacklogs([newItem, ...backlogs]);
+      persistBacklogs([newItem, ...backlogs], true);
     }
     setIsCreateModalOpen(false);
   };
@@ -344,6 +405,66 @@ export function BacklogView() {
       try {
         await fetch(`/api/ideas?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       } catch {}
+    }
+  };
+
+  // 백로그 카드 단위 이메일 즉시 공유 추가/삭제 (수락/거절 불필요)
+  const handleCardShareAction = async (
+    card: BacklogItem,
+    action: "addEmail" | "removeEmail",
+    email: string
+  ) => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) return;
+    setIsCardShareBusy(true);
+    try {
+      const res = await fetch("/api/ideas", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: card._id || card.id,
+          fallbackId: card.id,
+          action,
+          email: trimmed,
+          cardData: {
+            title: card.title,
+            description: card.description,
+            status: card.status,
+            priority: card.priority,
+            tags: card.tags,
+            assignee: card.assignee,
+            startDate: card.startDate,
+            endDate: card.endDate,
+            color: card.color,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "공유 처리에 실패했습니다.");
+        return;
+      }
+
+      const nextEmails: string[] = Array.isArray(data.sharedWithEmails)
+        ? data.sharedWithEmails
+        : [];
+      setBacklogs((prev) =>
+        prev.map((b) =>
+          b.id === card.id || (card._id && b._id === card._id)
+            ? { ...b, sharedWithEmails: nextEmails }
+            : b
+        )
+      );
+      if (action === "addEmail") {
+        setCardShareEmailInput("");
+        toast.success(`${trimmed} 님에게 이 카드가 즉시 공유되었습니다.`);
+      } else {
+        toast.info(`${trimmed} 님의 카드 공유가 해제되었습니다.`);
+      }
+    } catch {
+      toast.error("네트워크 오류가 발생했습니다.");
+    } finally {
+      setIsCardShareBusy(false);
     }
   };
 
@@ -602,15 +723,21 @@ export function BacklogView() {
           {/* 저장 상태 인디케이터 */}
           <SaveStatusIndicator status={saveStatus} savedAt={savedTimeStr} />
 
-          {/* 전체 공개 (팀원 기능 업데이트 전까지 임시 비활성화) */}
+          {myCollabRole === "viewer" && (
+            <span className="ui-badge px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+              읽기 전용
+            </span>
+          )}
+
+          {/* 협업 공유 버튼 (회원 이름 검색 -> 요청 -> 알림 수락/거절 연동) */}
           <button
             type="button"
-            disabled
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium border border-outline-variant/60 bg-surface-container-low text-on-surface-variant/50 cursor-not-allowed opacity-60 text-xs"
-            title="팀원 초대 기능 출시 전까지 임시 비활성화됩니다"
+            onClick={() => setIsShareModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md font-semibold border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary transition-colors cursor-pointer text-xs shrink-0"
+            title="회원 이메일을 입력하여 기능 백로그 협업 공유"
           >
-            <Globe size={13} />
-            <span>전체 공개 (준비 중)</span>
+            <Share2 size={13} />
+            <span>공유 · 협업</span>
           </button>
 
           {/* 프로젝트 로드맵 바로가기 버튼 */}
@@ -634,6 +761,38 @@ export function BacklogView() {
           </button>
         </div>
       </div>
+
+      {/* 1-1. 협업 중인 백로그 워크스페이스 전환 바 */}
+      {workspaces.length > 1 && (
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-none py-1">
+          <span className="ui-caption font-semibold flex items-center gap-1 shrink-0">
+            <Users size={13} className="text-primary" />
+            워크스페이스:
+          </span>
+          {workspaces.map((ws) => {
+            const active = ws.ownerEmail === activeWorkspaceOwner;
+            return (
+              <button
+                key={ws.ownerEmail}
+                type="button"
+                onClick={() => setSelectedWorkspaceOwner(ws.ownerEmail)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                  active
+                    ? "bg-primary text-on-primary border-primary shadow-xs"
+                    : "bg-surface-container-low text-on-surface-variant border-outline-variant hover:text-on-surface"
+                }`}
+              >
+                <span>{ws.isOwn ? "내 백로그" : ws.targetTitle}</span>
+                {!ws.isOwn && (
+                  <span className="text-[10px] opacity-80">
+                    ({ws.role === "viewer" ? "읽기" : "편집"})
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* 2. 검색창 및 태그 필터 바 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -795,7 +954,7 @@ export function BacklogView() {
                           }`}
                         >
                           {/* 카드 상단 배지 & 더보기 */}
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between gap-1.5">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span
                                 className={`px-2 py-0.5 rounded text-xs font-medium border ${badge.className}`}
@@ -808,23 +967,53 @@ export function BacklogView() {
                                   <span>로드맵 반영됨</span>
                                 </span>
                               )}
+                              {item.isCardShared ? (
+                                <span
+                                  className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                                  title={`공유자: ${item.authorEmail || ""}`}
+                                >
+                                  공유받음
+                                </span>
+                              ) : (item.sharedWithEmails?.length || 0) > 0 ? (
+                                <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-primary/10 text-primary border border-primary/25">
+                                  공유 {item.sharedWithEmails?.length}명
+                                </span>
+                              ) : null}
                             </div>
 
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
+                              {!item.isCardShared && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSharingCardId(item.id);
+                                    setCardShareEmailInput("");
+                                  }}
+                                  className="p-1 text-on-surface-variant hover:text-primary rounded cursor-pointer"
+                                  title="이 카드만 이메일로 즉시 공유"
+                                >
+                                  <Share2 size={12} />
+                                </button>
+                              )}
                               <button
+                                type="button"
                                 onClick={() => handleOpenEditModal(item)}
                                 className="p-1 text-on-surface-variant hover:text-on-surface rounded cursor-pointer"
                                 title="수정"
                               >
                                 <Edit2 size={12} />
                               </button>
-                              <button
-                                onClick={() => handleDeleteBacklog(item.id)}
-                                className="p-1 text-on-surface-variant hover:text-destructive rounded cursor-pointer"
-                                title="삭제"
-                              >
-                                <Trash2 size={12} />
-                              </button>
+                              {!item.isCardShared && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteBacklog(item.id)}
+                                  className="p-1 text-on-surface-variant hover:text-destructive rounded cursor-pointer"
+                                  title="삭제"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
                             </div>
                           </div>
 
@@ -1316,6 +1505,131 @@ export function BacklogView() {
           </div>
         </div>
       )}
+
+      {/* 협업 공유 모달 (기능 백로그 워크스페이스 전체) */}
+      <CollaborationShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        moduleType="backlog"
+        targetId={activeWorkspaceOwner || userEmail}
+        targetTitle={
+          activeWorkspaceInfo?.targetTitle || `${userName}님의 기능 백로그`
+        }
+        onChanged={loadData}
+      />
+
+      {/* 개별 백로그 카드 이메일 즉시 공유 모달 (수락/거절 절차 없이 즉시 열람) */}
+      {sharingCardId && (() => {
+        const targetCard = backlogs.find(
+          (b) => b.id === sharingCardId || b._id === sharingCardId
+        );
+        if (!targetCard) return null;
+        const sharedEmails = targetCard.sharedWithEmails || [];
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 w-full max-w-md space-y-4 text-on-surface shadow-2xl">
+              <div className="flex items-start justify-between gap-2 pb-3 border-b border-outline-variant">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Share2 size={15} className="text-primary shrink-0" />
+                    <h3 className="ui-card-title text-on-surface truncate">
+                      백로그 카드 즉시 공유
+                    </h3>
+                  </div>
+                  <p className="ui-caption truncate mt-0.5">
+                    카드: {targetCard.title}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSharingCardId(null)}
+                  className="p-1 rounded text-on-surface-variant hover:text-on-surface cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleCardShareAction(
+                    targetCard,
+                    "addEmail",
+                    cardShareEmailInput
+                  );
+                }}
+                className="space-y-2.5"
+              >
+                <p className="ui-caption">
+                  수락/거절 절차 없이 이메일을 추가하면 상대방의 백로그 보드에 이 카드가 즉시 표시됩니다.
+                </p>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Mail
+                      size={14}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none"
+                    />
+                    <input
+                      type="email"
+                      required
+                      value={cardShareEmailInput}
+                      onChange={(e) => setCardShareEmailInput(e.target.value)}
+                      placeholder="user@example.com"
+                      className="w-full pl-9 pr-3 py-2 rounded-lg bg-surface-container-low border border-outline-variant text-xs text-on-surface focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isCardShareBusy || !cardShareEmailInput.trim()}
+                    className="px-3.5 py-2 rounded-lg bg-primary text-on-primary text-xs font-bold hover:opacity-90 disabled:opacity-50 cursor-pointer shrink-0"
+                  >
+                    {isCardShareBusy ? "처리 중" : "추가"}
+                  </button>
+                </div>
+              </form>
+
+              <div className="space-y-2 pt-2 border-t border-outline-variant">
+                <span className="text-xs font-bold text-on-surface">
+                  공유된 이메일 ({sharedEmails.length})
+                </span>
+                {sharedEmails.length === 0 ? (
+                  <p className="ui-caption py-1">
+                    아직 이 카드를 공유한 이메일이 없습니다.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {sharedEmails.map((em) => (
+                      <div
+                        key={em}
+                        className="px-3 py-1.5 rounded-lg bg-surface-container-low border border-outline-variant flex items-center justify-between gap-2 text-xs"
+                      >
+                        <span className="font-mono text-on-surface truncate">
+                          {em}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={isCardShareBusy}
+                          onClick={() =>
+                            handleCardShareAction(
+                              targetCard,
+                              "removeEmail",
+                              em
+                            )
+                          }
+                          className="text-[11px] font-semibold text-red-600 dark:text-red-400 hover:underline cursor-pointer shrink-0"
+                        >
+                          해제
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useMounted } from "@/lib/hooks/useMounted";
 import {
   Trophy,
@@ -20,11 +20,7 @@ import { ScrollArea } from "@/components/ui/ScrollArea";
 import { useTheme } from "next-themes";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { atomDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
-import { oneLight } from "react-syntax-highlighter/dist/cjs/styles/prism";
+import { MarkdownRenderer } from "@/components/common/MarkdownRenderer";
 import {
   getQuestions,
   updateCachedQuestionHistory,
@@ -42,116 +38,6 @@ const shuffleArray = <T,>(array: T[]): T[] => {
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   return shuffled;
-};
-
-// 공통 마크다운 렌더러 컴포넌트
-const MarkdownRenderer = ({
-  content,
-  currentTheme,
-}: {
-  content: string;
-  currentTheme?: string;
-}) => {
-  const isDark = currentTheme === "dark";
-
-  // 코드 블록 테마 스타일의 배경색을 투명으로 오버라이드하여 원래 배경색 유지
-  const cleanStyle = useMemo(() => {
-    const baseStyle = isDark ? atomDark : oneLight;
-    const newStyle: { [key: string]: React.CSSProperties } = {};
-    for (const key in baseStyle) {
-      if (Object.prototype.hasOwnProperty.call(baseStyle, key)) {
-        newStyle[key] = {
-          ...baseStyle[key],
-          background: "transparent",
-          backgroundColor: "transparent",
-        };
-      }
-    }
-    return newStyle;
-  }, [isDark]);
-
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        code({
-          inline,
-          className,
-          children,
-          style: _style,
-          ...props
-        }: React.ComponentPropsWithoutRef<"code"> & { inline?: boolean; node?: unknown }) {
-          const match = /language-(\w+)/.exec(className || "");
-          return !inline && match ? (
-            <SyntaxHighlighter
-              style={cleanStyle}
-              language={match[1]}
-              PreTag="div"
-              customStyle={{
-                background: "transparent",
-                backgroundColor: "transparent",
-                margin: 0,
-                padding: 0,
-                border: "none",
-              }}
-              codeTagProps={{
-                style: {
-                  background: "transparent",
-                  backgroundColor: "transparent",
-                },
-              }}
-              {...props}
-            >
-              {String(children).replace(/\n$/, "")}
-            </SyntaxHighlighter>
-          ) : (
-            <code
-              className="px-1.5 py-0.5 rounded bg-surface-container-low text-primary font-mono text-xs border border-outline-variant"
-              style={_style}
-              {...props}
-            >
-              {children}
-            </code>
-          );
-        },
-        pre({ children }) {
-          return <div className="bg-transparent p-0 m-0 overflow-x-auto">{children}</div>;
-        },
-        table({ children }) {
-          return (
-            <div className="overflow-x-auto my-4 rounded-xl border border-outline-variant shadow-xs">
-              <table className="w-full border-collapse text-left text-xs sm:text-sm">
-                {children}
-              </table>
-            </div>
-          );
-        },
-        thead({ children }) {
-          return <thead className="bg-surface-container-low text-on-surface">{children}</thead>;
-        },
-        th({ children }) {
-          return (
-            <th className="border-b border-outline-variant px-4 py-2.5 font-bold">{children}</th>
-          );
-        },
-        td({ children }) {
-          return (
-            <td className="border-b border-outline-variant px-4 py-2.5 text-on-surface-variant">
-              {children}
-            </td>
-          );
-        },
-        p({ children }) {
-          return <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>;
-        },
-        strong({ children }) {
-          return <strong className="font-extrabold text-on-surface">{children}</strong>;
-        },
-      }}
-    >
-      {content}
-    </ReactMarkdown>
-  );
 };
 
 function ExamContent() {

@@ -19,6 +19,7 @@ export interface IIdea extends Document {
   status: string;
   priority: string;
   authorEmail?: string;
+  sharedWithEmails?: string[];
   tags?: string[];
   isPublic?: boolean;
   assignee?: string;
@@ -50,7 +51,8 @@ const IdeaSchema = new mongoose.Schema({
   description: { type: String, default: "" },
   status: { type: String, default: "idea" },
   priority: { type: String, default: "medium" },
-  authorEmail: { type: String },
+  authorEmail: { type: String, index: true },
+  sharedWithEmails: [{ type: String, index: true }],
   tags: [{ type: String }],
   isPublic: { type: Boolean, default: true },
   assignee: { type: String },

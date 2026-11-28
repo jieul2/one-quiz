@@ -7,6 +7,7 @@ import { useMounted } from "@/lib/hooks/useMounted";
 import { toast } from "@/lib/toast";
 import { alertModal } from "@/lib/alert";
 import { SaveStatus } from "@/components/common/SaveStatusIndicator";
+import { CollaborationShareModal } from "@/components/collaboration/CollaborationShareModal";
 import {
   ErdTable,
   ErdField,
@@ -115,6 +116,7 @@ export function ErdView() {
   const [exportFormat, setExportFormat] = useState<ExportFormat>("mermaid");
 
   const [selectedRevisionForDiff, setSelectedRevisionForDiff] = useState<RevisionSnapshot | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   // ========================================================
   // A. 데이터 로드 및 동기화
@@ -835,6 +837,7 @@ export function ErdView() {
           setIsCommitModalOpen(true);
         }}
         onOpenExportModal={() => setIsExportModalOpen(true)}
+        onOpenShareModal={() => setIsShareModalOpen(true)}
         onLoadSampleTemplate={handleLoadSampleTemplate}
         onChangeTab={setActiveTab}
       />
@@ -1034,6 +1037,17 @@ export function ErdView() {
         onRollback={handleRollback}
         onClose={() => setSelectedRevisionForDiff(null)}
       />
+
+      {specId && (
+        <CollaborationShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          moduleType="erd"
+          targetId={specId}
+          targetTitle={projectTitle}
+          onChanged={fetchProjectsList}
+        />
+      )}
     </div>
   );
 }

@@ -3,9 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/mongodb";
 import Drawing from "@/models/Drawing";
+import CollaborationGroup from "@/models/CollaborationGroup";
+import CollaborationInvite from "@/models/CollaborationInvite";
 import { withAudit } from "@/lib/withAudit";
+import { getCollabAccess, getUserCollabGroups } from "@/lib/collaborationServer";
 
-// GET: 사용자의 드로잉 목록 또는 특정 드로잉 단건 조회
+// GET: 사용자의 드로잉 목록 또는 특정 드로잉 단건 조회 (본인 + 협업 수락된 드로잉)
 async function handleGet(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -20,29 +23,72 @@ async function handleGet(request: Request) {
     const id = searchParams.get("id");
 
     if (id) {
-      const drawing = await Drawing.findOne({ _id: id, userEmail });
+      const drawing = await Drawing.findById(id).lean();
       if (!drawing) {
         return NextResponse.json({ error: "해당 그림을 찾을 수 없습니다." }, { status: 404 });
       }
-      return NextResponse.json(drawing, { status: 200 });
+
+      const access = await getCollabAccess(
+        "drawing",
+        id,
+        userEmail,
+        drawing.userEmail
+      );
+      if (!access.canRead) {
+        return NextResponse.json(
+          { error: "해당 그림에 접근할 권한이 없습니다." },
+          { status: 403 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          ...drawing,
+          isOwner: access.isOwner,
+          collabRole: access.role,
+        },
+        { status: 200 }
+      );
     }
 
-    // 갤러리 목록용 요약 데이터 조회 (오브젝트 개수 포함)
-    const drawings = await Drawing.find({ userEmail })
-      .select("_id title thumbnail backgroundPattern backgroundColor elements updatedAt createdAt")
+    const groups = await getUserCollabGroups("drawing", userEmail);
+    const groupById = new Map(groups.map((g) => [g.targetId, g]));
+    const sharedIds = groups
+      .filter((g) => g.ownerEmail !== userEmail)
+      .map((g) => g.targetId);
+
+    const drawings = await Drawing.find({
+      $or: [
+        { userEmail },
+        ...(sharedIds.length > 0 ? [{ _id: { $in: sharedIds } }] : []),
+      ],
+    })
+      .select("_id userEmail title thumbnail backgroundPattern backgroundColor elements updatedAt createdAt")
       .sort({ updatedAt: -1 })
       .lean();
 
-    const formatted = drawings.map((d) => ({
-      _id: d._id,
-      title: d.title,
-      thumbnail: d.thumbnail,
-      backgroundPattern: d.backgroundPattern,
-      backgroundColor: d.backgroundColor,
-      elementCount: Array.isArray(d.elements) ? d.elements.length : 0,
-      updatedAt: d.updatedAt,
-      createdAt: d.createdAt,
-    }));
+    const formatted = drawings.map((d) => {
+      const idStr = String(d._id);
+      const isOwner = d.userEmail === userEmail;
+      const group = groupById.get(idStr);
+      const member = group?.members?.find((m) => m.email === userEmail);
+
+      return {
+        _id: d._id,
+        title: d.title,
+        thumbnail: d.thumbnail,
+        backgroundPattern: d.backgroundPattern,
+        backgroundColor: d.backgroundColor,
+        elementCount: Array.isArray(d.elements) ? d.elements.length : 0,
+        updatedAt: d.updatedAt,
+        createdAt: d.createdAt,
+        isOwner,
+        isShared: !isOwner || (group?.members?.length || 0) > 0,
+        collabRole: isOwner ? "owner" : member?.role || "viewer",
+        ownerName: group?.ownerName || d.userEmail.split("@")[0],
+        memberCount: (group?.members?.length || 0) + 1,
+      };
+    });
 
     return NextResponse.json(formatted, { status: 200 });
   } catch (error) {
@@ -54,7 +100,7 @@ async function handleGet(request: Request) {
   }
 }
 
-// POST: 드로잉 신규 생성 또는 업데이트 (저장)
+// POST: 드로잉 신규 생성 또는 업데이트 (소유자 또는 editor 권한 협업자 허용)
 async function handlePost(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -66,29 +112,63 @@ async function handlePost(request: Request) {
 
     await dbConnect();
     const body = await request.json();
-    const { id, title, elements, thumbnail, backgroundColor, backgroundPattern, canvasWidth, canvasHeight } = body;
+    const {
+      id,
+      title,
+      elements,
+      thumbnail,
+      backgroundColor,
+      backgroundPattern,
+      canvasWidth,
+      canvasHeight,
+    } = body;
 
     let savedDrawing;
 
     if (id) {
-      // 기존 드로잉 업데이트
-      savedDrawing = await Drawing.findOneAndUpdate(
-        { _id: id, userEmail },
-        {
-          $set: {
-            title: title || "새로운 스케치",
-            elements: elements || [],
-            thumbnail,
-            backgroundColor: backgroundColor || "#ffffff",
-            backgroundPattern: backgroundPattern || "blank",
-            canvasWidth: canvasWidth || 1920,
-            canvasHeight: canvasHeight || 1080,
+      const existing = await Drawing.findById(id).lean();
+      if (existing) {
+        const access = await getCollabAccess(
+          "drawing",
+          String(id),
+          userEmail,
+          existing.userEmail
+        );
+        if (!access.canEdit) {
+          return NextResponse.json(
+            { error: "스케치 편집 권한이 없습니다." },
+            { status: 403 }
+          );
+        }
+
+        savedDrawing = await Drawing.findByIdAndUpdate(
+          id,
+          {
+            $set: {
+              title: title || "새로운 스케치",
+              elements: elements || [],
+              thumbnail,
+              backgroundColor: backgroundColor || "#ffffff",
+              backgroundPattern: backgroundPattern || "blank",
+              canvasWidth: canvasWidth || 1920,
+              canvasHeight: canvasHeight || 1080,
+            },
           },
-        },
-        { returnDocument: "after", upsert: true }
-      );
+          { returnDocument: "after" }
+        );
+      } else {
+        savedDrawing = await Drawing.create({
+          userEmail,
+          title: title || "새로운 스케치",
+          elements: elements || [],
+          thumbnail,
+          backgroundColor: backgroundColor || "#ffffff",
+          backgroundPattern: backgroundPattern || "blank",
+          canvasWidth: canvasWidth || 1920,
+          canvasHeight: canvasHeight || 1080,
+        });
+      }
     } else {
-      // 신규 드로잉 생성
       savedDrawing = await Drawing.create({
         userEmail,
         title: title || "새로운 스케치",
@@ -114,7 +194,7 @@ async function handlePost(request: Request) {
   }
 }
 
-// DELETE: 드로잉 삭제
+// DELETE: 드로잉 삭제 (소유자 전용)
 async function handleDelete(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -134,10 +214,21 @@ async function handleDelete(request: Request) {
 
     const deleted = await Drawing.findOneAndDelete({ _id: id, userEmail });
     if (!deleted) {
-      return NextResponse.json({ error: "삭제할 대상을 찾을 수 없습니다." }, { status: 404 });
+      return NextResponse.json(
+        { error: "삭제할 대상을 찾을 수 없거나 삭제 권한이 없습니다." },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json({ success: true, message: "드로잉이 삭제되었습니다." }, { status: 200 });
+    await Promise.all([
+      CollaborationGroup.deleteMany({ moduleType: "drawing", targetId: id }),
+      CollaborationInvite.deleteMany({ moduleType: "drawing", targetId: id }),
+    ]);
+
+    return NextResponse.json(
+      { success: true, message: "드로잉이 삭제되었습니다." },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("Failed to delete drawing:", error);
     return NextResponse.json(

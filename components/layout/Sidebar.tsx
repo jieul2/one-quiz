@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -8,6 +8,8 @@ import { useSession, signIn, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useMounted } from "@/lib/hooks/useMounted";
 import { CustomScrollArea } from "@/components/common/CustomScrollArea";
+import { NotificationCenterWidget } from "@/components/layout/NotificationCenterWidget";
+import type { NotificationItem } from "@/lib/collaborationTypes";
 import {
   GraduationCap,
   Flame,
@@ -94,8 +96,32 @@ export function Sidebar({
     }
   };
 
-  // 🌟 관리자 대기 중인 피드백 알림 카운트
+  // 🌟 관리자 대기 중인 피드백 알림 카운트 + 사용자 실시간 협업 알림 상태
   const [pendingFeedbackCount, setPendingFeedbackCount] = useState(0);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isNotifLoading, setIsNotifLoading] = useState(false);
+
+  const loadNotifications = useCallback(async () => {
+    if (!session?.user?.email) return;
+    setIsNotifLoading(true);
+    try {
+      const res = await fetch("/api/notifications");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.notifications)) {
+          setNotifications(data.notifications);
+        }
+        if (typeof data.unreadCount === "number") {
+          setUnreadNotifCount(data.unreadCount);
+        }
+      }
+    } catch {
+    } finally {
+      setIsNotifLoading(false);
+    }
+  }, [session?.user?.email]);
 
   useEffect(() => {
     let ignore = false;
@@ -117,6 +143,25 @@ export function Sidebar({
       ignore = true;
     };
   }, [session?.user?.role]);
+
+  useEffect(() => {
+    if (!session?.user?.email) return;
+    const initTimer = setTimeout(() => {
+      loadNotifications();
+    }, 0);
+    const intervalId = setInterval(() => {
+      loadNotifications();
+    }, 15000);
+    const handleCustomUpdate = () => {
+      loadNotifications();
+    };
+    window.addEventListener("onequiz:notifications-updated", handleCustomUpdate);
+    return () => {
+      clearTimeout(initTimer);
+      clearInterval(intervalId);
+      window.removeEventListener("onequiz:notifications-updated", handleCustomUpdate);
+    };
+  }, [session?.user?.email, loadNotifications]);
 
   // 🌟 축소 모드일 때 클리핑 없는 뷰포트 고정 플로팅 말풍선(툴팁) 위치 상태
   const mounted = useMounted();
@@ -477,33 +522,45 @@ export function Sidebar({
               <Settings className="w-4 h-4" />
             </Link>
 
-            {/* 알림 (관리자일 때 대기 중인 피드백 알람 배지 연동) */}
-            <Link
-              href={session?.user?.role === "admin" ? "/settings/feedback" : "/settings"}
-              onClick={onCloseMobile}
-              onMouseEnter={(e) =>
+            {/* 알림 (협업 요청 수락/거절 위젯 + 관리자 피드백 알람 배지 연동) */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsNotifOpen((prev) => !prev);
+                loadNotifications();
+              }}
+              onMouseEnter={(e) => {
+                const totalBadge =
+                  unreadNotifCount +
+                  (session?.user?.role === "admin" ? pendingFeedbackCount : 0);
                 handleMouseEnterItem(
                   e,
-                  session?.user?.role === "admin"
-                    ? `피드백 알림 (${pendingFeedbackCount}건)`
-                    : "알림"
-                )
-              }
+                  totalBadge > 0 ? `알림 센터 (${totalBadge}건)` : "알림 센터"
+                );
+              }}
               onMouseLeave={handleMouseLeaveItem}
               className="p-1.5 rounded-lg hover:bg-surface-container-low text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer group relative"
               title={
                 isIconOnly
                   ? undefined
-                  : session?.user?.role === "admin"
-                  ? `알림 (미확인 피드백 ${pendingFeedbackCount}건)`
-                  : "알림"
+                  : unreadNotifCount > 0
+                  ? `알림 (${unreadNotifCount}건 미확인)`
+                  : "알림 & 협업 요청"
               }
             >
               <Bell className="w-4 h-4" />
-              {session?.user?.role === "admin" && pendingFeedbackCount > 0 && (
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-error" />
+              {(unreadNotifCount > 0 ||
+                (session?.user?.role === "admin" && pendingFeedbackCount > 0)) && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-error text-on-error text-[10px] font-bold flex items-center justify-center leading-none">
+                  {unreadNotifCount +
+                    (session?.user?.role === "admin" ? pendingFeedbackCount : 0) >
+                  99
+                    ? "99+"
+                    : unreadNotifCount +
+                      (session?.user?.role === "admin" ? pendingFeedbackCount : 0)}
+                </span>
               )}
-            </Link>
+            </button>
           </div>
 
           {/* 유저 세션 프로필 */}
@@ -602,6 +659,17 @@ export function Sidebar({
         </div>,
         document.body
       )}
+
+      {/* 🌟 네비게이션 알림 & 협업 요청 수락/거절 위젯 */}
+      <NotificationCenterWidget
+        isOpen={isNotifOpen}
+        onClose={() => setIsNotifOpen(false)}
+        notifications={notifications}
+        isLoading={isNotifLoading}
+        isAdmin={session?.user?.role === "admin"}
+        pendingFeedbackCount={pendingFeedbackCount}
+        onRefresh={loadNotifications}
+      />
     </>
   );
 }

@@ -22,8 +22,10 @@ import {
   Edit3,
   Maximize2,
   LayoutGrid,
+  Share2,
 } from "lucide-react";
 import { SaveStatusIndicator, SaveStatus } from "@/components/common/SaveStatusIndicator";
+import { CollaborationShareModal } from "@/components/collaboration/CollaborationShareModal";
 import { toast } from "@/lib/toast";
 
 export interface MindmapNode {
@@ -109,6 +111,7 @@ export function MindmapView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateMapModalOpen, setIsCreateMapModalOpen] = useState(false);
   const [newMapTitleInput, setNewMapTitleInput] = useState("");
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [savedTimeStr, setSavedTimeStr] = useState<string>("");
@@ -1277,6 +1280,16 @@ export function MindmapView() {
           </button>
 
           <button
+            type="button"
+            onClick={() => setIsShareModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/30 hover:bg-primary/20 text-primary text-xs font-bold shadow-xs transition-all cursor-pointer shrink-0 whitespace-nowrap"
+            title="회원 이메일을 입력하여 이 마인드맵 협업 공유"
+          >
+            <Share2 size={14} />
+            <span>공유 · 협업</span>
+          </button>
+
+          <button
             onClick={() => setIsCreateMapModalOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-xs hover:opacity-90 transition-opacity cursor-pointer shrink-0 whitespace-nowrap"
           >
@@ -1608,6 +1621,17 @@ export function MindmapView() {
             </div>
           )}
         </div>
+      )}
+
+      {/* 협업 공유 모달 (2D 마인드맵 전용) */}
+      {activeMapId && (
+        <CollaborationShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          moduleType="mindmap"
+          targetId={activeMapId}
+          targetTitle={mapTitle}
+        />
       )}
     </div>
   );

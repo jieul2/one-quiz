@@ -10,6 +10,15 @@
   src: url("/fonts/PretendardVariable.woff2") format("woff2-variations");
 }
 
+/* 🌟 D2Coding 로컬 모노스페이스 폰트 정의 */
+@font-face {
+  font-family: "D2Coding";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/D2Coding-Ver1.4.0-20261003.woff2") format("woff2");
+}
+
 :root {
   /* 1. Base Font Scale (90% 축소 밸런스) */
   --text-2xs: 11px;
@@ -36,6 +45,7 @@
 
 @theme {
   --font-sans: "Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  --font-mono: "D2Coding", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* Font Sizes (Tailwind utilities mapping & var(--text-sm) support - scaled to 90%) */
   --text-2xs: 11px;

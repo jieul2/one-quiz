@@ -3,6 +3,7 @@
 import React from "react";
 import { FileText, Layers, Plus, Trash2, Code2 } from "lucide-react";
 import { FunctionalSpecItem, ApiSpecItem } from "./types";
+import { MarkdownEditor } from "@/components/common/MarkdownEditor";
 
 interface ErdSpecsTabProps {
   architectureMd: string;
@@ -41,11 +42,11 @@ export function ErdSpecsTab({
           <span className="ui-caption text-on-surface-variant font-mono">Markdown 서술 지원</span>
         </div>
 
-        <textarea
+        <MarkdownEditor
           value={architectureMd}
-          onChange={(e) => onArchitectureMdChange(e.target.value)}
+          onChange={onArchitectureMdChange}
           rows={10}
-          className="w-full p-4 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface text-xs font-mono leading-relaxed focus:outline-none focus:border-primary"
+          minHeightClass="min-h-[260px]"
           placeholder="시스템 설계 아키텍처, 디렉터리 구성, 기술 스택 등을 마크다운으로 자유롭게 작성하세요..."
         />
       </div>

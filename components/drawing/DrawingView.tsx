@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Type, X } from "lucide-react";
 import { SaveStatus } from "@/components/common/SaveStatusIndicator";
+import { CollaborationShareModal } from "@/components/collaboration/CollaborationShareModal";
 import { toast } from "@/lib/toast";
 import { alertModal } from "@/lib/alert";
 import { useMounted } from "@/lib/hooks/useMounted";
@@ -62,6 +63,7 @@ export function DrawingView() {
   // 카드형 저장 및 일기 추가 비동기 상태
   const [isSavingCard, setIsSavingCard] = useState(false);
   const [isAddingToDiary, setIsAddingToDiary] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   // 1. 보관함 스케치 목록 로드
   const fetchDrawingList = useCallback(async () => {
@@ -1130,6 +1132,11 @@ export function DrawingView() {
         onAddToTodayDiary={handleAddToTodayDiary}
         onNewDrawing={handleNewDrawing}
         onCopyClipboard={handleCopyClipboard}
+        onOpenShareModal={
+          currentId && currentId !== "new"
+            ? () => setIsShareModalOpen(true)
+            : undefined
+        }
         onToggleDownload={() => setIsDownloadOpen((prev) => !prev)}
         onDownload={handleDownload}
       />
@@ -1273,6 +1280,17 @@ export function DrawingView() {
             </div>
           </div>
         </div>
+      )}
+
+      {currentId && currentId !== "new" && (
+        <CollaborationShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          moduleType="drawing"
+          targetId={currentId}
+          targetTitle={title}
+          onChanged={fetchDrawingList}
+        />
       )}
     </div>
   );

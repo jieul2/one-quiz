@@ -6,8 +6,6 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   Calendar as CalendarIcon,
-  UserPlus,
-  Globe,
   Plus,
   MoreVertical,
   MessageSquare,
@@ -26,10 +24,12 @@ import {
   CheckCheck,
   CheckCircle2,
   Search,
+  Share2,
 } from "lucide-react";
 import { ProjectRoadmap, RoadmapItem, RoadmapComment, BacklogItem } from "@/lib/roadmapTypes";
 import { toast } from "@/lib/toast";
 import { SaveStatusIndicator, SaveStatus } from "@/components/common/SaveStatusIndicator";
+import { CollaborationShareModal } from "@/components/collaboration/CollaborationShareModal";
 import { useTheme } from "next-themes";
 import { THEME_LIST } from "@/lib/themes/themeList";
 import { ScrollArea } from "@/components/ui/ScrollArea";
@@ -56,19 +56,10 @@ const INITIAL_ROADMAP: ProjectRoadmap = {
 
 export function RoadmapView() {
   const { data: session } = useSession();
+  const userEmail = session?.user?.email || "";
 
-  // 1. 로드맵 상태 (로컬스토리지 보존)
-  const [roadmap, setRoadmap] = useState<ProjectRoadmap>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("onequiz_roadmap_data");
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {}
-      }
-    }
-    return INITIAL_ROADMAP;
-  });
+  // 1. 로드맵 상태 (계정별 격리 저장)
+  const [roadmap, setRoadmap] = useState<ProjectRoadmap>(INITIAL_ROADMAP);
 
   // 저장 상태 인디케이터 관리
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
@@ -93,9 +84,6 @@ export function RoadmapView() {
   const [editStartDate, setEditStartDate] = useState(roadmap.startDate);
   const [editEndDate, setEditEndDate] = useState(roadmap.endDate);
 
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"admin" | "editor" | "viewer">("editor");
-
   const [itemTitle, setItemTitle] = useState("");
   const [itemStartDate, setItemStartDate] = useState("2026-10-19");
   const [itemEndDate, setItemEndDate] = useState("2026-10-23");
@@ -114,26 +102,25 @@ export function RoadmapView() {
   const [backlogModalSearch, setBacklogModalSearch] = useState("");
 
   const [itemInputTab, setItemInputTab] = useState<"direct" | "backlog">("direct");
-  const [backlogList, setBacklogList] = useState<BacklogItem[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("onequiz_backlog_items");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        } catch {}
-      }
-    }
-    return [];
-  });
+  const [backlogList, setBacklogList] = useState<BacklogItem[]>([]);
+  const [sharedRoadmapIds, setSharedRoadmapIds] = useState<Set<string>>(new Set());
 
   const refreshBacklogs = useCallback(async () => {
+    if (!userEmail) return;
+    const backlogCacheKey = `onequiz_backlog_items_${userEmail}`;
     try {
-      const res = await fetch("/api/ideas");
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          const normalized: BacklogItem[] = data.map((item: Record<string, unknown>) => {
+      const [ideasRes, roadmapsRes] = await Promise.all([
+        fetch("/api/ideas"),
+        fetch("/api/roadmap?list=true"),
+      ]);
+
+      const mergedMap = new Map<string, BacklogItem>();
+      const sharedSet = new Set<string>();
+
+      if (ideasRes.ok) {
+        const data = await ideasRes.json();
+        if (Array.isArray(data)) {
+          for (const item of data as Record<string, unknown>[]) {
             let st: BacklogItem["status"] = "idea";
             if (item.status === "completed") st = "completed";
             else if (item.status === "progress" || item.status === "approved") st = "approved";
@@ -141,35 +128,70 @@ export function RoadmapView() {
             else if (item.status === "review") st = "review";
 
             const idVal = String(item.id || item._id || "");
-            return {
+            mergedMap.set(idVal, {
               id: idVal,
               _id: item._id ? String(item._id) : undefined,
               title: String(item.title || "무제"),
               description: String(item.description || ""),
               status: st,
               priority: (item.priority as BacklogItem["priority"]) || "medium",
-              isPublic: item.isPublic !== undefined ? Boolean(item.isPublic) : true,
+              isPublic: item.isPublic !== undefined ? Boolean(item.isPublic) : false,
               tags: Array.isArray(item.tags) ? (item.tags as string[]) : [],
               assignee: item.assignee ? String(item.assignee) : "",
-              promotedToProjectId: item.promotedToProjectId ? String(item.promotedToProjectId) : (st === "promoted" ? idVal : undefined),
+              promotedToProjectId: item.promotedToProjectId
+                ? String(item.promotedToProjectId)
+                : st === "promoted"
+                ? idVal
+                : undefined,
               startDate: item.startDate ? String(item.startDate) : undefined,
               endDate: item.endDate ? String(item.endDate) : undefined,
               color: item.color ? String(item.color) : undefined,
               completedAt: item.completedAt ? String(item.completedAt) : undefined,
               createdAt: item.createdAt ? String(item.createdAt).slice(0, 10) : "2026-11-04",
-            };
-          });
-          setBacklogList(normalized);
-          if (typeof window !== "undefined") {
-            localStorage.setItem("onequiz_backlog_items", JSON.stringify(normalized));
+            });
           }
-          return;
         }
       }
+
+      if (roadmapsRes.ok) {
+        const rmList = await roadmapsRes.json();
+        if (Array.isArray(rmList)) {
+          for (const rm of rmList as Record<string, unknown>[]) {
+            const pid = String(rm.projectId || "");
+            if (!pid) continue;
+            if (rm.isOwner === false) {
+              sharedSet.add(pid);
+              if (!mergedMap.has(pid)) {
+                mergedMap.set(pid, {
+                  id: pid,
+                  title: String(rm.name || "공유 로드맵"),
+                  description: String(rm.description || ""),
+                  status: "promoted",
+                  priority: "medium",
+                  isPublic: false,
+                  tags: [`공유:${String(rm.ownerName || "팀원")}`],
+                  promotedToProjectId: pid,
+                  startDate: rm.startDate ? String(rm.startDate) : "2026-10-15",
+                  endDate: rm.endDate ? String(rm.endDate) : "2026-11-04",
+                  createdAt: rm.createdAt ? String(rm.createdAt).slice(0, 10) : "2026-11-04",
+                });
+              }
+            }
+          }
+        }
+      }
+
+      setSharedRoadmapIds(sharedSet);
+      const normalized = Array.from(mergedMap.values());
+      setBacklogList(normalized);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(backlogCacheKey, JSON.stringify(normalized));
+      }
+      return;
     } catch {}
 
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("onequiz_backlog_items");
+      const saved = localStorage.getItem(backlogCacheKey);
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
@@ -179,14 +201,21 @@ export function RoadmapView() {
         } catch {}
       }
     }
-  }, []);
+  }, [userEmail]);
 
-  // 🌟 마운트 시 백로그 데이터 즉시 로드 (백로그에서 지정한 프로젝트가 즉각 나타나도록 보장)
+  // 🌟 마운트 시 백로그 및 공유 로드맵 즉시 로드
   useEffect(() => {
     const timer = setTimeout(() => {
       refreshBacklogs();
     }, 0);
-    return () => clearTimeout(timer);
+    const handleCollabUpdate = () => {
+      refreshBacklogs();
+    };
+    window.addEventListener("onequiz:collab-updated", handleCollabUpdate);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("onequiz:collab-updated", handleCollabUpdate);
+    };
   }, [refreshBacklogs]);
 
   // 🌟 백로그 페이지에서 프로젝트로 확정된 아이템 중 진행 중인 항목만 필터링 (완료된 프로젝트는 제외)
@@ -274,17 +303,17 @@ export function RoadmapView() {
     return confirmedProjects[0] || completedProjects[0] || null;
   }, [backlogList, confirmedProjects, completedProjects, selectedProjectId]);
 
-  // 백로그 리스트 영구 저장 헬퍼 (DB + localStorage 동시 보존)
+  // 백로그 리스트 영구 저장 헬퍼 (DB + 계정별 localStorage 동시 보존)
   const persistBacklogList = useCallback(
     async (items: BacklogItem[]) => {
       setBacklogList(items);
-      if (typeof window !== "undefined") {
+      if (typeof window !== "undefined" && userEmail) {
         try {
-          localStorage.setItem("onequiz_backlog_items", JSON.stringify(items));
+          localStorage.setItem(`onequiz_backlog_items_${userEmail}`, JSON.stringify(items));
         } catch {}
       }
 
-      if (session?.user?.email) {
+      if (userEmail) {
         try {
           await fetch("/api/ideas", {
             method: "POST",
@@ -294,7 +323,7 @@ export function RoadmapView() {
         } catch {}
       }
     },
-    [session]
+    [userEmail]
   );
 
   // 프로젝트 완료 처리 (끝난 보관함으로 이동 -> 프로젝트 활성 목록 및 백로그 칸반에서 즉시 제외)
@@ -371,20 +400,20 @@ export function RoadmapView() {
   const dragDurationDaysRef = useRef(0);
   const justDraggedRef = useRef(false);
 
-  // 영구 저장 헬퍼 (프로젝트별 격리 저장: DB + localStorage)
+  // 영구 저장 헬퍼 (프로젝트별+계정별 격리 저장: DB + localStorage)
   const persistRoadmap = useCallback(
     async (updated: ProjectRoadmap) => {
       const projId = activeProject?.id || updated.id || "proj-1";
       const payload = { ...updated, id: projId, projectId: projId };
       setSaveStatus("saving");
       setRoadmap(payload);
-      if (typeof window !== "undefined") {
+      if (typeof window !== "undefined" && userEmail) {
         try {
-          localStorage.setItem(`onequiz_roadmap_data_${projId}`, JSON.stringify(payload));
+          localStorage.setItem(`onequiz_roadmap_data_${userEmail}_${projId}`, JSON.stringify(payload));
         } catch {}
       }
 
-      if (session?.user?.email) {
+      if (userEmail) {
         try {
           const res = await fetch("/api/roadmap", {
             method: "POST",
@@ -400,7 +429,7 @@ export function RoadmapView() {
         markSaved();
       }
     },
-    [activeProject?.id, session, markSaved]
+    [activeProject?.id, userEmail, markSaved]
   );
 
   // 🌟 프로젝트(백로그)별 독립 로드맵 로드 (사용자 요구사항: 프로젝트마다 간트 바 분리)
@@ -410,10 +439,9 @@ export function RoadmapView() {
     const currentProj = activeProject;
     let isMounted = true;
 
-    // 1. 해당 프로젝트 전용 localStorage 확인 (비동기 스케줄링으로 렌더 캐스케이드 방지)
     const localTimer = setTimeout(() => {
-      if (typeof window !== "undefined" && isMounted) {
-        const saved = localStorage.getItem(`onequiz_roadmap_data_${projId}`);
+      if (typeof window !== "undefined" && isMounted && userEmail) {
+        const saved = localStorage.getItem(`onequiz_roadmap_data_${userEmail}_${projId}`);
         if (saved) {
           try {
             const parsed = JSON.parse(saved);
@@ -429,7 +457,7 @@ export function RoadmapView() {
             startDate: currentProj.startDate || "2026-10-15",
             endDate: currentProj.endDate || "2026-11-04",
             createdAt: currentProj.createdAt || "2026-11-04",
-            isPublic: true,
+            isPublic: false,
             members: [],
             items: currentProj.startDate && currentProj.endDate ? [
               {
@@ -448,7 +476,7 @@ export function RoadmapView() {
 
     // 2. 서버 DB에서 해당 프로젝트의 로드맵 조회 (/api/roadmap?projectId=...)
     async function loadProjectRoadmap() {
-      if (session?.user?.email) {
+      if (userEmail) {
         try {
           const res = await fetch(`/api/roadmap?projectId=${projId}`);
           if (res.ok) {
@@ -461,7 +489,7 @@ export function RoadmapView() {
                 startDate: data.startDate || currentProj.startDate || "2026-10-15",
                 endDate: data.endDate || currentProj.endDate || "2026-11-04",
                 createdAt: data.createdAt ? String(data.createdAt).slice(0, 10) : "2026-11-04",
-                isPublic: data.isPublic !== undefined ? data.isPublic : true,
+                isPublic: data.isPublic !== undefined ? data.isPublic : false,
                 members: data.members || [],
                 items: data.items || [],
               };
@@ -469,7 +497,7 @@ export function RoadmapView() {
               setEditStartDate(loaded.startDate);
               setEditEndDate(loaded.endDate);
               if (typeof window !== "undefined") {
-                localStorage.setItem(`onequiz_roadmap_data_${projId}`, JSON.stringify(loaded));
+                localStorage.setItem(`onequiz_roadmap_data_${userEmail}_${projId}`, JSON.stringify(loaded));
               }
               markSaved();
               return;
@@ -487,7 +515,7 @@ export function RoadmapView() {
       isMounted = false;
       clearTimeout(localTimer);
     };
-  }, [activeProject, session?.user?.email, markSaved]);
+  }, [activeProject, userEmail, markSaved]);
 
   // 타임라인 일자 목록 생성 (2026-10-15 ~ 2026-11-04 등)
   const timelineDays = useMemo(() => {
@@ -776,24 +804,6 @@ export function RoadmapView() {
     };
     persistRoadmap(updated);
     setIsDateModalOpen(false);
-  };
-
-  // 팀원 초대
-  const handleInviteSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inviteEmail.trim()) return;
-    const newMember = {
-      email: inviteEmail.trim(),
-      name: inviteEmail.split("@")[0],
-      role: inviteRole,
-    };
-    const updated = {
-      ...roadmap,
-      members: [...roadmap.members, newMember],
-    };
-    persistRoadmap(updated);
-    setInviteEmail("");
-    toast.success(`${inviteEmail} 님에게 초대장이 발송되었습니다.`);
   };
 
   // 항목 생성 / 수정
@@ -1121,6 +1131,11 @@ export function RoadmapView() {
                         <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
                           {proj.status === "promoted" ? "프로젝트 전환 완료" : "진행 확정"}
                         </span>
+                        {sharedRoadmapIds.has(proj.id) && (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                            공유받음
+                          </span>
+                        )}
                       </div>
 
                       {proj.description && (
@@ -1358,24 +1373,14 @@ export function RoadmapView() {
             <span>기간 수정</span>
           </button>
 
-          {/* 초대 버튼 */}
+          {/* 초대 / 협업 공유 버튼 */}
           <button
             onClick={() => setIsInviteModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface border border-outline-variant rounded-md font-semibold transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-md font-bold transition-colors cursor-pointer"
+            title="회원 이메일을 입력하여 이 로드맵 협업 공유"
           >
-            <UserPlus size={14} className="text-primary" />
-            <span>초대 ({roadmap.members.length})</span>
-          </button>
-
-          {/* 전체 공개 (팀원 기능 업데이트 전까지 임시 비활성화) */}
-          <button
-            type="button"
-            disabled
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium border border-outline-variant/60 bg-surface-container-low text-on-surface-variant/50 cursor-not-allowed opacity-60 text-xs"
-            title="팀원 초대 기능 출시 전까지 임시 비활성화됩니다"
-          >
-            <Globe size={13} />
-            <span>전체 공개 (준비 중)</span>
+            <Share2 size={14} />
+            <span>공유 · 협업 ({roadmap.members.length + 1})</span>
           </button>
 
           {/* + 항목 추가 버튼 */}
@@ -1936,74 +1941,15 @@ export function RoadmapView() {
         </div>
       )}
 
-      {/* 5. 팀원 초대 모달 */}
-      {isInviteModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 w-full max-w-md shadow-lg space-y-4 text-on-surface">
-            <div className="flex justify-between items-center border-b border-outline-variant pb-3">
-              <div className="flex items-center gap-2">
-                <UserPlus size={18} className="text-secondary" />
-                <h3 className="font-bold text-base text-on-surface">프로젝트 팀원 초대</h3>
-              </div>
-              <button
-                onClick={() => setIsInviteModalOpen(false)}
-                className="p-1 rounded text-on-surface-variant hover:text-on-surface"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <form onSubmit={handleInviteSubmit} className="space-y-3.5 text-sm">
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="초대할 팀원 이메일"
-                  className="flex-1 p-2.5 bg-surface-container-low border border-outline-variant rounded-xl text-sm"
-                  required
-                />
-                <select
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as "admin" | "editor" | "viewer")}
-                  className="p-2.5 bg-surface-container-low border border-outline-variant rounded-xl font-medium text-sm"
-                >
-                  <option value="editor">편집자</option>
-                  <option value="viewer">뷰어 (댓글)</option>
-                  <option value="admin">관리자</option>
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-2.5 bg-primary text-on-primary font-bold rounded-xl shadow-xs text-sm"
-              >
-                초대장 발송
-              </button>
-            </form>
-
-            <div className="pt-2 border-t border-outline-variant space-y-2">
-              <span className="text-sm font-bold text-on-surface-variant">초대된 팀원 목록</span>
-              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                {roadmap.members.map((m, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low border border-outline-variant text-sm"
-                  >
-                    <div>
-                      <p className="font-bold text-on-surface">{m.name}</p>
-                      <p className="text-xs text-on-surface-variant">{m.email}</p>
-                    </div>
-                    <span className="text-xs px-2 py-0.5 rounded-md bg-surface-container-high font-mono font-bold text-on-surface-variant">
-                      {m.role}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 5. 협업 공유 모달 (회원 이름 검색 -> 요청 -> 알림 수락/거절 연동) */}
+      <CollaborationShareModal
+        isOpen={isInviteModalOpen}
+        onClose={() => setIsInviteModalOpen(false)}
+        moduleType="roadmap"
+        targetId={activeProject?.id || roadmap.id}
+        targetTitle={activeProject?.title || roadmap.name}
+        onChanged={refreshBacklogs}
+      />
 
       {/* 6. 항목 생성/수정 모달 */}
       {isItemModalOpen && (

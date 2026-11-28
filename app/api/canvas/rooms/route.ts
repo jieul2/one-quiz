@@ -4,35 +4,55 @@ import { authOptions } from "@/lib/auth";
 import dbConnect from "@/lib/mongodb";
 import CanvasRoom from "@/models/CanvasRoom";
 import CanvasItem from "@/models/CanvasItem";
+import CollaborationGroup from "@/models/CollaborationGroup";
+import CollaborationInvite from "@/models/CollaborationInvite";
+import { getUserCollabGroups } from "@/lib/collaborationServer";
 
-const DEFAULT_ROOMS = [
-  {
-    roomId: "default-room",
-    title: "메인 브레인스토밍 룸",
-    description: "원퀴즈 기본 아이디어 회의실입니다.",
-    category: "브레인스토밍",
-    creatorEmail: "system@one-quiz.com",
-    creatorName: "원퀴즈 시스템",
-  },
-  {
-    roomId: "exam-strategy-room",
-    title: "2026 합격 전략 기획실",
-    description: "기출문제 공략 및 학습 일정 조율을 위한 회의 공간",
-    category: "시험대비",
-    creatorEmail: "system@one-quiz.com",
-    creatorName: "원퀴즈 시스템",
-  },
-];
-
-// 1. 회의실 목록 조회
+// 1. 회의실 목록 조회 (본인 생성 + 협업 수락한 공유 회의실만 반환)
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions);
+    const userEmail = session?.user?.email;
+    if (!userEmail) {
+      return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    }
+
     await dbConnect();
-    const customRooms = await CanvasRoom.find({}).sort({ createdAt: -1 }).lean();
+
+    const groups = await getUserCollabGroups("canvas", userEmail);
+    const groupByRoomId = new Map(groups.map((g) => [g.targetId, g]));
+    const sharedRoomIds = groups
+      .filter((g) => g.ownerEmail !== userEmail)
+      .map((g) => g.targetId);
+
+    const rooms = await CanvasRoom.find({
+      $or: [
+        { creatorEmail: userEmail },
+        ...(sharedRoomIds.length > 0 ? [{ roomId: { $in: sharedRoomIds } }] : []),
+      ],
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const formatted = rooms.map((room) => {
+      const isOwner = room.creatorEmail === userEmail;
+      const group = groupByRoomId.get(room.roomId);
+      const member = group?.members?.find((m) => m.email === userEmail);
+      const memberCount = (group?.members?.length || 0) + 1;
+
+      return {
+        ...room,
+        isOwner,
+        isShared: !isOwner || (group?.members?.length || 0) > 0,
+        collabRole: isOwner ? "owner" : member?.role || "viewer",
+        memberCount,
+        ownerName: group?.ownerName || room.creatorName || "회원",
+      };
+    });
 
     return NextResponse.json({
       success: true,
-      rooms: [...DEFAULT_ROOMS, ...customRooms],
+      rooms: formatted,
     });
   } catch (error) {
     console.error("GET /api/canvas/rooms error:", error);
@@ -43,13 +63,17 @@ export async function GET() {
   }
 }
 
-// 2. 새 회의실 생성
+// 2. 새 회의실 생성 (개인 격리)
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    const creatorEmail = session?.user?.email || "anonymous@one-quiz.com";
+    const creatorEmail = session?.user?.email;
+    if (!creatorEmail) {
+      return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    }
+
     const creatorName =
-      session?.user?.name || (session?.user?.email ? session.user.email.split("@")[0] : "학습자");
+      session.user?.name || creatorEmail.split("@")[0] || "학습자";
 
     const body = await req.json();
     const { title, description = "", category = "브레인스토밍" } = body;
@@ -71,7 +95,20 @@ export async function POST(req: Request) {
       creatorName,
     });
 
-    return NextResponse.json({ success: true, room: newRoom }, { status: 201 });
+    return NextResponse.json(
+      {
+        success: true,
+        room: {
+          ...newRoom.toObject(),
+          isOwner: true,
+          isShared: false,
+          collabRole: "owner",
+          memberCount: 1,
+          ownerName: creatorName,
+        },
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("POST /api/canvas/rooms error:", error);
     return NextResponse.json(
@@ -81,26 +118,41 @@ export async function POST(req: Request) {
   }
 }
 
-// 3. 회의실 삭제
+// 3. 회의실 삭제 (소유자 전용)
 export async function DELETE(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
+    const userEmail = session?.user?.email;
+    if (!userEmail) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
     const { searchParams } = new URL(req.url);
     const roomId = searchParams.get("roomId");
 
-    if (!roomId || roomId === "default-room" || roomId === "exam-strategy-room") {
-      return NextResponse.json({ error: "기본 회의실은 삭제할 수 없습니다." }, { status: 400 });
+    if (!roomId) {
+      return NextResponse.json({ error: "회의실 ID가 필요합니다." }, { status: 400 });
     }
 
     await dbConnect();
 
-    // 해당 방의 아이템 및 방 삭제
-    await CanvasItem.deleteMany({ boardId: roomId });
-    await CanvasRoom.findOneAndDelete({ roomId });
+    const deleted = await CanvasRoom.findOneAndDelete({
+      roomId,
+      creatorEmail: userEmail,
+    });
+
+    if (!deleted) {
+      return NextResponse.json(
+        { error: "삭제할 회의실이 없거나 삭제 권한이 없습니다." },
+        { status: 403 }
+      );
+    }
+
+    await Promise.all([
+      CanvasItem.deleteMany({ boardId: roomId }),
+      CollaborationGroup.deleteMany({ moduleType: "canvas", targetId: roomId }),
+      CollaborationInvite.deleteMany({ moduleType: "canvas", targetId: roomId }),
+    ]);
 
     return NextResponse.json({ success: true, message: "회의실이 삭제되었습니다." });
   } catch (error) {

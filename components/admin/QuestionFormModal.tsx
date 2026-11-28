@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   X,
   Eye,
@@ -16,11 +16,7 @@ import {
   Save,
   AlertCircle,
 } from "lucide-react";
-import { useTheme } from "next-themes";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { atomDark, oneLight } from "react-syntax-highlighter/dist/cjs/styles/prism";
+import { MarkdownRenderer } from "@/components/common/MarkdownRenderer";
 import { toast } from "@/lib/toast";
 import { alertModal } from "@/lib/alert";
 import { invalidateQuestionsCache } from "@/lib/questionsClient";
@@ -63,111 +59,6 @@ const defaultFormData = {
   correctAnswer: ["1"],
   currentTagInput: "",
   explanation: "",
-};
-
-// 공통 마크다운 렌더러 컴포넌트
-const MarkdownRenderer = ({ content }: { content: string }) => {
-  const { theme } = useTheme();
-  const isDark = theme === "dark";
-
-  const cleanStyle = useMemo(() => {
-    const baseStyle = isDark ? atomDark : oneLight;
-    const newStyle: { [key: string]: React.CSSProperties } = {};
-    for (const key in baseStyle) {
-      if (Object.prototype.hasOwnProperty.call(baseStyle, key)) {
-        newStyle[key] = {
-          ...baseStyle[key],
-          background: "transparent",
-          backgroundColor: "transparent",
-        };
-      }
-    }
-    return newStyle;
-  }, [isDark]);
-
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        code({
-          inline,
-          className,
-          children,
-          style: _style,
-          ...props
-        }: React.ComponentPropsWithoutRef<"code"> & { inline?: boolean; node?: unknown }) {
-          const match = /language-(\w+)/.exec(className || "");
-          return !inline && match ? (
-            <SyntaxHighlighter
-              style={cleanStyle}
-              language={match[1]}
-              PreTag="div"
-              customStyle={{
-                background: "transparent",
-                backgroundColor: "transparent",
-                margin: 0,
-                padding: 0,
-                border: "none",
-              }}
-              codeTagProps={{
-                style: {
-                  background: "transparent",
-                  backgroundColor: "transparent",
-                  fontFamily: "var(--font-mono, monospace)",
-                },
-              }}
-              {...props}
-            >
-              {String(children).replace(/\n$/, "")}
-            </SyntaxHighlighter>
-          ) : (
-            <code
-              className="px-1.5 py-0.5 rounded bg-surface-container text-primary font-mono text-xs"
-              style={_style}
-              {...props}
-            >
-              {children}
-            </code>
-          );
-        },
-        pre({ children }) {
-          return <div className="bg-transparent p-0 m-0 overflow-x-auto">{children}</div>;
-        },
-        table({ children }) {
-          return (
-            <div className="overflow-x-auto my-4 rounded-xl border border-outline-variant shadow-xs">
-              <table className="w-full border-collapse text-left text-xs sm:text-sm">
-                {children}
-              </table>
-            </div>
-          );
-        },
-        thead({ children }) {
-          return (
-            <thead className="bg-surface-container-low text-on-surface">
-              {children}
-            </thead>
-          );
-        },
-        th({ children }) {
-          return (
-            <th className="border-b border-outline-variant px-4 py-2.5 font-bold">
-              {children}
-            </th>
-          );
-        },
-        td({ children }) {
-          return (
-            <td className="border-b border-outline-variant px-4 py-2.5 text-on-surface">
-              {children}
-            </td>
-          );
-        },
-      }}
-    >
-      {content}
-    </ReactMarkdown>
-  );
 };
 
 export function QuestionFormModal({

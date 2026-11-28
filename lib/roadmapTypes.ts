@@ -37,6 +37,9 @@ export interface BacklogItem {
   status: "idea" | "review" | "approved" | "promoted" | "completed";
   priority: "urgent" | "high" | "medium" | "low";
   isPublic: boolean;
+  authorEmail?: string;
+  sharedWithEmails?: string[];
+  isCardShared?: boolean;
   createdAt: string;
   completedAt?: string;
   tags: string[];
